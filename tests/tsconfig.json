@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.shared.json",
+
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "../dist/tests",
+    "baseUrl": "./",
+    "paths": {
+      "reactive-prototype": ["../dist/src/index.d.ts"],
+      "qunit": ["../types/qunit.d.ts"]
+    }
+  },
+  "include": ["**/*.ts"],
+  "references": [{ "path": "../src" }]
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.shared.json",
+
+  "compilerOptions": {
+    "composite": true,
+    "baseUrl": "./" /* Base directory to resolve non-absolute module names. */,
+    "rootDir": ".",
+    "outDir": "../dist/src",
+    "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */
+  },
+  "include": ["**/*.ts"]
+}
