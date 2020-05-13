@@ -1,9 +1,32 @@
-import type { Block } from "./block";
-import type { OutputFactory, AbstractOutput } from "./interfaces";
+import {
+  OutputFactory,
+  AbstractOutput,
+  Block,
+  Host,
+  RENDER,
+  logUpdaters,
+} from "./interfaces";
 import type { Operations } from "./ops";
 import { Output } from "./output";
-import type { Updater } from "./update";
-import { DebugFields } from "./utils";
+import { Updater, poll } from "./update";
+import {
+  DebugFields,
+  DEBUG,
+  AnnotatedFunction,
+  newtype,
+  frameSource,
+  annotate,
+  Structured,
+  description,
+  LogLevel,
+  callerLocation,
+  printStructured,
+} from "./debug";
+
+export type RenderProgram<Ops extends Operations, Args> = (
+  args: Args,
+  output: Output<Ops>
+) => Updater | void;
 
 /**
  * Represents the root block of the entire output. The root block is never cleared
@@ -12,24 +35,26 @@ import { DebugFields } from "./utils";
  */
 export class RootBlock<Ops extends Operations, Args = unknown>
   implements Block<Ops> {
-  #program: Program<Ops, Args>;
+  #program: AnnotatedFunction<RenderProgram<Ops, Args>>;
   #args: Args;
   #Output: OutputFactory<Ops>;
+  #host: Host;
   #updates: readonly Updater[] = [];
 
   constructor(
-    program: Program<Ops, Args>,
+    program:
+      | RenderProgram<Ops, Args>
+      | AnnotatedFunction<RenderProgram<Ops, Args>>,
     args: Args,
-    Output: OutputFactory<Ops>
+    Output: OutputFactory<Ops>,
+    host: Host
   ) {
-    this.#program = program;
+    this.#program = annotate(program);
     this.#args = args;
     this.#Output = Output;
+    this.#host = host;
   }
 
-  /**
-   * @internal
-   */
   get debugFields(): DebugFields {
     return new DebugFields("Invocation", {
       program: this.#program,
@@ -39,37 +64,42 @@ export class RootBlock<Ops extends Operations, Args = unknown>
     });
   }
 
-  invoke<T>(
-    cursor: Ops["cursor"],
-    updaters: Updater[],
-    callback: (output: AbstractOutput<Ops>, invoke: () => void) => T
-  ): T {
-    let output = this.#Output(cursor);
-    let tracked = new Output(output, updaters);
-    return callback(output, () => this.#program(this.#args, tracked));
+  [DEBUG](): Structured {
+    return newtype("RootBlock", description(frameSource(this.#program.source)));
   }
 
-  render(cursor: Ops["cursor"]): void {
-    // MORNING TODO: refactor this logic to use `invoke` across all blocks
-    let output = this.#Output(cursor);
-    let updates: Updater[] = [];
-    let tracked = new Output(output, updates);
-    this.#program(this.#args, tracked);
-    this.#updates = updates;
+  [RENDER](output: AbstractOutput<Ops>, host: Host): Updater | void {
+    let updaters: Updater[] = [];
+    let tracked = new Output(output, updaters, host);
+    host.indent(LogLevel.Info, () => this.#program.f(this.#args, tracked));
+
+    logUpdaters(updaters, host);
+
+    this.#updates = updaters;
   }
 
   rerender(): void {
-    let newUpdates = [];
+    let source = callerLocation(3);
+    this.#host.begin(
+      LogLevel.Info,
+      `rerendering at ${printStructured(source, true)}`
+    );
 
-    for (let item of this.#updates) {
-      let result = item.poll();
+    this.#host.indent(LogLevel.Info, () => {
+      let newUpdates = [];
 
-      if (result !== undefined) {
-        newUpdates.push(result);
+      for (let item of this.#updates) {
+        let result = poll(item, this.#host);
+
+        if (result !== undefined) {
+          newUpdates.push(result);
+        }
       }
-    }
 
-    this.#updates = newUpdates;
+      this.#updates = newUpdates;
+    });
+
+    this.#host.end(LogLevel.Info, `rerendering`);
   }
 }
 

@@ -1,4 +1,17 @@
+// eslint-disable-next-line import/no-cycle
 import { UnsafeUpdatable } from "./unsafe";
+import {
+  DEBUG,
+  Debuggable,
+  LogLevel,
+  AnnotatedFunction,
+  printStructured,
+  newtype,
+  Structured,
+} from "./debug";
+import type { Host } from "./interfaces";
+
+export const POLL = Symbol("POLL");
 
 /**
  * An `Updater` is an object that can be polled periodically in order to
@@ -11,21 +24,32 @@ import { UnsafeUpdatable } from "./unsafe";
  * is responsible for attaching it to a trackable computation by using the
  * `updateWith` API on `Block`.
  */
-export interface Updater {
+export interface Updater extends Debuggable {
   // poll returns an Updater if the possibility for change still exists,
   // and void if it doesn't.
-  poll(): Updater | void;
+  [POLL](host: Host): Updater | void;
 }
 
-export class UpdatingOperation {
+export function poll(updater: Updater, host: Host): Updater | void {
+  host.begin(LogLevel.Info, printStructured(updater[DEBUG](), true));
+  let result = host.indent(LogLevel.Info, () => updater[POLL](host));
+  host.end(LogLevel.Info, printStructured(updater[DEBUG](), false));
+  return result;
+}
+
+export class UpdatingOperation implements Updater {
   #computation: UnsafeUpdatable;
 
   constructor(computation: UnsafeUpdatable) {
     this.#computation = computation;
   }
 
-  poll(): Updater | void {
-    let result = this.#computation.poll();
+  [DEBUG](): Structured {
+    return newtype("UpdatingOperation", this.#computation[DEBUG]());
+  }
+
+  [POLL](host: Host): Updater | void {
+    let result = host.indent(LogLevel.Info, () => this.#computation.poll(host));
 
     switch (result) {
       case "const":
@@ -46,7 +70,9 @@ export class UpdatingOperation {
  * wrapped in an `UpdatingOperation`, which implements `Updater` for the
  * operation.
  */
-export function updating(operation: () => Updater): UpdatingOperation | void {
+export function updating(
+  operation: AnnotatedFunction<() => Updater>
+): UpdatingOperation | void {
   let tracked = new UnsafeUpdatable(operation);
   let kind = tracked.initialize();
 
@@ -59,25 +85,28 @@ export function updating(operation: () => Updater): UpdatingOperation | void {
 
 export type PresentUpdaters = readonly [Updater, ...Updater[]];
 
-export function pollUpdaters<T>(
+export function toPresentUpdaters(updaters: Updater[]): PresentUpdaters | void {
+  if (updaters.length > 0) {
+    return (updaters as unknown) as PresentUpdaters;
+  }
+}
+
+export function pollUpdaters(
   oldUpdaters: PresentUpdaters,
-  callback: (updaters: PresentUpdaters) => T
-): T | void {
+  host: Host
+): PresentUpdaters | void {
   // Rebuild the updating array.
   let newUpdaters: Updater[] = [];
 
   // Poll each `Updater`. If `poll` produced a new `Updater`, insert
   // it into the new updating array.
   for (let updater of oldUpdaters) {
-    let result = updater.poll();
+    let result = host.indent(LogLevel.Info, () => poll(updater, host));
 
     if (result !== undefined) {
       newUpdaters.push(result);
     }
   }
 
-  // If there's at least one new updater, call the callback
-  if (newUpdaters.length > 0) {
-    return callback(newUpdaters as [Updater, ...Updater[]]);
-  }
+  return toPresentUpdaters(newUpdaters);
 }

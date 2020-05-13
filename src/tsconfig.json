@@ -6,7 +6,10 @@
     "baseUrl": "./" /* Base directory to resolve non-absolute module names. */,
     "rootDir": ".",
     "outDir": "../dist/src",
-    "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "stacktracey": ["../types/stacktracey.d.ts"]
+    }
   },
   "include": ["**/*.ts"]
 }

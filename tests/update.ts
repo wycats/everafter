@@ -3,7 +3,17 @@ import type {
   SimpleComment,
   SimpleNode,
 } from "@simple-dom/interface";
-import type { ReactiveValue, Updater } from "reactive-prototype";
+import {
+  ReactiveValue,
+  Updater,
+  DEBUG,
+  POLL,
+  Structured,
+  struct,
+  description,
+} from "reactive-prototype";
+import HTMLSerializer from "@simple-dom/serializer";
+import voidMap from "@simple-dom/void-map";
 
 export class NodeValueUpdate implements Updater {
   #node: SimpleText | SimpleComment;
@@ -14,7 +24,14 @@ export class NodeValueUpdate implements Updater {
     this.#value = value;
   }
 
-  poll(): Updater | void {
+  [DEBUG](): Structured {
+    return struct("NodeValueUpdate", [
+      "value",
+      description(this.#node.nodeValue),
+    ]);
+  }
+
+  [POLL](): Updater | void {
     let current = this.#value.compute();
     this.#node.nodeValue = current.value;
 
@@ -33,7 +50,14 @@ export class NodeUpdate implements Updater {
     this.#value = value;
   }
 
-  poll(): Updater | void {
+  [DEBUG](): Structured {
+    return struct("NodeUpdate", [
+      "node",
+      description(new HTMLSerializer(voidMap).serialize(this.#node)),
+    ]);
+  }
+
+  [POLL](): Updater | void {
     let newNode = this.#value.compute();
     let node = this.#node;
 

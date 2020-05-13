@@ -8,7 +8,8 @@
     "baseUrl": "./",
     "paths": {
       "reactive-prototype": ["../dist/src/index.d.ts"],
-      "qunit": ["../types/qunit.d.ts"]
+      "qunit": ["../types/qunit.d.ts"],
+      "retrace": ["../types/stacktracey.ts"]
     }
   },
   "include": ["**/*.ts"],

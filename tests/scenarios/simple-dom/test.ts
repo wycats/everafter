@@ -13,6 +13,9 @@ import {
   Program,
   ReactiveValue,
   RootBlock,
+  render,
+  defaultHost,
+  block,
 } from "reactive-prototype";
 import { module, test } from "../../helpers";
 import { DomCursor, DomOps, element, SimpleDomOutput, text } from "./output";
@@ -20,6 +23,9 @@ import { DomCursor, DomOps, element, SimpleDomOutput, text } from "./output";
 @module("values")
 export class ValueTest {
   declare assert: qunit.Assert;
+
+  #host = defaultHost();
+
   @test "simple values"(): void {
     type HelloWorldArgs = { hello: Cell<string>; world: Derived<string> };
 
@@ -38,17 +44,17 @@ export class ValueTest {
     };
 
     // Initial
-    let render = this.render(HelloWorld, args).expect("hello WORLD");
+    let result = this.render(HelloWorld, args).expect("hello WORLD");
 
     // No-op rerender
-    render.rerender();
+    result.rerender();
 
     // Updater
-    render.update(() => (args.hello.value = "goodbye"), "goodbye WORLD");
-    render.update(() => (world.value = "planet"), "goodbye PLANET");
+    result.update(() => (args.hello.value = "goodbye"), "goodbye WORLD");
+    result.update(() => (world.value = "planet"), "goodbye PLANET");
 
     // Reset
-    render.update(() => {
+    result.update(() => {
       args.hello.value = "hello";
       world.value = "world";
     }, "hello WORLD");
@@ -64,14 +70,14 @@ export class ValueTest {
     const hello = (args: HelloWorldArgs, output: Output<DomOps>): void => {
       output.ifBlock(
         args.showChild,
-        output => {
+        block(output => {
           output.leaf(text(args.hello));
           output.leaf(text(Const(" ")));
           output.leaf(text(args.world));
-        },
-        () => {
+        }),
+        block(() => {
           /* noop */
-        }
+        })
       );
     };
 
@@ -84,22 +90,22 @@ export class ValueTest {
     };
 
     // Initial
-    let render = this.render(hello, args).expect("hello WORLD");
+    let result = this.render(hello, args).expect("hello WORLD");
 
     // No-op rerender
-    render.rerender();
+    result.rerender();
 
     // update a cell
-    render.update(() => (args.hello.value = "goodbye"), "goodbye WORLD");
+    result.update(() => (args.hello.value = "goodbye"), "goodbye WORLD");
 
     // update derived
-    render.update(() => (world.value = "planet"), "goodbye PLANET");
+    result.update(() => (world.value = "planet"), "goodbye PLANET");
 
     // update conditional input
-    render.update(() => (args.showChild.value = false), "<!---->");
+    result.update(() => (args.showChild.value = false), "<!---->");
 
     // reset
-    render.update(() => {
+    result.update(() => {
       args.hello.value = "hello";
       world.value = "world";
       args.showChild.value = true;
@@ -119,14 +125,14 @@ export class ValueTest {
     const hello = (args: HelloWorldArgs, output: Output<DomOps>): void => {
       output.ifBlock(
         args.showChild,
-        output => {
+        block(output => {
           output.leaf(text(args.hello));
           output.leaf(text(Const(" ")));
           output.leaf(text(args.world));
-        },
-        output => {
+        }),
+        block(output => {
           output.leaf(text(uppercase(args.hello)));
-        }
+        })
       );
     };
 
@@ -146,7 +152,7 @@ export class ValueTest {
     };
 
     // invoke an invocation for the program with the input state
-    let invocation = new RootBlock(hello, args, output);
+    let invocation = new RootBlock(hello, args, output, this.#host);
 
     // render the first time
     this.expectRender(invocation, element, { expected: "hello WORLD" });
@@ -203,7 +209,7 @@ export class ValueTest {
     };
 
     // invoke an invocation for the program with the input state
-    let invocation = new RootBlock(hello, args, output);
+    let invocation = new RootBlock(hello, args, output, this.#host);
 
     // render the first time
     this.expectRender(invocation, parent, { expected: "<p>hello WORLD</p>" });
@@ -238,8 +244,12 @@ export class ValueTest {
     let { parent, output } = this.context();
 
     // invoke an invocation for the program with the input state
-    let invocation = new RootBlock(program, args, output);
-    invocation.render(new DomCursor(parent, null));
+    let invocation = new RootBlock(program, args, output, this.#host);
+    render(
+      invocation,
+      new SimpleDomOutput(new DomCursor(parent, null)),
+      this.#host
+    );
 
     return new RenderExpectation(invocation, parent, this.assert);
   }
@@ -249,7 +259,11 @@ export class ValueTest {
     element: SimpleElement,
     { expected }: { expected: string }
   ): void {
-    invocation.render(new DomCursor(element, null));
+    render(
+      invocation,
+      new SimpleDomOutput(new DomCursor(element, null)),
+      this.#host
+    );
     this.assertHTML(element, expected);
   }
 

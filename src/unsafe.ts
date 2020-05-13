@@ -7,8 +7,20 @@ import {
   valueForTag,
 } from "@glimmer/validator";
 import type { Tag } from "@glimmer/validator/dist/types";
-import type { Updater } from "./update";
-import { DebugFields, unreachable, unwrap } from "./utils";
+// eslint-disable-next-line import/no-cycle
+import { Updater, poll } from "./update";
+import { unreachable, unwrap } from "./utils";
+import {
+  DebugFields,
+  AnnotatedFunction,
+  Debuggable,
+  frameSource,
+  DEBUG,
+  Structured,
+  newtype,
+  description,
+} from "./debug";
+import type { Host } from "./interfaces";
 
 export class UnsafeDirtyTrack<T> {
   #callback: () => T;
@@ -59,15 +71,16 @@ export class UnsafeDirtyTrack<T> {
   }
 }
 
-export class UnsafeUpdatable {
-  #initialize: () => Updater;
+export class UnsafeUpdatable implements Debuggable {
+  #initialize: AnnotatedFunction<() => Updater>;
   #update: Updater | void = undefined;
   #tag: Tag | null = null;
   #snapshot = -1;
 
-  constructor(initialize: () => Updater) {
+  constructor(initialize: AnnotatedFunction<() => Updater>) {
     this.#initialize = initialize;
   }
+  debugFields?: DebugFields | undefined;
 
   initialize(): "const" | "mutable" {
     beginTrackFrame();
@@ -75,7 +88,7 @@ export class UnsafeUpdatable {
     let update: Updater | typeof UNDEFINED = UNDEFINED;
 
     try {
-      update = this.#initialize();
+      update = this.#initialize.f();
     } finally {
       let tag = endTrackFrame();
       this.#tag = tag;
@@ -96,7 +109,14 @@ export class UnsafeUpdatable {
     }
   }
 
-  poll(): "const" | "mutable" {
+  [DEBUG](): Structured {
+    return newtype(
+      "UnsafeUpdatable",
+      description(frameSource(this.#initialize.source))
+    );
+  }
+
+  poll(host: Host): "const" | "mutable" {
     if (this.#tag === null || this.#update === null) {
       throw new Error(`invariant: Can only poll after initializing`);
     } else if (this.#tag && validateTag(this.#tag, this.#snapshot)) {
@@ -109,7 +129,7 @@ export class UnsafeUpdatable {
           throw new Error(`cannot poll an UnsafeUpdatable that was const`);
         }
 
-        this.#update = this.#update.poll();
+        this.#update = poll(this.#update, host);
 
         if (this.#update === undefined) {
           return "const";

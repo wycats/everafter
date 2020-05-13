@@ -1,47 +1,95 @@
-devDependencies:
-  '@babel/core': 7.9.6
-  '@babel/plugin-proposal-class-properties': 7.8.3_@babel+core@7.9.6
-  '@babel/plugin-proposal-decorators': 7.8.3_@babel+core@7.9.6
-  '@babel/plugin-syntax-class-properties': 7.8.3_@babel+core@7.9.6
-  '@babel/plugin-transform-typescript': 7.9.6_@babel+core@7.9.6
-  '@babel/preset-env': 7.9.6_@babel+core@7.9.6
-  '@babel/preset-typescript': 7.9.0_@babel+core@7.9.6
-  '@glimmer/babel-plugin-glimmer-env': 2.0.0-beta.7
-  '@glimmer/bundle-compiler': 0.51.1
-  '@glimmer/core': 2.0.0-beta.7
-  '@glimmer/interfaces': 0.51.1
-  '@glimmer/validator': 0.51.1
-  '@glimmerx/babel-plugin-component-templates': 0.2.2
-  '@glimmerx/component': 0.2.2_@babel+core@7.9.6
-  '@glimmerx/core': 0.2.2
-  '@glimmerx/eslint-plugin': 0.2.2_babel-eslint@10.1.0+eslint@6.8.0
-  '@glimmerx/modifier': 0.2.2
-  '@glimmerx/service': 0.2.2
-  '@simple-dom/document': 1.4.0
-  '@simple-dom/interface': 1.4.0
-  '@simple-dom/serializer': 1.4.0
-  '@simple-dom/void-map': 1.4.0
-  '@typescript-eslint/eslint-plugin': 2.31.0_958f8210301253de29e93c73fee0b1f1
-  '@typescript-eslint/parser': 2.31.0_97c3f72c5458565aa337a6d1357d5728
-  acorn: 7.1.1
-  babel-eslint: 10.1.0_eslint@6.8.0
-  babel-loader: 8.1.0_@babel+core@7.9.6+webpack@4.43.0
-  babel-plugin-const-enum: 1.0.1_@babel+core@7.9.6
-  eslint: 6.8.0
-  eslint-config-prettier: 6.11.0_eslint@6.8.0
-  eslint-import-resolver-typescript: 2.0.0_8cdb6d8c18c3319a1365bd5afa0063a3
-  eslint-import-resolver-webpack: 0.12.1_0d65630956eb3ab8d9a80466fe9388d0
-  eslint-plugin-import: 2.20.2_eslint@6.8.0
-  eslint-plugin-prettier: 3.1.3_eslint@6.8.0+prettier@2.0.5
-  file-loader: 6.0.0_webpack@4.43.0
-  prettier: 2.0.5
-  qunit: 2.10.0
-  ts-loader: 7.0.3_typescript@4.0.0-dev.20200506
-  tsconfig-paths-webpack-plugin: 3.2.0
-  typescript: 4.0.0-dev.20200506
-  webpack: 4.43.0_webpack@4.43.0
-  webpack-cli: 3.3.11_webpack@4.43.0
-  webpack-dev-server: 3.11.0_6bb071789035dbb53b131cf2ad63510b
+importers:
+  .:
+    devDependencies:
+      '@babel/core': 7.9.6
+      '@babel/plugin-proposal-class-properties': 7.8.3_@babel+core@7.9.6
+      '@babel/plugin-proposal-decorators': 7.8.3_@babel+core@7.9.6
+      '@babel/plugin-syntax-class-properties': 7.8.3_@babel+core@7.9.6
+      '@babel/plugin-transform-typescript': 7.9.6_@babel+core@7.9.6
+      '@babel/preset-env': 7.9.6_@babel+core@7.9.6
+      '@babel/preset-typescript': 7.9.0_@babel+core@7.9.6
+      '@glimmer/babel-plugin-glimmer-env': 2.0.0-beta.7
+      '@glimmer/bundle-compiler': 0.51.1
+      '@glimmer/core': 2.0.0-beta.7
+      '@glimmer/interfaces': 0.51.1
+      '@glimmer/validator': 0.51.1
+      '@glimmerx/babel-plugin-component-templates': 0.2.2
+      '@glimmerx/component': 0.2.2_@babel+core@7.9.6
+      '@glimmerx/core': 0.2.2
+      '@glimmerx/eslint-plugin': 0.2.2_babel-eslint@10.1.0+eslint@6.8.0
+      '@glimmerx/modifier': 0.2.2
+      '@glimmerx/service': 0.2.2
+      '@simple-dom/document': 1.4.0
+      '@simple-dom/interface': 1.4.0
+      '@simple-dom/serializer': 1.4.0
+      '@simple-dom/void-map': 1.4.0
+      '@typescript-eslint/eslint-plugin': 2.31.0_958f8210301253de29e93c73fee0b1f1
+      '@typescript-eslint/parser': 2.31.0_97c3f72c5458565aa337a6d1357d5728
+      acorn: 7.1.1
+      babel-eslint: 10.1.0_eslint@6.8.0
+      babel-loader: 8.1.0_@babel+core@7.9.6+webpack@4.43.0
+      babel-plugin-const-enum: 1.0.1_@babel+core@7.9.6
+      eslint: 6.8.0
+      eslint-config-prettier: 6.11.0_eslint@6.8.0
+      eslint-import-resolver-typescript: 2.0.0_8cdb6d8c18c3319a1365bd5afa0063a3
+      eslint-import-resolver-webpack: 0.12.1_0d65630956eb3ab8d9a80466fe9388d0
+      eslint-plugin-import: 2.20.2_eslint@6.8.0
+      eslint-plugin-prettier: 3.1.3_eslint@6.8.0+prettier@2.0.5
+      file-loader: 6.0.0_webpack@4.43.0
+      prettier: 2.0.5
+      qunit: 2.10.0
+      stacktracey: 1.2.127
+      ts-loader: 7.0.4_typescript@4.0.0-dev.20200506
+      tsconfig-paths-webpack-plugin: 3.2.0
+      typescript: 4.0.0-dev.20200506
+      webpack: 4.43.0_webpack@4.43.0
+      webpack-cli: 3.3.11_webpack@4.43.0
+      webpack-dev-server: 3.11.0_6bb071789035dbb53b131cf2ad63510b
+    specifiers:
+      '@babel/core': ^7.9.0
+      '@babel/plugin-proposal-class-properties': ^7.8.3
+      '@babel/plugin-proposal-decorators': ^7.8.3
+      '@babel/plugin-syntax-class-properties': ^7.8.3
+      '@babel/plugin-transform-typescript': ^7.9.4
+      '@babel/preset-env': ^7.9.5
+      '@babel/preset-typescript': ^7.9.0
+      '@glimmer/babel-plugin-glimmer-env': ^2.0.0-beta.7
+      '@glimmer/bundle-compiler': ^0.51.1
+      '@glimmer/core': ^2.0.0-beta.7
+      '@glimmer/interfaces': ^0.51.1
+      '@glimmer/validator': ^0.51.1
+      '@glimmerx/babel-plugin-component-templates': ^0.2.1
+      '@glimmerx/component': ^0.2.1
+      '@glimmerx/core': ^0.2.1
+      '@glimmerx/eslint-plugin': ^0.2.1
+      '@glimmerx/modifier': ^0.2.1
+      '@glimmerx/service': ^0.2.1
+      '@simple-dom/document': ^1.4.0
+      '@simple-dom/interface': ^1.4.0
+      '@simple-dom/serializer': ^1.4.0
+      '@simple-dom/void-map': ^1.4.0
+      '@typescript-eslint/eslint-plugin': ^2.31.0
+      '@typescript-eslint/parser': ^2.31.0
+      acorn: ^7.0.0
+      babel-eslint: ^10.1.0
+      babel-loader: ^8.1.0
+      babel-plugin-const-enum: ^1.0.1
+      eslint: ^6.8.0
+      eslint-config-prettier: ^6.11.0
+      eslint-import-resolver-typescript: ^2.0.0
+      eslint-import-resolver-webpack: ^0.12.1
+      eslint-plugin-import: ^2.20.2
+      eslint-plugin-prettier: ^3.1.3
+      file-loader: ^6.0.0
+      prettier: ^2.0.5
+      qunit: ^2.10.0
+      stacktracey: ^1.2.127
+      ts-loader: ^7.0.4
+      tsconfig-paths-webpack-plugin: ^3.2.0
+      typescript: 4.0.0-dev.20200506
+      webpack: ^4.43.0
+      webpack-cli: ^3.3.11
+      webpack-dev-server: ^3.10.3
 lockfileVersion: 5.1
 packages:
   /@babel/code-frame/7.8.3:
@@ -1405,7 +1453,7 @@ packages:
     engines:
       node: ^8.10.0 || ^10.13.0 || >=11.10.1
     peerDependencies:
-      typescript: 4.0.0-dev.20200506
+      typescript: '*'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -1757,6 +1805,12 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha512-gBlRZV0VSmfPIeWfuuy56XZMvbVfbEUnOXUvt3F/eUUUSyzlgLxhEX4YAEpxNAogRGehPSnfXyPtYyKAhkzQhQ==
+  /as-table/1.0.55:
+    dependencies:
+      printable-characters: 1.0.42
+    dev: true
+    resolution:
+      integrity: sha512-xvsWESUJn0JN421Xb9MQw6AsMHRCUknCe0Wjlxvjud80mU4E6hQf1A6NzQKcYNmYw62MfzEtXc+badstZP3JpQ==
   /asn1.js/4.10.1:
     dependencies:
       bn.js: 4.11.8
@@ -2659,6 +2713,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WW6WmP0MgOEgOMK4LW6xs1tiJNk=
+  /data-uri-to-buffer/2.0.2:
+    dev: true
+    resolution:
+      integrity: sha512-ND9qDTLc6diwj+Xe5cdAgVTbLVdXbtxTJRXRhli8Mowuaan+0EJOtdqJ0QCHNSSPyoXGx9HX2/VMnKeC34AChA==
   /debug/2.6.9:
     dependencies:
       ms: 2.0.0
@@ -3843,6 +3901,13 @@ packages:
       node: 6.* || 8.* || >= 10.*
     resolution:
       integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==
+  /get-source/1.0.42:
+    dependencies:
+      data-uri-to-buffer: 2.0.2
+      source-map: 0.6.1
+    dev: true
+    resolution:
+      integrity: sha512-uM5xCIG5w2meVbiZaID4ajH6J8OfApqhlKXtZwsS/IIM9PLb0b2kc5sRdy78yEDfxsIYEWNk0OVxai6OpDCExA==
   /get-stdin/6.0.0:
     dev: true
     engines:
@@ -5711,6 +5776,10 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-7PtVymN48hGcO4fGjybyBSIWDsLU4H4XlvOHfq91pz9kkGlonzwTfYkaIEwiRg/dAJF9YlbsduBAgtYLi+8cFg==
+  /printable-characters/1.0.42:
+    dev: true
+    resolution:
+      integrity: sha1-Pxjpd6m9jrN/zE/1ZZ176Qhos9g=
   /private/0.1.8:
     dev: true
     engines:
@@ -6539,6 +6608,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
+  /stacktracey/1.2.127:
+    dependencies:
+      as-table: 1.0.55
+      get-source: 1.0.42
+    dev: true
+    resolution:
+      integrity: sha512-tj3BObW/adLIAQGGQ0flRTADrCv6KQ4VgncUO8NrQ7pk/H6pGMtXxQLjZYw66eqPDTC1DHtnBwGSmG+Wx/D/kg==
   /stagehand/1.0.0:
     dependencies:
       debug: 4.1.1
@@ -6913,7 +6989,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-YvYllqh3qrR5TAYZZTXdspnIhlKAYezPYw11ntmweoceu4VK+keN356phHRIIo1d+RDmLpHZrUlmxga2gc9kSQ==
-  /ts-loader/7.0.3_typescript@4.0.0-dev.20200506:
+  /ts-loader/7.0.4_typescript@4.0.0-dev.20200506:
     dependencies:
       chalk: 2.4.2
       enhanced-resolve: 4.1.1
@@ -6927,7 +7003,7 @@ packages:
     peerDependencies:
       typescript: 4.0.0-dev.20200506
     resolution:
-      integrity: sha512-BXAHfPjm3J//20ibuI30M+xgLpdIng68p2H952QqbbmDk7SW72HV42k9Gop7rMxuHvrXWjazWhKuyr9D9kKe3A==
+      integrity: sha512-5du6OQHl+4ZjO4crEyoYUyWSrmmo7bAO+inkaILZ68mvahqrfoa4nn0DRmpQ4ruT4l+cuJCgF0xD7SBIyLeeow==
   /tsconfig-paths-webpack-plugin/3.2.0:
     dependencies:
       chalk: 2.4.2
@@ -7507,47 +7583,3 @@ packages:
     dev: true
     resolution:
       integrity: sha512-AX3Zw5iPruN5ie6xGRIDgqkT+ZhnRlZMLMHAs8tg7nRruy2Nb+i5o9bwghAogtM08q1dpr2LVoS8KSTMYpWXUw==
-specifiers:
-  '@babel/core': ^7.9.0
-  '@babel/plugin-proposal-class-properties': ^7.8.3
-  '@babel/plugin-proposal-decorators': ^7.8.3
-  '@babel/plugin-syntax-class-properties': ^7.8.3
-  '@babel/plugin-transform-typescript': ^7.9.4
-  '@babel/preset-env': ^7.9.5
-  '@babel/preset-typescript': ^7.9.0
-  '@glimmer/babel-plugin-glimmer-env': ^2.0.0-beta.7
-  '@glimmer/bundle-compiler': ^0.51.1
-  '@glimmer/core': ^2.0.0-beta.7
-  '@glimmer/interfaces': ^0.51.1
-  '@glimmer/validator': ^0.51.1
-  '@glimmerx/babel-plugin-component-templates': ^0.2.1
-  '@glimmerx/component': ^0.2.1
-  '@glimmerx/core': ^0.2.1
-  '@glimmerx/eslint-plugin': ^0.2.1
-  '@glimmerx/modifier': ^0.2.1
-  '@glimmerx/service': ^0.2.1
-  '@simple-dom/document': ^1.4.0
-  '@simple-dom/interface': ^1.4.0
-  '@simple-dom/serializer': ^1.4.0
-  '@simple-dom/void-map': ^1.4.0
-  '@typescript-eslint/eslint-plugin': ^2.31.0
-  '@typescript-eslint/parser': ^2.31.0
-  acorn: ^7.0.0
-  babel-eslint: ^10.1.0
-  babel-loader: ^8.1.0
-  babel-plugin-const-enum: ^1.0.1
-  eslint: ^6.8.0
-  eslint-config-prettier: ^6.11.0
-  eslint-import-resolver-typescript: ^2.0.0
-  eslint-import-resolver-webpack: ^0.12.1
-  eslint-plugin-import: ^2.20.2
-  eslint-plugin-prettier: ^3.1.3
-  file-loader: ^6.0.0
-  prettier: ^2.0.5
-  qunit: ^2.10.0
-  ts-loader: ^7.0.3
-  tsconfig-paths-webpack-plugin: ^3.2.0
-  typescript: 4.0.0-dev.20200506
-  webpack: ^4.43.0
-  webpack-cli: ^3.3.11
-  webpack-dev-server: ^3.10.3

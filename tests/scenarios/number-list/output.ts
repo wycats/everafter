@@ -6,6 +6,13 @@ import {
   OutputFactory,
   ReactiveValue,
   Updater,
+  DEBUG,
+  POLL,
+  Host,
+  LogLevel,
+  Structured,
+  struct,
+  description,
 } from "reactive-prototype";
 
 export interface NumberArrayOps {
@@ -31,9 +38,25 @@ class ArrayElementUpdate implements Updater {
     this.#value = value;
   }
 
-  poll(): Updater {
-    let current = this.#value.compute();
-    this.#cursor.replace(current.value);
+  [DEBUG](): Structured {
+    return struct("ArrayElementUpdate", [
+      "pos",
+      description(String(this.#cursor.absolutePos)),
+    ]);
+  }
+
+  [POLL](host: Host): Updater {
+    let next = this.#value.compute();
+    let current = this.#cursor.current();
+
+    if (next.value === current) {
+      host.logResult(LogLevel.Info, "nothing to do");
+    } else {
+      host.logResult(LogLevel.Info, `replacing ${current} with ${next.value}`);
+    }
+
+    debugger;
+    this.#cursor.replace(next.value);
     return this;
   }
 }
@@ -65,8 +88,8 @@ class ArrayElementBuffer
 }
 
 export class ArrayCursor {
-  static from(array: number[], start = 0): ArrayCursor {
-    let range = ArrayRange.from(array, start);
+  static from(array: number[], host: Host, start = 0): ArrayCursor {
+    let range = ArrayRange.from(array, host, start);
     return new ArrayCursor(array, range, 0);
   }
 
@@ -92,33 +115,55 @@ export class ArrayCursor {
     return this.#range.start + this.#pos;
   }
 
+  current(): number {
+    return this.#array[this.#pos];
+  }
+
   insert(num: number): void {
     this.#array.splice(this.absolutePos, 0, num);
   }
 
   replace(num: number): void {
+    console.log(
+      "replacing",
+      this.absolutePos,
+      "from",
+      this.#array[this.absolutePos],
+      "to",
+      num
+    );
     this.#array[this.absolutePos] = num;
   }
 }
 
+const HEADER_STYLE = "color: #900; font-weight: bold";
+
 export class ArrayRange implements CursorRange<NumberArrayOps> {
-  static from(array: number[], start = 0): ArrayRange {
-    return new ArrayRange(array, null, start);
+  static from(array: number[], host: Host, start = 0): ArrayRange {
+    return new ArrayRange(array, null, host, start);
   }
 
-  #array: number[];
-  #start: number;
-  #size: number;
-  #parent: ArrayRange | null = null;
+  readonly #array: number[];
+  readonly #start: number;
+  readonly #parent: ArrayRange | null = null;
+  readonly #host: Host;
   #cleared = false;
+  #size: number;
 
   // start is the starting offset relative to the parent block
   // size is the current position relative to the starting offset
-  constructor(array: number[], parent: ArrayRange | null, start = 0, size = 0) {
+  constructor(
+    array: number[],
+    parent: ArrayRange | null,
+    host: Host,
+    start = 0,
+    size = 0
+  ) {
     this.#array = array;
     this.#start = start;
     this.#parent = parent;
     this.#size = size;
+    this.#host = host;
   }
 
   get debugFields(): DebugFields {
@@ -143,7 +188,12 @@ export class ArrayRange implements CursorRange<NumberArrayOps> {
   }
 
   begin(): ArrayRange {
-    return new ArrayRange(this.#array, this, this.#start + this.#size);
+    return new ArrayRange(
+      this.#array,
+      this,
+      this.#host,
+      this.#start + this.#size
+    );
   }
 
   commit(): ArrayRange {
@@ -183,14 +233,21 @@ export class ArrayRange implements CursorRange<NumberArrayOps> {
     return cursor;
   }
 
-  private debug(depth = 0): void {
-    console.log("array = ", this.#array);
-    console.log("start = ", this.start, "size = ", this.#size);
+  private logStatus(): void {
+    this.#host.indent(LogLevel.Info, () => {
+      this.#host.log(LogLevel.Info, `array=${JSON.stringify(this.#array)}`);
+      this.#host.log(LogLevel.Info, `start=${this.start} size=${this.#size}`);
 
-    if (this.#parent) {
-      console.log("-> parent", depth + 1);
-      this.#parent.debug(depth + 1);
-    }
+      if (this.#parent) {
+        // TS FRICTION: this shouldn't be necessay, since #parent is readonly
+        const parent = this.#parent;
+
+        this.#host.indent(LogLevel.Info, () => {
+          this.#host.log(LogLevel.Info, "[parent]");
+          parent.logStatus();
+        });
+      }
+    });
   }
 
   clear(): ArrayCursor {
@@ -204,41 +261,51 @@ export class ArrayRange implements CursorRange<NumberArrayOps> {
       this.#cleared = true;
     }
 
-    console.log("removing", this.#size, "from position", this.start);
+    this.#host.log(
+      LogLevel.Info,
+      `removing ${this.#size} from position ${this.start}`
+    );
 
-    console.log("TREE, BEFORE");
-    this.debug();
+    this.#host.indent(LogLevel.Info, () => {
+      this.#host.log(LogLevel.Info, "TREE, BEFORE", HEADER_STYLE);
+      this.logStatus();
 
-    this.#array.splice(this.start, this.#size);
+      this.#array.splice(this.start, this.#size);
 
-    this.#decreaseSize(this.#size);
-    console.log("TREE, AFTER");
-    this.debug();
+      this.#decreaseSize(this.#size);
+      this.#host.log(LogLevel.Info, "TREE, AFTER", HEADER_STYLE);
+      this.logStatus();
+    });
+
     return new ArrayCursor(this.#array, this.#parent, this.#start);
   }
 }
 
 export class NumberListOutput extends AbstractOutput<NumberArrayOps> {
+  static from(array: number[], host: Host): NumberListOutput {
+    return new NumberListOutput(array, ArrayCursor.from(array, host), host);
+  }
+
   #output: number[];
   #range: ArrayRange;
+  #host: Host;
 
   constructor(
     output: number[],
     cursor: ArrayCursor,
+    host: Host,
     parent: NumberListOutput | null = null
   ) {
     super();
     this.#output = output;
+    this.#host = host;
 
     this.#range = new ArrayRange(
       this.#output,
       parent ? parent.#range : null,
+      host,
       cursor.absolutePos
     );
-  }
-
-  get current(): number[] {
-    return this.#output.slice();
   }
 
   range<T>(callback: () => T): { value: T; range: ArrayRange } {
@@ -247,7 +314,8 @@ export class NumberListOutput extends AbstractOutput<NumberArrayOps> {
   }
 
   getOutput(): OutputFactory<NumberArrayOps> {
-    return cursor => new NumberListOutput(this.#output, cursor, this);
+    return cursor =>
+      new NumberListOutput(this.#output, cursor, this.#host, this);
   }
 
   getCursor(): ArrayCursor {
