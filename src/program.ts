@@ -1,26 +1,23 @@
-import type { OutputFactory, Host } from "./interfaces";
+import type { Evaluate } from "./builder";
+import {
+  callerLocation,
+  DEBUG,
+  DebugFields,
+  description,
+  frameSource,
+  LogLevel,
+  newtype,
+  printStructured,
+  Structured,
+  callerFrame,
+  PARENT,
+} from "./debug";
+import type { Host, OutputFactory } from "./interfaces";
 import type { Operations } from "./ops";
 import { Output } from "./output";
-import type { Updater } from "./update";
-import {
-  DebugFields,
-  DEBUG,
-  AnnotatedFunction,
-  newtype,
-  frameSource,
-  annotate,
-  Structured,
-  description,
-  LogLevel,
-  callerLocation,
-  printStructured,
-} from "./debug";
 import { poll } from "./unsafe";
-
-export type RenderProgram<Ops extends Operations, Args> = (
-  args: Args,
-  output: Output<Ops>
-) => Updater | void;
+import type { Updater } from "./update";
+import type { StackTraceyFrame } from "stacktracey";
 
 /**
  * Represents the root block of the entire output. The root block is never cleared
@@ -28,22 +25,17 @@ export type RenderProgram<Ops extends Operations, Args> = (
  * output.
  */
 export class RootBlock<Ops extends Operations, Args = unknown> {
-  #program: AnnotatedFunction<RenderProgram<Ops, Args>>;
-  #args: Args;
+  #program: Evaluate<Ops>;
   #outputFactory: OutputFactory<Ops>;
   #host: Host;
   #updates: readonly Updater[] = [];
 
   constructor(
-    program:
-      | RenderProgram<Ops, Args>
-      | AnnotatedFunction<RenderProgram<Ops, Args>>,
-    args: Args,
+    program: Evaluate<Ops>,
     outputFactory: OutputFactory<Ops>,
     host: Host
   ) {
-    this.#program = annotate(program);
-    this.#args = args;
+    this.#program = program;
     this.#outputFactory = outputFactory;
     this.#host = host;
   }
@@ -51,7 +43,6 @@ export class RootBlock<Ops extends Operations, Args = unknown> {
   get debugFields(): DebugFields {
     return new DebugFields("Invocation", {
       program: this.#program,
-      args: this.#args,
       Output: this.#outputFactory,
       updates: this.#updates,
     });
@@ -69,17 +60,21 @@ export class RootBlock<Ops extends Operations, Args = unknown> {
     let updaters: Updater[] = [];
     let output = this.#outputFactory(cursor);
     let append = new Output(output, updaters, this.#host);
-    this.#host.indent(LogLevel.Info, () => this.#program.f(this.#args, append));
+    this.#host.indent(LogLevel.Info, () =>
+      this.#program.f(append, append.getInner(), this.#host)
+    );
 
     this.#updates = updaters;
     this.#host.end(LogLevel.Info, "initial render");
   }
 
-  rerender(): void {
-    let source = callerLocation(3);
+  rerender(source: StackTraceyFrame = callerFrame(PARENT)): void {
     this.#host.begin(
       LogLevel.Info,
-      `rerendering at ${printStructured(source, true)}`
+      `rerendering at ${printStructured(
+        description(frameSource(source)),
+        true
+      )}`
     );
 
     this.#host.indent(LogLevel.Info, () => {
@@ -105,6 +100,5 @@ export class RootBlock<Ops extends Operations, Args = unknown> {
 }
 
 export type Program<Ops extends Operations, Args = unknown> = (
-  args: Args,
   output: Output<Ops>
 ) => void;

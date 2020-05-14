@@ -1,12 +1,13 @@
 export * from "./block-internals";
+export * from "./debug";
 export * from "./interfaces";
 export * from "./ops";
 export * from "./output";
 export * from "./program";
 export * from "./stack";
+export { poll, POLL } from "./unsafe";
+export * from "./update";
 export type { Updater } from "./update";
 export * from "./utils";
 export * from "./value";
-export * from "./debug";
-export * from "./update";
-export { poll, POLL } from "./unsafe";
+export * from "./builder";

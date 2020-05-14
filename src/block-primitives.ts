@@ -78,11 +78,11 @@ export class StaticBlock<Ops extends Operations> implements Block<Ops> {
     return newtype("StaticBlock", this.#userBlock.desc);
   }
 
-  [RENDER](output: Output<Ops>): void {
+  [RENDER](output: Output<Ops>, host: Host): void {
     let updaters: Updater[] = [];
     let append = output.withUpdaters(updaters);
 
-    this.#userBlock.invoke(append);
+    this.#userBlock.invoke(append, append.getInner(), host);
 
     output.updateWith(toUpdater(updaters));
   }

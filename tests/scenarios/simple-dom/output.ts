@@ -7,15 +7,27 @@ import type {
 } from "@simple-dom/interface";
 import {
   AbstractOutput,
+  annotateWithFrame,
   BlockBuffer,
+  callerFrame,
+  CompilableLeaf,
+  CompilableOpen,
   Cursor,
   CursorRange,
+  DebugFields,
+  Evaluate,
+  frameSource,
+  Output,
   OutputFactory,
+  PARENT,
+  ReactiveArgument,
+  ReactiveState,
   ReactiveValue,
   Stack,
   unreachable,
   Updater,
 } from "reactive-prototype";
+import type { StackTraceyFrame } from "stacktracey";
 import { NodeUpdate, NodeValueUpdate } from "../../update";
 
 type ElementBlock = {
@@ -43,45 +55,157 @@ interface HeadAttr {
 
 type DomBlockHead = HeadAttr;
 
-export function element(name: ReactiveValue<string>): OpenElement {
+export class CompilableElement implements CompilableOpen<DomOps, ElementBlock> {
+  #name: ReactiveArgument<string>;
+  #source: StackTraceyFrame;
+
+  constructor(name: ReactiveArgument<string>, source: StackTraceyFrame) {
+    this.#name = name;
+    this.#source = source;
+  }
+
+  compile(state: ReactiveState): Evaluate<DomOps, OpenElement> {
+    let open = runtimeElement(this.#name.hydrate(state));
+
+    return annotateWithFrame((_output: Output<DomOps>) => open, this.#source);
+  }
+}
+
+export function runtimeElement(name: ReactiveValue<string>): OpenElement {
   return {
     kind: "Element",
     value: name,
   };
 }
 
+export function element(
+  name: ReactiveArgument<string>
+): CompilableOpen<DomOps> {
+  let caller = callerFrame(PARENT);
+  return new CompilableElement(name, caller);
+}
+
+class CompilableDomLeaf<T, L extends DomOps["leafKind"]>
+  implements CompilableLeaf<DomOps, L> {
+  #value: ReactiveArgument<T>;
+  #caller: StackTraceyFrame;
+  #toRuntime: (value: ReactiveValue<T>) => (output: Output<DomOps>) => void;
+
+  constructor(
+    value: ReactiveArgument<T>,
+    caller: StackTraceyFrame,
+    toRuntime: (value: ReactiveValue<T>) => (output: Output<DomOps>) => void
+  ) {
+    this.#value = value;
+    this.#caller = caller;
+    this.#toRuntime = toRuntime;
+  }
+
+  get debugFields(): DebugFields {
+    return new DebugFields("CompilableDomLeaf", {
+      value: this.#value,
+      caller: this.#caller,
+    });
+  }
+
+  compile(state: ReactiveState): Evaluate<DomOps> {
+    let value = this.#value.hydrate(state);
+    console.log(frameSource(this.#caller));
+    return annotateWithFrame(this.#toRuntime(value), this.#caller);
+  }
+}
+
 interface InlineText {
   readonly kind: "Text";
-  readonly value: ReactiveValue<string>;
+  readonly value: ReactiveArgument<string>;
+}
+
+class InlineText extends CompilableDomLeaf<string, RuntimeInlineText> {
+  toRuntime(value: ReactiveValue<string>): (output: Output<DomOps>) => void {
+    return output => output.leaf(runtimeText(value));
+  }
+}
+
+export function text(
+  value: ReactiveArgument<string>
+): CompilableDomLeaf<string, RuntimeInlineText> {
+  let caller = callerFrame(PARENT);
+  return new CompilableDomLeaf(value, caller, value => output =>
+    output.leaf(runtimeText(value), caller)
+  );
 }
 
 interface InlineComment {
   readonly kind: "Comment";
-  readonly value: ReactiveValue<string>;
+  readonly value: ReactiveArgument<string>;
+}
+
+export function comment(
+  value: ReactiveArgument<string>
+): CompilableDomLeaf<string, RuntimeInlineComment> {
+  let caller = callerFrame(PARENT);
+  return new CompilableDomLeaf(value, caller, value => output =>
+    output.leaf(runtimeComment(value), caller)
+  );
 }
 
 interface InlineNode {
   readonly kind: "Node";
-  readonly value: ReactiveValue<SimpleNode>;
+  readonly value: ReactiveArgument<SimpleNode>;
+}
+
+export function node(
+  value: ReactiveArgument<SimpleNode>
+): CompilableDomLeaf<SimpleNode, RuntimeInlineNode> {
+  let caller = callerFrame(PARENT);
+  return new CompilableDomLeaf(value, caller, value => output =>
+    output.leaf(runtimeNode(value), caller)
+  );
 }
 
 type InlineKind = InlineText | InlineComment | InlineNode;
 
-export function text(value: ReactiveValue<string>): InlineText {
+interface RuntimeInlineText {
+  readonly kind: "Text";
+  readonly value: ReactiveValue<string>;
+}
+
+interface RuntimeInlineComment {
+  readonly kind: "Comment";
+  readonly value: ReactiveValue<string>;
+}
+
+interface RuntimeInlineNode {
+  readonly kind: "Node";
+  readonly value: ReactiveValue<SimpleNode>;
+}
+
+type RuntimeInlineKind =
+  | RuntimeInlineText
+  | RuntimeInlineComment
+  | RuntimeInlineNode;
+
+export function runtimeText(value: ReactiveValue<string>): RuntimeInlineText {
   return {
     kind: "Text",
     value,
   };
 }
 
-export function comment(value: ReactiveValue<string>): InlineComment {
+// export function text(value: ReactiveArgument<string>):
+
+export function runtimeComment(
+  value: ReactiveValue<string>
+): RuntimeInlineComment {
   return {
     kind: "Comment",
     value,
   };
 }
 
-export function node(value: ReactiveValue<SimpleNode>): InlineNode {
+export function runtimeNode(
+  value: ReactiveValue<SimpleNode>
+): RuntimeInlineNode {
   return {
     kind: "Node",
     value,
@@ -96,7 +220,7 @@ export interface DomCursor extends Cursor {
 export interface DomOps {
   cursor: DomCursor;
   blockKind: BlockKind;
-  leafKind: InlineKind;
+  leafKind: RuntimeInlineKind;
 }
 
 export type ParentNode = SimpleElement | SimpleDocumentFragment;
@@ -227,7 +351,7 @@ export class SimpleDomOutput extends AbstractOutput<DomOps> {
     return (cursor: DomCursor) => new SimpleDomOutput(cursor, this.#stack);
   }
 
-  appendLeaf(inline: InlineKind): Updater {
+  appendLeaf(inline: RuntimeInlineKind): Updater {
     switch (inline.kind) {
       case "Text": {
         let current = inline.value.compute();

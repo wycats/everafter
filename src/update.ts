@@ -63,7 +63,7 @@ export class UpdatingOperation implements Updater {
  * operation.
  */
 export function updating(
-  operation: AnnotatedFunction<() => Updater>
+  operation: AnnotatedFunction<() => Updater | void>
 ): UpdatingOperation | void {
   let tracked = new UnsafeUpdatable(operation);
   let kind = tracked.initialize();

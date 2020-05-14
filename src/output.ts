@@ -11,9 +11,17 @@ import type {
 import { updating, Updater } from "./update";
 // eslint-disable-next-line import/no-cycle
 import { StaticBlock, ConditionBlock } from "./block-primitives";
-import { annotate, LogLevel, printStructured } from "./debug";
+import {
+  LogLevel,
+  printStructured,
+  callerFrame,
+  annotateWithFrame,
+} from "./debug";
 // eslint-disable-next-line import/no-cycle
 import { invokeBlock } from "./block-internals";
+import type { StackTraceyFrame } from "stacktracey";
+
+export class Builder {}
 
 /**
  * The concrete object that gets passed into user blocks.
@@ -48,6 +56,11 @@ export class Output<Ops extends Operations> {
     return new Output(this.#inner, updaters, this.#host);
   }
 
+  // TODO: This is fishy
+  getInner(): AbstractOutput<Ops> {
+    return this.#inner;
+  }
+
   getOutputFactory(): OutputFactory<Ops> {
     return this.#inner.getOutput();
   }
@@ -62,8 +75,10 @@ export class Output<Ops extends Operations> {
     return new Output(output, this.#updaters, this.#host);
   }
 
-  leaf(leaf: Ops["leafKind"]): void {
-    this.updateWith(updating(annotate(() => this.#inner.appendLeaf(leaf), 3)));
+  leaf(leaf: Ops["leafKind"], caller: StackTraceyFrame = callerFrame(2)): void {
+    this.updateWith(
+      updating(annotateWithFrame(() => this.#inner.appendLeaf(leaf), caller))
+    );
   }
 
   /**

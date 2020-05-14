@@ -5,17 +5,21 @@ import voidMap from "@simple-dom/void-map";
 import type * as qunit from "qunit";
 import {
   AbstractOutput,
+  annotate,
+  args,
+  callerFrame,
   Cell,
-  Const,
   Derived,
   Dict,
-  Output,
-  Program,
+  Evaluate,
+  PARENT,
+  program,
+  Reactive,
+  ReactiveState,
   ReactiveValue,
   RootBlock,
-  block,
 } from "reactive-prototype";
-import { module, test, host } from "../../helpers";
+import { host, module, test } from "../../helpers";
 import { DomCursor, DomOps, element, SimpleDomOutput, text } from "./output";
 
 @module("values")
@@ -25,202 +29,191 @@ export class ValueTest {
   #host = host();
 
   @test "simple values"(): void {
-    type HelloWorldArgs = { hello: Cell<string>; world: Derived<string> };
+    const ARGS = args({ hello: Reactive<string>(), world: Reactive<string>() });
 
     // corresponds to `{{@hello}} {{@world}}`
-    const HelloWorld = (args: HelloWorldArgs, output: Output<DomOps>): void => {
-      output.leaf(text(args.hello));
-      output.leaf(text(Const(" ")));
-      output.leaf(text(args.world));
-    };
+    const template = program<DomOps>(ARGS, b => {
+      b.leaf(text(ARGS.get("hello")));
+      b.leaf(text(ARGS.const(" ")));
+      b.leaf(text(ARGS.get("world")));
+    });
 
     // create our input state
     let world = Cell("world");
-    let args = {
-      hello: Cell("hello"),
-      world: Derived(() => world.value.toUpperCase()),
-    };
+    let hello = Cell("hello");
+    let derivedWorld = Derived(() => world.value.toUpperCase());
+    const state = ARGS.hydrate({
+      hello,
+      world: derivedWorld,
+    });
 
-    // Initial
-    let result = this.render(HelloWorld, args).expect("hello WORLD");
+    let result = this.render(template, state).expect("hello WORLD");
 
     // No-op rerender
     result.rerender();
 
     // Updater
-    result.update(() => (args.hello.value = "goodbye"), "goodbye WORLD");
+    result.update(() => (hello.value = "goodbye"), "goodbye WORLD");
     result.update(() => (world.value = "planet"), "goodbye PLANET");
 
     // Reset
     result.update(() => {
-      args.hello.value = "hello";
+      hello.value = "hello";
       world.value = "world";
     }, "hello WORLD");
   }
 
   @test conditionals(): void {
-    type HelloWorldArgs = {
-      hello: Cell<string>;
-      world: Derived<string>;
-      showChild: Cell<boolean>;
-    };
+    const ARGS = args({
+      hello: Reactive<string>(),
+      world: Reactive<string>(),
+      showChild: Reactive<boolean>(),
+    } as const);
 
-    const hello = (args: HelloWorldArgs, output: Output<DomOps>): void => {
-      output.ifBlock(
-        args.showChild,
-        block(output => {
-          output.leaf(text(args.hello));
-          output.leaf(text(Const(" ")));
-          output.leaf(text(args.world));
+    const uppercase = annotate((input: ReactiveValue<string>): string =>
+      input.value.toUpperCase()
+    );
+
+    const template = program<DomOps>(ARGS, b => {
+      b.ifBlock(
+        ARGS.get("showChild"),
+        annotate(b => {
+          b.leaf(text(ARGS.get("hello")));
+          b.leaf(text(ARGS.const(" ")));
+          b.leaf(text(ARGS.call(uppercase, ARGS.get("world"))));
         }),
-        block(() => {
+        annotate(() => {
           /* noop */
         })
       );
-    };
+    });
 
     // create our input state
+    let hello = Cell("hello");
     let world = Cell("world");
-    let args: HelloWorldArgs = {
-      hello: Cell("hello"),
-      world: Derived(() => world.value.toUpperCase()),
-      showChild: Cell(true),
-    };
+    let derivedWorld = Derived(() => world.value.toUpperCase());
+    let showChild = Cell(true);
+
+    let state = ARGS.hydrate({
+      hello,
+      world: derivedWorld,
+      showChild,
+    });
 
     // Initial
-    let result = this.render(hello, args).expect("hello WORLD");
+    let result = this.render(template, state).expect("hello WORLD");
 
     // No-op rerender
     result.rerender();
 
     // update a cell
-    result.update(() => (args.hello.value = "goodbye"), "goodbye WORLD");
+    result.update(() => (hello.value = "goodbye"), "goodbye WORLD");
 
     // update derived
     result.update(() => (world.value = "planet"), "goodbye PLANET");
 
     // update conditional input
-    result.update(() => (args.showChild.value = false), "<!---->");
+    result.update(() => (showChild.value = false), "<!---->");
 
     // reset
     result.update(() => {
-      args.hello.value = "hello";
+      hello.value = "hello";
       world.value = "world";
-      args.showChild.value = true;
+      showChild.value = true;
     }, "hello WORLD");
   }
 
   @test ifElse(): void {
-    type HelloWorldArgs = {
-      hello: Cell<string>;
-      world: Derived<string>;
-      showChild: Cell<boolean>;
-    };
+    const ARGS = args({
+      hello: Reactive<string>(),
+      world: Reactive<string>(),
+      showChild: Reactive<boolean>(),
+    });
+
+    const uppercase = annotate((input: ReactiveValue<string>): string =>
+      input.value.toUpperCase()
+    );
 
     // the "program"
     //
     // corresponds to `{{#if @showChild}}{{@hello}} {{@world}}{{/if}}{{else}}{{@hello}}{{/if}}`
-    const hello = (args: HelloWorldArgs, output: Output<DomOps>): void => {
-      output.ifBlock(
-        args.showChild,
-        block(output => {
-          output.leaf(text(args.hello));
-          output.leaf(text(Const(" ")));
-          output.leaf(text(args.world));
+    const template = program<DomOps>(ARGS, b => {
+      b.ifBlock(
+        ARGS.get("showChild"),
+        annotate(b => {
+          b.leaf(text(ARGS.get("hello")));
+          b.leaf(text(ARGS.const(" ")));
+          b.leaf(text(ARGS.get("world")));
         }),
-        block(output => {
-          output.leaf(text(uppercase(args.hello)));
+        annotate(b => {
+          b.leaf(text(ARGS.call(uppercase, ARGS.get("hello"))));
         })
       );
-    };
-
-    // build a rendering context for the program
-    let { parent: element, output } = this.context();
-
-    function uppercase(input: ReactiveValue<string>): ReactiveValue<string> {
-      return Derived(() => input.compute().value.toUpperCase());
-    }
+    });
 
     // create our input state
+    let hello = Cell("hello");
     let world = Cell("world");
-    let args: HelloWorldArgs = {
-      hello: Cell("hello"),
-      world: uppercase(world),
-      showChild: Cell(true),
-    };
+    let derivedWorld = Derived(() => uppercase.f(world));
+    let showChild = Cell(true);
 
-    // invoke an invocation for the program with the input state
-    let invocation = new RootBlock(hello, args, output, this.#host);
+    let state = ARGS.hydrate({
+      hello,
+      world: derivedWorld,
+      showChild,
+    });
 
-    // render the first time
-    this.expectRender(invocation, element, { expected: "hello WORLD" });
+    let result = this.render(template, state).expect("hello WORLD");
 
     // update a cell
-    this.update(invocation, element, () => (args.hello.value = "goodbye"), {
-      expected: "goodbye WORLD",
-    });
+    result.update(() => (hello.value = "goodbye"), "goodbye WORLD");
 
     // update the input to a derived reactive value
-    this.update(invocation, element, () => (world.value = "planet"), {
-      expected: "goodbye PLANET",
-    });
+    result.update(() => (world.value = "planet"), "goodbye PLANET");
 
-    this.update(invocation, element, () => (args.showChild.value = false), {
-      expected: "GOODBYE",
-    });
+    result.update(() => (showChild.value = false), "GOODBYE");
 
-    this.update(invocation, element, () => (args.hello.value = "hello"), {
-      expected: "HELLO",
-    });
+    result.update(() => (hello.value = "hello"), "HELLO");
   }
 
   @test element(): void {
-    type HelloWorldArgs = {
-      hello: Cell<string>;
-      world: Derived<string>;
-    };
+    const ARGS = args({
+      hello: Reactive<string>(),
+      world: Reactive<string>(),
+    });
+
+    const uppercase = annotate((input: ReactiveValue<string>): string =>
+      input.value.toUpperCase()
+    );
 
     // the "program"
     //
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
-    const hello = (args: HelloWorldArgs, output: Output<DomOps>): void => {
-      let el = output.open(element(Const("p")));
-      el.flush();
-      output.leaf(text(args.hello));
-      output.leaf(text(Const(" ")));
-      output.leaf(text(args.world));
-      el.close();
-    };
-
-    // build a rendering context for the program
-    let { parent, output } = this.context();
-
-    function uppercase(input: ReactiveValue<string>): ReactiveValue<string> {
-      return Derived(() => input.compute().value.toUpperCase());
-    }
+    const template = program<DomOps>(ARGS, b => {
+      let el = b.open(element(ARGS.const("p")));
+      let body = el.flush();
+      body.leaf(text(ARGS.get("hello")));
+      body.leaf(text(ARGS.const(" ")));
+      body.leaf(text(ARGS.call(uppercase, ARGS.get("world"))));
+      body.close();
+    });
 
     // create our input state
+    let hello = Cell("hello");
     let world = Cell("world");
-    let args: HelloWorldArgs = {
-      hello: Cell("hello"),
-      world: uppercase(world),
-    };
+    let derivedWorld = Derived(() => uppercase.f(world));
+    let state = ARGS.hydrate({
+      hello,
+      world: derivedWorld,
+    });
 
-    // invoke an invocation for the program with the input state
-    let invocation = new RootBlock(hello, args, output, this.#host);
-
-    // render the first time
-    this.expectRender(invocation, parent, { expected: "<p>hello WORLD</p>" });
+    let result = this.render(template, state).expect("<p>hello WORLD</p>");
 
     // update a cell
-    this.update(invocation, parent, () => (args.hello.value = "goodbye"), {
-      expected: "<p>goodbye WORLD</p>",
-    });
+    result.update(() => (hello.value = "goodbye"), "<p>goodbye WORLD</p>");
 
     // update the input to a derived reactive value
-    this.update(invocation, parent, () => (world.value = "planet"), {
-      expected: "<p>goodbye PLANET</p>",
-    });
+    result.update(() => (world.value = "planet"), "<p>goodbye PLANET</p>");
   }
 
   private context(): {
@@ -235,38 +228,16 @@ export class ValueTest {
     return { parent, output };
   }
 
-  private render<Args extends Dict<ReactiveValue>>(
-    program: Program<DomOps, Args>,
-    args: Args
-  ): RenderExpectation<Args> {
+  private render<A extends Dict<ReactiveValue>>(
+    template: (state: ReactiveState) => Evaluate<DomOps>,
+    state: ReactiveState<A>
+  ): RenderExpectation<A> {
+    const render = template(state);
+
     let { parent, output } = this.context();
-
-    // invoke an invocation for the program with the input state
-    let root = new RootBlock(program, args, output, this.#host);
+    let root = new RootBlock(render, output, this.#host);
     root.render(new DomCursor(parent, null));
-
     return new RenderExpectation(root, parent, this.assert);
-  }
-
-  private expectRender<Args>(
-    root: RootBlock<DomOps, Args>,
-    element: SimpleElement,
-    { expected }: { expected: string }
-  ): void {
-    root.render(new DomCursor(element, null));
-    this.assertHTML(element, expected);
-  }
-
-  private update<Args>(
-    invocation: RootBlock<DomOps, Args>,
-    element: SimpleElement,
-    callback: () => void,
-    { expected }: { expected: string }
-  ): void {
-    callback();
-    invocation.rerender();
-
-    this.assertHTML(element, expected);
   }
 
   private assertHTML(element: SimpleElement, expected: string): void {
@@ -298,7 +269,7 @@ class RenderExpectation<Args extends Dict<ReactiveValue>> {
   }
 
   rerender(): void {
-    this.#invocation.rerender();
+    this.#invocation.rerender(callerFrame(PARENT));
 
     if (this.#last === undefined) {
       throw new Error(`must render before rerendering`);
@@ -309,7 +280,7 @@ class RenderExpectation<Args extends Dict<ReactiveValue>> {
 
   update(callback: () => void, expected: string): void {
     callback();
-    this.#invocation.rerender();
+    this.#invocation.rerender(callerFrame(PARENT));
     this.#last = expected;
     this.assertHTML(this.#element, expected);
   }

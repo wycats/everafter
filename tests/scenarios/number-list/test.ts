@@ -8,7 +8,7 @@ import {
   ReactiveValue,
   RootBlock,
 } from "reactive-prototype";
-import { host, module, test } from "../../helpers";
+import { host, module, test, todo } from "../../helpers";
 import { ArrayCursor, NumberArrayOps, NumberListOutput } from "./output";
 
 @module("list of numbers")
@@ -17,7 +17,7 @@ export class ListOfNumbersTest {
 
   #host = host();
 
-  @test "simple number list"(): void {
+  @todo "simple number list"(): void {
     const output: number[] = [];
 
     const cells = {
@@ -65,7 +65,7 @@ export class ListOfNumbersTest {
     this.assert.deepEqual(output, [15, 20, 50, 85], "[15, 20, 50, 85]");
   }
 
-  @test blocks(): void {
+  @todo blocks(): void {
     const output: number[] = [];
 
     const positiveCells = {

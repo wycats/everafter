@@ -20,15 +20,21 @@ export abstract class AbstractOutput<Ops extends Operations> {
   abstract getOutput(): OutputFactory<Ops>;
   abstract getCursor(): Ops["cursor"];
 
-  abstract appendLeaf(leaf: Ops["leafKind"]): Updater;
+  abstract appendLeaf(leaf: Ops["leafKind"]): Updater | void;
   abstract openBlock<B extends Ops["blockKind"]>(
     open: B["open"]
   ): BlockBuffer<Ops, B>;
 }
 
+export type UserBlockFunction<Ops extends Operations> = (
+  output: Output<Ops>,
+  runtime: AbstractOutput<Ops>,
+  host: Host
+) => void;
+
 export interface UserBlock<Ops extends Operations> {
   desc: Structured;
-  invoke(output: Output<Ops>): Updater | void;
+  invoke: UserBlockFunction<Ops>;
 }
 
 export interface BlockBuffer<

@@ -1,5 +1,5 @@
 import StackTracey, { StackTraceyFrame } from "stacktracey";
-import type { UserBlock } from "./interfaces";
+import type { UserBlock, UserBlockFunction } from "./interfaces";
 import type { Operations } from "./ops";
 import type { Output } from "./output";
 import type { Updater } from "./update";
@@ -342,6 +342,21 @@ export class DebugFields {
   }
 }
 
+/**
+ * The number of frames to walk back to find the frame
+ * of the code calling callerFrame.
+ */
+export const CURRENT = 1;
+
+/**
+ * The number of frames to walk back to find the direct caller
+ * of the code calling callerFrame.
+ *
+ * You need to go back one frame to find the caller of callerFrame,
+ * and one more to find the caller of that frame.
+ */
+export const PARENT = 2;
+
 export function callerFrame(depth: number): StackTraceyFrame {
   let trace = new StackTracey();
   return trace.withSource(depth);
@@ -378,9 +393,39 @@ export function internalBlock<Ops extends Operations>(
   };
 }
 
+export function annotatedBlock<Ops extends Operations>(
+  invoke: UserBlockFunction<Ops>,
+  location: StackTraceyFrame
+): UserBlock<Ops> {
+  return {
+    desc: description(frameSource(location)),
+    invoke,
+  };
+}
+
 export interface AnnotatedFunction<F extends Function> {
   f: F;
   source: StackTraceyFrame;
+}
+
+export function copyAnnotation<F extends Function>(
+  original: AnnotatedFunction<Function>,
+  target: F
+): AnnotatedFunction<F> {
+  return {
+    f: target,
+    source: original.source,
+  };
+}
+
+export function annotateWithFrame<F extends Function>(
+  f: F,
+  source: StackTraceyFrame
+): AnnotatedFunction<F> {
+  return {
+    f,
+    source,
+  };
 }
 
 export function annotate<F extends Function>(

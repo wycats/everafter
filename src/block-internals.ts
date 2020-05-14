@@ -14,6 +14,9 @@ import { Output } from "./output";
 import { Freshness, unsafeCompute, POLL, poll } from "./unsafe";
 import { Updater, toUpdater } from "./update";
 
+/**
+ * This function invokes a block, wrapping it in a whole bunch of logging.
+ */
 export function invokeBlock<Ops extends Operations>(
   block: Block<Ops>,
   output: Output<Ops>,
@@ -33,7 +36,7 @@ export function invokeBlock<Ops extends Operations>(
  * For example, when the condition of an `if` block changes, the block is
  * torn down and re-created.
  *
- * `DynamicBlock` is not part of the core block calculus (see `block.md`).
+ * `DynamicBlock` is not part of the core reactive calculus (see `primitives.md`).
  * Rather, it is an implementation detail of the block primitives.
  */
 export class DynamicBlock<Ops extends Operations> implements Block<Ops> {
@@ -62,14 +65,18 @@ export class DynamicBlock<Ops extends Operations> implements Block<Ops> {
     });
   }
 
-  [RENDER](output: Output<Ops>): void {
+  [RENDER](output: Output<Ops>, host: Host): void {
     let updaters: Updater[] = [];
     let append = output.withUpdaters(updaters);
 
     let {
       range,
       value: { freshness },
-    } = append.range(() => unsafeCompute(() => this.#userBlock.invoke(append)));
+    } = append.range(() =>
+      unsafeCompute(() =>
+        this.#userBlock.invoke(append, append.getInner(), host)
+      )
+    );
 
     output.updateWith(
       new DynamicBlockResult(

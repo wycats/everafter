@@ -73,12 +73,12 @@ export class UnsafeDirtyTrack<T> {
 }
 
 export class UnsafeUpdatable implements Debuggable {
-  #initialize: AnnotatedFunction<() => Updater>;
+  #initialize: AnnotatedFunction<() => Updater | void>;
   #update: Updater | void = undefined;
   #tag: Tag | null = null;
   #snapshot = -1;
 
-  constructor(initialize: AnnotatedFunction<() => Updater>) {
+  constructor(initialize: AnnotatedFunction<() => Updater | void>) {
     this.#initialize = initialize;
   }
   debugFields?: DebugFields | undefined;
@@ -86,7 +86,7 @@ export class UnsafeUpdatable implements Debuggable {
   initialize(): "const" | "mutable" {
     beginTrackFrame();
 
-    let update: Updater | typeof UNDEFINED = UNDEFINED;
+    let update: Updater | void | typeof UNDEFINED = UNDEFINED;
 
     try {
       update = this.#initialize.f();
