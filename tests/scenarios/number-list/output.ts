@@ -7,12 +7,12 @@ import {
   ReactiveValue,
   Updater,
   DEBUG,
-  POLL,
   Host,
   LogLevel,
   Structured,
   struct,
   description,
+  POLL,
 } from "reactive-prototype";
 
 export interface NumberArrayOps {
@@ -53,10 +53,9 @@ class ArrayElementUpdate implements Updater {
       host.logResult(LogLevel.Info, "nothing to do");
     } else {
       host.logResult(LogLevel.Info, `replacing ${current} with ${next.value}`);
+      this.#cursor.replace(next.value, host);
     }
 
-    debugger;
-    this.#cursor.replace(next.value);
     return this;
   }
 }
@@ -123,14 +122,12 @@ export class ArrayCursor {
     this.#array.splice(this.absolutePos, 0, num);
   }
 
-  replace(num: number): void {
-    console.log(
-      "replacing",
-      this.absolutePos,
-      "from",
-      this.#array[this.absolutePos],
-      "to",
-      num
+  replace(num: number, host: Host): void {
+    host.logResult(
+      LogLevel.Info,
+      `replacing ${this.absolutePos} from ${
+        this.#array[this.absolutePos]
+      } to ${num}`
     );
     this.#array[this.absolutePos] = num;
   }

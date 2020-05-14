@@ -1,9 +1,9 @@
-import { Dict, unreachable } from "./utils";
-import type { Output } from "./output";
-import type { Operations } from "./ops";
-import type { UserBlock, AbstractOutput } from "./interfaces";
 import StackTracey, { StackTraceyFrame } from "stacktracey";
+import type { UserBlock } from "./interfaces";
+import type { Operations } from "./ops";
+import type { Output } from "./output";
 import type { Updater } from "./update";
+import { Dict, unreachable } from "./utils";
 
 export const DEBUG = Symbol("DEBUG");
 
@@ -13,6 +13,30 @@ export interface Debuggable {
   // this is a string property for ease of use in the inspector
   debugFields?: DebugFields;
 }
+
+export interface LogFilter {
+  info: boolean;
+  internals: boolean;
+  warnings: boolean;
+}
+
+export const ALL_LOGS = {
+  info: true,
+  internals: true,
+  warnings: true,
+};
+
+export const INFO_LOGS = {
+  info: true,
+  internals: false,
+  warnings: true,
+};
+
+export const WARNING_LOGS = {
+  info: false,
+  internals: false,
+  warnings: true,
+};
 
 export const enum LogLevel {
   Info = "Info",
@@ -150,32 +174,29 @@ export function printStructured(
 }
 
 export interface Logger {
-  begin(messageLevel: LogLevel, hostLevel: LogLevel, string: string): void;
+  begin(messageLevel: LogLevel, filter: LogFilter, string: string): void;
   result(
     level: LogLevel,
-    hostLevel: LogLevel,
+    filter: LogFilter,
     string: string,
     ...style: string[]
   ): void;
-  end(level: LogLevel, hostLevel: LogLevel, string: string): void;
+  end(level: LogLevel, filter: LogFilter, string: string): void;
   log(
     messageLevel: LogLevel,
-    hostLevel: LogLevel,
+    filter: LogFilter,
     string: string,
     ...style: string[]
   ): void;
-  indent<T>(messageLevel: LogLevel, hostLevel: LogLevel, callback: () => T): T;
+  indent<T>(messageLevel: LogLevel, filter: LogFilter, callback: () => T): T;
 }
 
-export function shouldShow(
-  loggerLevel: LogLevel,
-  messageLevel: LogLevel
-): boolean {
-  switch (loggerLevel) {
+export function shouldShow(filter: LogFilter, level: LogLevel): boolean {
+  switch (level) {
     case LogLevel.Info:
-      return messageLevel !== LogLevel.Internals;
+      return filter.info;
     case LogLevel.Internals:
-      return true;
+      return filter.internals;
   }
 }
 
@@ -187,15 +208,15 @@ export class ConsoleLogger implements Logger {
     this.#showStackTrace = showStackTrace;
   }
 
-  indent<T>(messageLevel: LogLevel, hostLevel: LogLevel, callback: () => T): T {
-    if (shouldShow(hostLevel, messageLevel)) {
+  indent<T>(level: LogLevel, filter: LogFilter, callback: () => T): T {
+    if (shouldShow(filter, level)) {
       this.#indent++;
     }
 
     try {
       return callback();
     } finally {
-      if (shouldShow(hostLevel, messageLevel)) {
+      if (shouldShow(filter, level)) {
         this.#indent--;
       }
     }
@@ -237,12 +258,12 @@ export class ConsoleLogger implements Logger {
   }
 
   log(
-    messageLevel: LogLevel,
-    hostLevel: LogLevel,
+    level: LogLevel,
+    filter: LogFilter,
     message: string,
     ...style: string[]
   ): void {
-    if (!shouldShow(hostLevel, messageLevel)) {
+    if (!shouldShow(filter, level)) {
       return;
     }
 
@@ -250,34 +271,34 @@ export class ConsoleLogger implements Logger {
       ? [`${"  ".repeat(this.#indent)}%c${message}`, ...style]
       : [`${"  ".repeat(this.#indent)}${message}`];
 
-    this.logWithStackTrace(this.logMethod(messageLevel), ...args);
+    this.logWithStackTrace(this.logMethod(level), ...args);
   }
 
-  begin(messageLevel: LogLevel, hostLevel: LogLevel, string: string): void {
-    if (!shouldShow(hostLevel, messageLevel)) {
+  begin(level: LogLevel, filter: LogFilter, string: string): void {
+    if (!shouldShow(filter, level)) {
       return;
     }
 
-    this.logWithStackTrace(this.logMethod(messageLevel), `-> ${string}`);
+    this.logWithStackTrace(this.logMethod(level), `-> ${string}`);
   }
 
   result(
-    messageLevel: LogLevel,
-    hostLevel: LogLevel,
+    level: LogLevel,
+    filter: LogFilter,
     string: string,
     ...style: string[]
   ): void {
-    if (!shouldShow(hostLevel, messageLevel)) {
+    if (!shouldShow(filter, level)) {
       return;
     }
 
     let message = style.length ? `[RESULT] %c${string}` : `[RESULT] ${string}`;
 
-    this.logWithStackTrace(this.logMethod(messageLevel), message, ...style);
+    this.logWithStackTrace(this.logMethod(level), message, ...style);
   }
 
-  end(messageLevel: LogLevel, hostLevel: LogLevel, string: string): void {
-    if (!shouldShow(hostLevel, messageLevel)) {
+  end(level: LogLevel, filter: LogFilter, string: string): void {
+    if (!shouldShow(filter, level)) {
       return;
     }
     let message = `<- %c${string}`;
@@ -338,7 +359,7 @@ export function frameSource(frame: StackTraceyFrame): string {
 }
 
 export function block<Ops extends Operations>(
-  invoke: (output: Output<Ops>, inner: AbstractOutput<Ops>) => Updater | void,
+  invoke: (output: Output<Ops>) => Updater | void,
   depth = 3
 ): UserBlock<Ops> {
   return {
@@ -348,7 +369,7 @@ export function block<Ops extends Operations>(
 }
 
 export function internalBlock<Ops extends Operations>(
-  invoke: (output: Output<Ops>, inner: AbstractOutput<Ops>) => Updater | void,
+  invoke: (output: Output<Ops>) => Updater | void,
   depth: number
 ): UserBlock<Ops> {
   return {

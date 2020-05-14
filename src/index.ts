@@ -9,3 +9,4 @@ export * from "./utils";
 export * from "./value";
 export * from "./debug";
 export * from "./update";
+export { poll, POLL } from "./unsafe";

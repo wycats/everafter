@@ -1,17 +1,16 @@
 // eslint-disable-next-line import/no-cycle
-import { UnsafeUpdatable } from "./unsafe";
+import { UnsafeUpdatable, POLL, poll } from "./unsafe";
 import {
   DEBUG,
   Debuggable,
   LogLevel,
   AnnotatedFunction,
-  printStructured,
   newtype,
   Structured,
+  DebugFields,
+  struct,
 } from "./debug";
 import type { Host } from "./interfaces";
-
-export const POLL = Symbol("POLL");
 
 /**
  * An `Updater` is an object that can be polled periodically in order to
@@ -28,13 +27,6 @@ export interface Updater extends Debuggable {
   // poll returns an Updater if the possibility for change still exists,
   // and void if it doesn't.
   [POLL](host: Host): Updater | void;
-}
-
-export function poll(updater: Updater, host: Host): Updater | void {
-  host.begin(LogLevel.Info, printStructured(updater[DEBUG](), true));
-  let result = host.indent(LogLevel.Info, () => updater[POLL](host));
-  host.end(LogLevel.Info, printStructured(updater[DEBUG](), false));
-  return result;
 }
 
 export class UpdatingOperation implements Updater {
@@ -85,7 +77,13 @@ export function updating(
 
 export type PresentUpdaters = readonly [Updater, ...Updater[]];
 
-export function toPresentUpdaters(updaters: Updater[]): PresentUpdaters | void {
+export function toPresentUpdaters(
+  updaters: Updater[] | void
+): PresentUpdaters | void {
+  if (updaters === undefined) {
+    return;
+  }
+
   if (updaters.length > 0) {
     return (updaters as unknown) as PresentUpdaters;
   }
@@ -94,7 +92,7 @@ export function toPresentUpdaters(updaters: Updater[]): PresentUpdaters | void {
 export function pollUpdaters(
   oldUpdaters: PresentUpdaters,
   host: Host
-): PresentUpdaters | void {
+): Updater | void {
   // Rebuild the updating array.
   let newUpdaters: Updater[] = [];
 
@@ -108,5 +106,40 @@ export function pollUpdaters(
     }
   }
 
-  return toPresentUpdaters(newUpdaters);
+  return toUpdater(newUpdaters);
+}
+
+export function toUpdater(updaters: Updater[] | void): Updater | void {
+  let present = toPresentUpdaters(updaters);
+  if (present === undefined) {
+    return;
+  } else if (present.length === 1) {
+    return present[0];
+  } else {
+    return new StaticBlockResult(present);
+  }
+}
+
+export class StaticBlockResult implements Updater {
+  // The updaters that should be polled when this result is polled and
+  // `#freshness` is not stale.
+  #updaters: readonly [Updater, ...Updater[]];
+
+  constructor(updaters: PresentUpdaters) {
+    this.#updaters = updaters;
+  }
+
+  [DEBUG](): Structured {
+    return struct("StaticBlockResult", ["updaters", this.#updaters]);
+  }
+
+  get debugFields(): DebugFields {
+    return new DebugFields("BlockResult", {
+      updaters: this.#updaters,
+    });
+  }
+
+  [POLL](host: Host): Updater | void {
+    return pollUpdaters(this.#updaters, host);
+  }
 }

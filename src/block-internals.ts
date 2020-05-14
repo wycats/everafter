@@ -1,45 +1,29 @@
 import {
-  AbstractOutput,
-  OutputFactory,
-  UserBlock,
-  Block,
-  Host,
-  RENDER,
-  logUpdaters,
-} from "./interfaces";
+  DEBUG,
+  DebugFields,
+  LogLevel,
+  newtype,
+  printStructured,
+  struct,
+  Structured,
+} from "./debug";
+import { Block, Host, OutputFactory, RENDER, UserBlock } from "./interfaces";
 import type { CursorRange, Operations } from "./ops";
 // eslint-disable-next-line import/no-cycle
 import { Output } from "./output";
-import { Freshness, unsafeCompute } from "./unsafe";
-import {
-  Updater,
-  pollUpdaters,
-  PresentUpdaters,
-  toPresentUpdaters,
-  POLL,
-} from "./update";
-import {
-  DebugFields,
-  DEBUG,
-  LogLevel,
-  Structured,
-  newtype,
-  struct,
-  printStructured,
-} from "./debug";
+import { Freshness, unsafeCompute, POLL, poll } from "./unsafe";
+import { Updater, toUpdater } from "./update";
 
-export function render<Ops extends Operations>(
+export function invokeBlock<Ops extends Operations>(
   block: Block<Ops>,
-  output: AbstractOutput<Ops>,
+  output: Output<Ops>,
   host: Host
-): Updater | void {
+): void {
   let level = isInternal(block) ? LogLevel.Internals : LogLevel.Info;
 
   host.begin(level, `rendering ${printStructured(block[DEBUG](), true)}`);
-
-  let result = host.indent(level, () => block[RENDER](output, host));
+  host.indent(level, () => block[RENDER](output, host));
   host.end(level, `rendering ${printStructured(block[DEBUG](), false)}`);
-  return result;
 }
 
 /**
@@ -55,11 +39,11 @@ export function render<Ops extends Operations>(
 export class DynamicBlock<Ops extends Operations> implements Block<Ops> {
   static render<Ops extends Operations>(
     block: UserBlock<Ops>,
-    output: AbstractOutput<Ops>,
+    output: Output<Ops>,
     host: Host
   ): Updater | void {
     let dynamic = new DynamicBlock(block);
-    return render(dynamic, output, host);
+    return invokeBlock(dynamic, output, host);
   }
 
   #userBlock: UserBlock<Ops>;
@@ -78,25 +62,23 @@ export class DynamicBlock<Ops extends Operations> implements Block<Ops> {
     });
   }
 
-  [RENDER](output: AbstractOutput<Ops>, host: Host): Updater {
+  [RENDER](output: Output<Ops>): void {
     let updaters: Updater[] = [];
-    let append = new Output(output, updaters, host);
+    let append = output.withUpdaters(updaters);
 
     let {
       range,
       value: { freshness },
-    } = output.range(() =>
-      unsafeCompute(() => this.#userBlock.invoke(append, output))
-    );
+    } = append.range(() => unsafeCompute(() => this.#userBlock.invoke(append)));
 
-    logUpdaters(updaters, host);
-
-    return new DynamicBlockResult(
-      this,
-      output.getOutput(),
-      toPresentUpdaters(updaters),
-      range,
-      freshness
+    output.updateWith(
+      new DynamicBlockResult(
+        this,
+        output.getOutputFactory(),
+        toUpdater(updaters),
+        range,
+        freshness
+      )
     );
   }
 }
@@ -112,7 +94,7 @@ export class DynamicBlockResult<Ops extends Operations> implements Updater {
 
   readonly #Output: OutputFactory<Ops>;
 
-  readonly #updaters: PresentUpdaters | void;
+  readonly #updater: Updater | void;
 
   // A region of the output.
   readonly #range: CursorRange<Ops>;
@@ -122,13 +104,13 @@ export class DynamicBlockResult<Ops extends Operations> implements Updater {
   constructor(
     block: DynamicBlock<Ops>,
     Output: OutputFactory<Ops>,
-    updaters: PresentUpdaters | void,
+    updater: Updater | void,
     range: CursorRange<Ops>,
     freshness: Freshness
   ) {
     this.#block = block;
     this.#Output = Output;
-    this.#updaters = updaters;
+    this.#updater = updater;
     this.#range = range;
     this.#freshness = freshness;
   }
@@ -137,7 +119,7 @@ export class DynamicBlockResult<Ops extends Operations> implements Updater {
     return new DebugFields("BlockResult", {
       block: this.#block,
       Output: this.#Output,
-      updaters: this.#updaters,
+      updater: this.#updater,
       range: this.#range,
       freshness: this.#freshness,
     });
@@ -156,15 +138,20 @@ export class DynamicBlockResult<Ops extends Operations> implements Updater {
       let cursor = this.#range.clear();
 
       // And run the block again, inserting new content at the cursor.
-      return render(this.#block, this.#Output(cursor), host);
-    } else if (this.#updaters) {
+      let output = this.#Output(cursor);
+      let updaters: Updater[] = [];
+      let append = new Output(output, updaters, host);
+      invokeBlock(this.#block, append, host);
+
+      return toUpdater(updaters);
+    } else if (this.#updater) {
       host.logResult(LogLevel.Info, "fresh, polling updaters");
-      let updaters = pollUpdaters(this.#updaters, host);
+      let updater = poll(this.#updater, host);
 
       return new DynamicBlockResult(
         this.#block,
         this.#Output,
-        updaters,
+        updater,
         this.#range,
         this.#freshness
       );

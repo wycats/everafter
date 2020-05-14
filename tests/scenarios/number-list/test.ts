@@ -1,24 +1,21 @@
 import type * as qunit from "qunit";
 import {
+  annotate,
+  block,
   Cell,
   Derived,
   Output,
   ReactiveValue,
   RootBlock,
-  defaultHost,
-  render,
-  block,
-  annotate,
-  LogLevel,
 } from "reactive-prototype";
-import { module, test } from "../../helpers";
-import { NumberArrayOps, NumberListOutput } from "./output";
+import { host, module, test } from "../../helpers";
+import { ArrayCursor, NumberArrayOps, NumberListOutput } from "./output";
 
 @module("list of numbers")
 export class ListOfNumbersTest {
   declare assert: qunit.Assert;
 
-  #host = defaultHost({ showStackTraces: true, logLevel: LogLevel.Internals });
+  #host = host();
 
   @test "simple number list"(): void {
     const output: number[] = [];
@@ -54,7 +51,7 @@ export class ListOfNumbersTest {
       this.#host
     );
 
-    render(block, NumberListOutput.from(output, this.#host), this.#host);
+    block.render(ArrayCursor.from(output, this.#host));
 
     this.assert.deepEqual(output, [10, 20, 30, 60], "[10, 20, 30, 60]");
 
@@ -162,7 +159,7 @@ export class ListOfNumbersTest {
       this.#host
     );
 
-    render(renderer, NumberListOutput.from(output, this.#host), this.#host);
+    renderer.render(ArrayCursor.from(output, this.#host));
 
     this.assert.deepEqual(output, [10, 20, 30, 60], "[10, 20, 30, 60]");
 

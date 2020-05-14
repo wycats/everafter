@@ -1,14 +1,7 @@
-import {
-  OutputFactory,
-  AbstractOutput,
-  Block,
-  Host,
-  RENDER,
-  logUpdaters,
-} from "./interfaces";
+import type { OutputFactory, Host } from "./interfaces";
 import type { Operations } from "./ops";
 import { Output } from "./output";
-import { Updater, poll } from "./update";
+import type { Updater } from "./update";
 import {
   DebugFields,
   DEBUG,
@@ -22,6 +15,7 @@ import {
   callerLocation,
   printStructured,
 } from "./debug";
+import { poll } from "./unsafe";
 
 export type RenderProgram<Ops extends Operations, Args> = (
   args: Args,
@@ -33,11 +27,10 @@ export type RenderProgram<Ops extends Operations, Args> = (
  * throughout the reactive lifetime of the block, and it corresponds to the entire
  * output.
  */
-export class RootBlock<Ops extends Operations, Args = unknown>
-  implements Block<Ops> {
+export class RootBlock<Ops extends Operations, Args = unknown> {
   #program: AnnotatedFunction<RenderProgram<Ops, Args>>;
   #args: Args;
-  #Output: OutputFactory<Ops>;
+  #outputFactory: OutputFactory<Ops>;
   #host: Host;
   #updates: readonly Updater[] = [];
 
@@ -46,12 +39,12 @@ export class RootBlock<Ops extends Operations, Args = unknown>
       | RenderProgram<Ops, Args>
       | AnnotatedFunction<RenderProgram<Ops, Args>>,
     args: Args,
-    Output: OutputFactory<Ops>,
+    outputFactory: OutputFactory<Ops>,
     host: Host
   ) {
     this.#program = annotate(program);
     this.#args = args;
-    this.#Output = Output;
+    this.#outputFactory = outputFactory;
     this.#host = host;
   }
 
@@ -59,7 +52,7 @@ export class RootBlock<Ops extends Operations, Args = unknown>
     return new DebugFields("Invocation", {
       program: this.#program,
       args: this.#args,
-      Output: this.#Output,
+      Output: this.#outputFactory,
       updates: this.#updates,
     });
   }
@@ -68,14 +61,18 @@ export class RootBlock<Ops extends Operations, Args = unknown>
     return newtype("RootBlock", description(frameSource(this.#program.source)));
   }
 
-  [RENDER](output: AbstractOutput<Ops>, host: Host): Updater | void {
+  render(cursor: Ops["cursor"]): Updater | void {
+    this.#host.begin(
+      LogLevel.Info,
+      `initial render at ${printStructured(callerLocation(3), true)}`
+    );
     let updaters: Updater[] = [];
-    let tracked = new Output(output, updaters, host);
-    host.indent(LogLevel.Info, () => this.#program.f(this.#args, tracked));
-
-    logUpdaters(updaters, host);
+    let output = this.#outputFactory(cursor);
+    let append = new Output(output, updaters, this.#host);
+    this.#host.indent(LogLevel.Info, () => this.#program.f(this.#args, append));
 
     this.#updates = updaters;
+    this.#host.end(LogLevel.Info, "initial render");
   }
 
   rerender(): void {
@@ -86,6 +83,10 @@ export class RootBlock<Ops extends Operations, Args = unknown>
     );
 
     this.#host.indent(LogLevel.Info, () => {
+      if (this.#updates.length === 0) {
+        this.#host.logResult(LogLevel.Info, "nothing to do, no updaters");
+      }
+
       let newUpdates = [];
 
       for (let item of this.#updates) {

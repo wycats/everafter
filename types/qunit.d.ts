@@ -290,7 +290,7 @@ interface Assert {
   verifySteps(steps: string[], message?: string): void;
 }
 
-interface Config {
+export interface Config {
   altertitle: boolean;
   autostart: boolean;
   collapse: boolean;

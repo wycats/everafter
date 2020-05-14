@@ -1,32 +1,21 @@
 // eslint-disable-next-line import/no-cycle
-import { DynamicBlock, render } from "./block-internals";
+import { DynamicBlock, invokeBlock } from "./block-internals";
 import {
-  AbstractOutput,
-  UserBlock,
-  Block,
-  Host,
-  RENDER,
-  logUpdaters,
-} from "./interfaces";
+  DEBUG,
+  DebugFields,
+  internalBlock,
+  newtype,
+  struct,
+  Structured,
+} from "./debug";
+import { Block, Host, RENDER, UserBlock } from "./interfaces";
 import type { Operations } from "./ops";
 // eslint-disable-next-line import/no-cycle
-import { Output } from "./output";
-import {
-  pollUpdaters,
-  PresentUpdaters,
-  toPresentUpdaters,
-  Updater,
-  POLL,
-} from "./update";
-import {
-  DebugFields,
-  DEBUG,
-  newtype,
-  Structured,
-  internalBlock,
-  struct,
-} from "./debug";
+import type { Output } from "./output";
+// eslint-disable-next-line import/no-cycle
+import { Updater, toUpdater } from "./update";
 import type { ReactiveValue } from "./value";
+// eslint-disable-next-line import/no-cycle
 
 export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
   #condition: ReactiveValue<boolean>;
@@ -59,13 +48,13 @@ export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
     });
   }
 
-  [RENDER](output: AbstractOutput<Ops>, host: Host): Updater | void {
-    return DynamicBlock.render(
-      internalBlock<Ops>((_output, inner) => {
+  [RENDER](output: Output<Ops>, host: Host): void {
+    DynamicBlock.render(
+      internalBlock<Ops>(output => {
         let isTrue = this.#condition.value;
 
         let next = isTrue ? this.#then : this.#otherwise;
-        render(next, inner, host);
+        invokeBlock(next, output, host);
       }, 3),
       output,
       host
@@ -89,46 +78,12 @@ export class StaticBlock<Ops extends Operations> implements Block<Ops> {
     return newtype("StaticBlock", this.#userBlock.desc);
   }
 
-  [RENDER](output: AbstractOutput<Ops>, host: Host): Updater | void {
+  [RENDER](output: Output<Ops>): void {
     let updaters: Updater[] = [];
-    let append = new Output(output, updaters, host);
+    let append = output.withUpdaters(updaters);
 
-    this.#userBlock.invoke(append, output);
+    this.#userBlock.invoke(append);
 
-    logUpdaters(updaters, host);
-
-    let presentUpdaters = toPresentUpdaters(updaters);
-
-    if (presentUpdaters) {
-      return new StaticBlockResult(presentUpdaters);
-    }
-  }
-}
-
-export class StaticBlockResult implements Updater {
-  // The updaters that should be polled when this result is polled and
-  // `#freshness` is not stale.
-  #updaters: readonly [Updater, ...Updater[]];
-
-  constructor(updaters: PresentUpdaters) {
-    this.#updaters = updaters;
-  }
-
-  [DEBUG](): Structured {
-    return struct("StaticBlockResult", ["updaters", this.#updaters]);
-  }
-
-  get debugFields(): DebugFields {
-    return new DebugFields("BlockResult", {
-      updaters: this.#updaters,
-    });
-  }
-
-  [POLL](host: Host): Updater | void {
-    let updaters = pollUpdaters(this.#updaters, host);
-
-    if (updaters) {
-      return new StaticBlockResult(updaters);
-    }
+    output.updateWith(toUpdater(updaters));
   }
 }

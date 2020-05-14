@@ -1,15 +1,23 @@
 import * as qunit from "qunit";
+import {
+  defaultHost,
+  Host,
+  LogFilter,
+  ALL_LOGS,
+  INFO_LOGS,
+  WARNING_LOGS,
+} from "../src";
 
 export function module(
   name: string
 ): <T extends { new (): object }>(target: T) => T {
   qunit.module(name);
 
-  return (c) => c;
+  return c => c;
 }
 
 export function test(target: object, name: string): void {
-  qunit.test(name, (assert) => {
+  qunit.test(name, assert => {
     let constructor = target.constructor as {
       new (): {
         assert: qunit.Assert;
@@ -24,7 +32,7 @@ export function test(target: object, name: string): void {
 }
 
 export function todo(target: object, name: string): void {
-  qunit.todo(name, (assert) => {
+  qunit.todo(name, assert => {
     let constructor = target.constructor as {
       new (): {
         assert: qunit.Assert;
@@ -40,4 +48,24 @@ export function todo(target: object, name: string): void {
 
 interface Dict<T = unknown> {
   [key: string]: T;
+}
+
+export function host(): Host {
+  return defaultHost({
+    showStackTraces: qunit.config.stacktraces,
+    filter: filter(),
+  });
+}
+
+function filter(): LogFilter {
+  switch (qunit.config.logging) {
+    case "all":
+      return ALL_LOGS;
+    case "info":
+      return INFO_LOGS;
+    case "warning":
+      return WARNING_LOGS;
+    default:
+      return INFO_LOGS;
+  }
 }

@@ -6,8 +6,9 @@ import {
   Logger,
   ConsoleLogger,
   LogLevel,
-  printStructured,
   Structured,
+  INFO_LOGS,
+  LogFilter,
 } from "./debug";
 
 export type OutputFactory<Ops extends Operations> = (
@@ -27,7 +28,7 @@ export abstract class AbstractOutput<Ops extends Operations> {
 
 export interface UserBlock<Ops extends Operations> {
   desc: Structured;
-  invoke(output: Output<Ops>, inner: AbstractOutput<Ops>): Updater | void;
+  invoke(output: Output<Ops>): Updater | void;
 }
 
 export interface BlockBuffer<
@@ -49,29 +50,14 @@ export const RENDER = Symbol("RENDER");
  * polled to attempt to update it.
  */
 export interface Block<Ops extends Operations> extends Debuggable {
-  [RENDER](output: AbstractOutput<Ops>, host: Host): Updater | void;
+  [RENDER](output: Output<Ops>, host: Host): void;
 }
 
 export type LogStep = Generator<Promise<unknown>, void, unknown>;
 
-export function logUpdaters(updaters: Updater[], host: Host): void {
-  if (updaters.length) {
-    host.logResult(
-      LogLevel.Info,
-      "UPDATERS",
-      "color: green; font-weight: bold"
-    );
-    for (let updater of updaters) {
-      host.logResult(LogLevel.Info, `- ${printStructured(updater, true)}`);
-    }
-  } else {
-    host.logResult(LogLevel.Info, "No updaters");
-  }
-}
-
 export interface Host {
   logger: Logger;
-  level: LogLevel;
+  filter: LogFilter;
   log(level: LogLevel, message: string, ...style: string[]): void;
   begin(level: LogLevel, string: string): void;
   logResult(level: LogLevel, string: string, ...style: string[]): void;
@@ -81,27 +67,27 @@ export interface Host {
 
 export function defaultHost({
   showStackTraces = false,
-  logLevel: hostLevel = LogLevel.Info,
-}: { showStackTraces?: boolean; logLevel?: LogLevel } = {}): Host {
+  filter = INFO_LOGS,
+}: { showStackTraces?: boolean; filter?: LogFilter } = {}): Host {
   let logger = new ConsoleLogger(showStackTraces);
 
   return {
     logger,
-    level: hostLevel,
+    filter,
     log(messageLevel: LogLevel, message: string, ...style: string[]): void {
-      logger.log(messageLevel, hostLevel, message, ...style);
+      logger.log(messageLevel, filter, message, ...style);
     },
     begin(level: LogLevel, message: string): void {
-      logger.begin(level, hostLevel, message);
+      logger.begin(level, filter, message);
     },
     logResult(level: LogLevel, message: string, ...style: string[]): void {
-      logger.result(level, hostLevel, message, ...style);
+      logger.result(level, filter, message, ...style);
     },
     end(level: LogLevel, message: string): void {
-      logger.end(level, hostLevel, message);
+      logger.end(level, filter, message);
     },
     indent<T>(level: LogLevel, callback: () => T): T {
-      return logger.indent(level, hostLevel, callback);
+      return logger.indent(level, filter, callback);
     },
   };
 }

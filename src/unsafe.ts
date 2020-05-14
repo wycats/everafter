@@ -7,8 +7,7 @@ import {
   valueForTag,
 } from "@glimmer/validator";
 import type { Tag } from "@glimmer/validator/dist/types";
-// eslint-disable-next-line import/no-cycle
-import { Updater, poll } from "./update";
+import type { Updater } from "./update";
 import { unreachable, unwrap } from "./utils";
 import {
   DebugFields,
@@ -19,6 +18,8 @@ import {
   Structured,
   newtype,
   description,
+  LogLevel,
+  printStructured,
 } from "./debug";
 import type { Host } from "./interfaces";
 
@@ -195,4 +196,13 @@ export function unsafeCompute<T>(
       unreachable(null as never);
     }
   }
+}
+
+export const POLL = Symbol("POLL");
+
+export function poll(updater: Updater, host: Host): Updater | void {
+  host.begin(LogLevel.Info, printStructured(updater[DEBUG](), true));
+  let result = host.indent(LogLevel.Info, () => updater[POLL](host));
+  host.end(LogLevel.Info, printStructured(updater[DEBUG](), false));
+  return result;
 }

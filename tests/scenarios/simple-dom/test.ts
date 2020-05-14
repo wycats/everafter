@@ -13,18 +13,16 @@ import {
   Program,
   ReactiveValue,
   RootBlock,
-  render,
-  defaultHost,
   block,
 } from "reactive-prototype";
-import { module, test } from "../../helpers";
+import { module, test, host } from "../../helpers";
 import { DomCursor, DomOps, element, SimpleDomOutput, text } from "./output";
 
 @module("values")
 export class ValueTest {
   declare assert: qunit.Assert;
 
-  #host = defaultHost();
+  #host = host();
 
   @test "simple values"(): void {
     type HelloWorldArgs = { hello: Cell<string>; world: Derived<string> };
@@ -244,26 +242,18 @@ export class ValueTest {
     let { parent, output } = this.context();
 
     // invoke an invocation for the program with the input state
-    let invocation = new RootBlock(program, args, output, this.#host);
-    render(
-      invocation,
-      new SimpleDomOutput(new DomCursor(parent, null)),
-      this.#host
-    );
+    let root = new RootBlock(program, args, output, this.#host);
+    root.render(new DomCursor(parent, null));
 
-    return new RenderExpectation(invocation, parent, this.assert);
+    return new RenderExpectation(root, parent, this.assert);
   }
 
   private expectRender<Args>(
-    invocation: RootBlock<DomOps, Args>,
+    root: RootBlock<DomOps, Args>,
     element: SimpleElement,
     { expected }: { expected: string }
   ): void {
-    render(
-      invocation,
-      new SimpleDomOutput(new DomCursor(element, null)),
-      this.#host
-    );
+    root.render(new DomCursor(element, null));
     this.assertHTML(element, expected);
   }
 

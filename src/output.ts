@@ -1,4 +1,4 @@
-import type { Operations } from "./ops";
+import type { Operations, CursorRange } from "./ops";
 import type { ReactiveValue } from "./value";
 import type {
   AbstractOutput,
@@ -6,20 +6,21 @@ import type {
   BlockBuffer,
   Block,
   Host,
+  OutputFactory,
 } from "./interfaces";
 import { updating, Updater } from "./update";
 // eslint-disable-next-line import/no-cycle
 import { StaticBlock, ConditionBlock } from "./block-primitives";
-import { annotate } from "./debug";
+import { annotate, LogLevel, printStructured } from "./debug";
 // eslint-disable-next-line import/no-cycle
-import { render } from "./block-internals";
+import { invokeBlock } from "./block-internals";
 
 /**
  * The concrete object that gets passed into user blocks.
  */
 export class Output<Ops extends Operations> {
   #inner: AbstractOutput<Ops>;
-  #updates: Updater[];
+  #updaters: Updater[];
   #host: Host;
 
   constructor(inner: AbstractOutput<Ops>, updates: Updater[], host: Host) {
@@ -28,19 +29,37 @@ export class Output<Ops extends Operations> {
     }
 
     this.#inner = inner;
-    this.#updates = updates;
+    this.#updaters = updates;
     this.#host = host;
   }
 
-  private updateWith(update: Updater | void): void {
+  updateWith(update: Updater | void): void {
     if (update) {
-      this.#updates.push(update);
+      this.#host.logResult(
+        LogLevel.Info,
+        `${printStructured(update, true)}`,
+        "color: green"
+      );
+      this.#updaters.push(update);
     }
   }
 
-  getChild(): AbstractOutput<Ops> {
-    let Output = this.#inner.getOutput();
-    return Output(this.#inner.getCursor());
+  withUpdaters(updaters: Updater[]): Output<Ops> {
+    return new Output(this.#inner, updaters, this.#host);
+  }
+
+  getOutputFactory(): OutputFactory<Ops> {
+    return this.#inner.getOutput();
+  }
+
+  range<T>(callback: () => T): { value: T; range: CursorRange<Ops> } {
+    return this.#inner.range(callback);
+  }
+
+  getChild(): Output<Ops> {
+    let outputFactory = this.#inner.getOutput();
+    let output = outputFactory(this.#inner.getCursor());
+    return new Output(output, this.#updaters, this.#host);
   }
 
   leaf(leaf: Ops["leafKind"]): void {
@@ -66,11 +85,11 @@ export class Output<Ops extends Operations> {
       otherwiseBlock
     );
 
-    this.updateWith(render(conditionBlock, this.getChild(), this.#host));
+    this.updateWith(invokeBlock(conditionBlock, this.getChild(), this.#host));
   }
 
   render(block: Block<Ops>): void {
-    render(block, this.#inner, this.#host);
+    invokeBlock(block, this, this.#host);
   }
 
   open<B extends Ops["blockKind"]>(value: B["open"]): BlockBuffer<Ops, B> {
