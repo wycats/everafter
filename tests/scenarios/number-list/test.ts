@@ -1,24 +1,22 @@
 import type * as qunit from "qunit";
 import {
+  AbstractOutput,
   annotate,
-  block,
+  args,
+  callerFrame,
   Cell,
   Derived,
-  Output,
+  Dict,
+  Evaluate,
+  PARENT,
+  program,
+  Reactive,
+  ReactiveState,
   ReactiveValue,
   RootBlock,
-  Reactive,
-  args,
-  program,
-  Dict,
-  ReactiveState,
-  Evaluate,
-  callerFrame,
-  PARENT,
-  AbstractOutput,
 } from "reactive-prototype";
-import { host, module, test, todo } from "../../helpers";
-import { ArrayCursor, NumberArrayOps, NumberListOutput, num } from "./output";
+import { host, module, test } from "../../helpers";
+import { ArrayCursor, num, NumberArrayOps, NumberListOutput } from "./output";
 
 @module("list of numbers")
 export class ListOfNumbersTest {
@@ -70,117 +68,123 @@ export class ListOfNumbersTest {
     }, [15, 20, 50, 85]);
   }
 
-  @todo blocks(): void {
-    const output: number[] = [];
+  @test blocks(): void {
+    const ARGS = args({
+      "positive.first": Reactive<number>(),
+      "positive.second": Reactive<number>(),
+      "positive.third": Reactive<number>(),
+      "positive.sum": Reactive<number>(),
+      "negative.first": Reactive<number>(),
+      "negative.second": Reactive<number>(),
+      "negative.third": Reactive<number>(),
+      "negative.sum": Reactive<number>(),
+      showPositive: Reactive<boolean>(),
+      showAbs: Reactive<boolean>(),
+    });
 
-    const positiveCells = {
-      first: Cell(10),
-      second: Cell(20),
-      third: Cell(30),
-    };
-
-    const derivedPositive = Derived(
-      () =>
-        positiveCells.first.value +
-        positiveCells.second.value +
-        positiveCells.third.value
+    const positiveSum = annotate(
+      (
+        first: ReactiveValue<number>,
+        second: ReactiveValue<number>,
+        third: ReactiveValue<number>
+      ): number => first.value + second.value + third.value
     );
 
-    const negativeCells = {
-      first: Cell(-10),
-      second: Cell(-20),
-      third: Cell(-30),
-    };
-
-    const derivedNegative = Derived(
-      () =>
-        Math.abs(negativeCells.first.value) +
-        Math.abs(negativeCells.second.value) +
-        Math.abs(negativeCells.third.value)
+    const negativeSum = annotate(
+      (
+        first: ReactiveValue<number>,
+        second: ReactiveValue<number>,
+        third: ReactiveValue<number>
+      ): number =>
+        Math.abs(first.value) + Math.abs(second.value) + Math.abs(third.value)
     );
 
-    const ARGS = {
-      positive: positiveCells,
-      derivedPositive,
-      negative: negativeCells,
-      derivedNegative,
-      showPositive: Cell(true),
-      showAbs: Cell(false),
-    };
-
-    function abs(num: ReactiveValue<number>): ReactiveValue<number> {
-      return Derived(() => {
-        let value = num.value;
-        return Math.abs(value);
-      });
-    }
-
-    const Render = annotate(
-      (args: typeof ARGS, output: Output<NumberArrayOps>): void => {
-        output.ifBlock(
-          args.showPositive,
-          block(output => {
-            output.ifBlock(
-              args.showAbs,
-              block(output => {
-                output.leaf(abs(args.positive.first));
-                output.leaf(abs(args.positive.second));
-                output.leaf(abs(args.positive.third));
-                output.leaf(abs(derivedPositive));
-              }),
-              block(output => {
-                output.leaf(args.positive.first);
-                output.leaf(args.positive.second);
-                output.leaf(args.positive.third);
-                output.leaf(derivedPositive);
-              })
-            );
-          }),
-          block(output => {
-            output.ifBlock(
-              args.showAbs,
-              block(output => {
-                output.leaf(abs(args.negative.first));
-                output.leaf(abs(args.negative.second));
-                output.leaf(abs(args.negative.third));
-                output.leaf(abs(derivedNegative));
-              }),
-              block(output => {
-                output.leaf(args.negative.first);
-                output.leaf(args.negative.second);
-                output.leaf(args.negative.third);
-                output.leaf(derivedNegative);
-              })
-            );
-          })
-        );
-      }
+    const abs = annotate((num: ReactiveValue<number>): number =>
+      Math.abs(num.value)
     );
 
-    let renderer = new RootBlock(
-      Render,
-      ARGS,
-      pos => new NumberListOutput(output, pos, this.#host),
-      this.#host
-    );
+    const template = program<NumberArrayOps>(ARGS, b => {
+      b.ifBlock(
+        ARGS.get("showPositive"),
+        annotate(b => {
+          b.ifBlock(
+            ARGS.get("showAbs"),
+            annotate(b => {
+              b.leaf(num(ARGS.call(abs, ARGS.get("positive.first"))));
+              b.leaf(num(ARGS.call(abs, ARGS.get("positive.second"))));
+              b.leaf(num(ARGS.call(abs, ARGS.get("positive.third"))));
+              b.leaf(num(ARGS.call(abs, ARGS.get("positive.sum"))));
+            }),
+            annotate(b => {
+              b.leaf(num(ARGS.get("positive.first")));
+              b.leaf(num(ARGS.get("positive.second")));
+              b.leaf(num(ARGS.get("positive.third")));
+              b.leaf(num(ARGS.get("positive.sum")));
+            })
+          );
+        }),
+        annotate(b => {
+          b.ifBlock(
+            ARGS.get("showAbs"),
+            annotate(b => {
+              b.leaf(num(ARGS.call(abs, ARGS.get("negative.first"))));
+              b.leaf(num(ARGS.call(abs, ARGS.get("negative.second"))));
+              b.leaf(num(ARGS.call(abs, ARGS.get("negative.third"))));
+              b.leaf(num(ARGS.call(abs, ARGS.get("negative.sum"))));
+            }),
+            annotate(b => {
+              b.leaf(num(ARGS.get("negative.first")));
+              b.leaf(num(ARGS.get("negative.second")));
+              b.leaf(num(ARGS.get("negative.third")));
+              b.leaf(num(ARGS.get("negative.sum")));
+            })
+          );
+        })
+      );
+    });
 
-    renderer.render(ArrayCursor.from(output, this.#host));
+    const firstPos = Cell(10);
+    const secondPos = Cell(20);
+    const thirdPos = Cell(30);
+    const firstNeg = Cell(-10);
+    const secondNeg = Cell(-20);
+    const thirdNeg = Cell(-30);
+    const showPositive = Cell(true);
+    const showAbs = Cell(false);
 
-    this.assert.deepEqual(output, [10, 20, 30, 60], "[10, 20, 30, 60]");
+    const state = ARGS.hydrate({
+      "positive.first": firstPos,
+      "positive.second": secondPos,
+      "positive.third": thirdPos,
+      "positive.sum": Derived(() =>
+        positiveSum.f(firstPos, secondPos, thirdPos)
+      ),
+      "negative.first": firstNeg,
+      "negative.second": secondNeg,
+      "negative.third": thirdNeg,
+      "negative.sum": Derived(() =>
+        negativeSum.f(firstNeg, secondNeg, thirdNeg)
+      ),
+      showPositive,
+      showAbs,
+    });
 
-    positiveCells.first.value = 15;
-    positiveCells.third.value = 50;
-    renderer.rerender();
+    let result = this.render(template, state).expect([10, 20, 30, 60]);
 
-    this.assert.deepEqual(output, [15, 20, 50, 85], "[15, 20, 50, 85]");
+    result.rerender();
 
-    ARGS.showPositive.value = false;
-    renderer.rerender();
-    this.assert.deepEqual(output, [-10, -20, -30, 60], "[-10, -20, -30, 60]");
+    result.update(() => {
+      firstPos.value = 15;
+      thirdPos.value = 50;
+    }, [15, 20, 50, 85]);
 
-    ARGS.showAbs.value = true;
-    renderer.rerender();
-    this.assert.deepEqual(output, [10, 20, 30, 60], "[10, 20, 30, 60]");
+    result.update(() => {
+      showPositive.value = false;
+    }, [-10, -20, -30, 60]);
+
+    result.update(() => {
+      showAbs.value = true;
+    }, [10, 20, 30, 60]);
   }
 
   private context(): {

@@ -71,7 +71,7 @@ interface Builder<Ops extends Operations> {
     condition: A,
     then: UserBuilderBlock<Ops>,
     otherwise: UserBuilderBlock<Ops>,
-    directness: number
+    caller?: StackTraceyFrame
   ): void;
   /**
    * increment the directness parameter if calling an inner `open`
@@ -220,14 +220,13 @@ export class StatementsBuilder<Ops extends Operations> implements Builder<Ops> {
     condition: ReactiveArgument<boolean>,
     then: UserBuilderBlock<Ops>,
     otherwise: UserBuilderBlock<Ops>,
-    directness: number
+    source: StackTraceyFrame
   ): void {
-    let location = callerFrame(directness);
     let thenBlock = CompilableBlock.from(then);
     let otherwiseBlock = CompilableBlock.from(otherwise);
 
     this.#statements.push(
-      new Conditional(condition, thenBlock, otherwiseBlock, location)
+      new Conditional(condition, thenBlock, otherwiseBlock, source)
     );
   }
 
@@ -294,15 +293,14 @@ class StaticBlockBuilder<Ops extends Operations> implements Builder<Ops> {
   ifBlock(
     condition: ReactiveArgument<boolean>,
     then: UserBuilderBlock<Ops>,
-    otherwise: UserBuilderBlock<Ops>
+    otherwise: UserBuilderBlock<Ops>,
+    source: StackTraceyFrame
   ): void {
-    let location = callerFrame(PARENT);
-
     let cond = new Conditional(
       condition,
       CompilableBlock.from(then),
       CompilableBlock.from(otherwise),
-      location
+      source
     );
 
     this.#statements.push(cond);
@@ -360,9 +358,9 @@ class BlockBodyBuilder<Ops extends Operations, B extends Ops["blockKind"]>
     condition: ReactiveArgument<boolean>,
     then: UserBuilderBlock<Ops>,
     otherwise: UserBuilderBlock<Ops>,
-    directness: number
+    source = callerFrame(PARENT)
   ): void {
-    this.#builder.ifBlock(condition, then, otherwise, directness + 1);
+    this.#builder.ifBlock(condition, then, otherwise, source);
   }
 
   open<B extends Ops["blockKind"]>(
@@ -407,9 +405,10 @@ export class ProgramBuilder<Ops extends Operations>
   ifBlock<A extends ReactiveArgument<boolean>>(
     condition: A,
     then: UserBuilderBlock<Ops>,
-    otherwise: UserBuilderBlock<Ops>
+    otherwise: UserBuilderBlock<Ops>,
+    source = callerFrame(PARENT)
   ): void {
-    this.#statements.ifBlock(condition, then, otherwise, PARENT + 1);
+    this.#statements.ifBlock(condition, then, otherwise, source);
   }
 
   open<B extends Ops["blockKind"]>(
