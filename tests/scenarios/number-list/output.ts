@@ -13,7 +13,16 @@ import {
   struct,
   description,
   POLL,
+  ReactiveArgument,
+  CompilableLeaf,
+  ReactiveState,
+  Output,
+  annotateWithFrame,
+  callerFrame,
+  PARENT,
+  Evaluate,
 } from "reactive-prototype";
+import type { StackTraceyFrame } from "stacktracey";
 
 export interface NumberArrayOps {
   cursor: ArrayCursor;
@@ -22,6 +31,38 @@ export interface NumberArrayOps {
     open: void;
     head: never;
   };
+}
+
+class CompilableDomLeaf
+  implements CompilableLeaf<NumberArrayOps, ReactiveValue<number>> {
+  #value: ReactiveArgument<number>;
+  #caller: StackTraceyFrame;
+
+  constructor(value: ReactiveArgument<number>, caller: StackTraceyFrame) {
+    this.#value = value;
+    this.#caller = caller;
+  }
+
+  get debugFields(): DebugFields {
+    return new DebugFields("CompilableDomLeaf", {
+      value: this.#value,
+      caller: this.#caller,
+    });
+  }
+
+  compile(state: ReactiveState): Evaluate<NumberArrayOps> {
+    let value = this.#value.hydrate(state);
+
+    let func = (output: Output<NumberArrayOps>): void => {
+      output.leaf(value, this.#caller);
+    };
+
+    return annotateWithFrame(func, this.#caller);
+  }
+}
+
+export function num(num: ReactiveArgument<number>): CompilableDomLeaf {
+  return new CompilableDomLeaf(num, callerFrame(PARENT));
 }
 
 export interface Block {

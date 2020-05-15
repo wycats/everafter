@@ -16,7 +16,6 @@ import {
   CursorRange,
   DebugFields,
   Evaluate,
-  frameSource,
   Output,
   OutputFactory,
   PARENT,
@@ -105,12 +104,12 @@ class CompilableDomLeaf<T, L extends DomOps["leafKind"]>
     return new DebugFields("CompilableDomLeaf", {
       value: this.#value,
       caller: this.#caller,
+      toRuntime: this.#toRuntime,
     });
   }
 
   compile(state: ReactiveState): Evaluate<DomOps> {
     let value = this.#value.hydrate(state);
-    console.log(frameSource(this.#caller));
     return annotateWithFrame(this.#toRuntime(value), this.#caller);
   }
 }
