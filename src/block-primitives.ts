@@ -1,35 +1,36 @@
+import type { StackTraceyFrame } from "stacktracey";
 // eslint-disable-next-line import/no-cycle
-import { DynamicBlock, invokeBlock } from "./block-internals";
+import { DynamicBlockResult, invokeBlock } from "./block-internals";
 import {
   DEBUG,
   DebugFields,
-  internalBlock,
   newtype,
   struct,
   Structured,
-} from "./debug";
-import { Block, Host, RENDER, UserBlock } from "./interfaces";
-import type { Operations } from "./ops";
-// eslint-disable-next-line import/no-cycle
+  block,
+} from "./debug/index";
+import { Block, Host, Operations, RENDER, UserBlock } from "./interfaces";
 import type { Output } from "./output";
-// eslint-disable-next-line import/no-cycle
-import { Updater, toUpdater } from "./update";
+import { unsafeCompute } from "./unsafe";
+import { toUpdater, Updater } from "./update";
 import type { ReactiveValue } from "./value";
-// eslint-disable-next-line import/no-cycle
 
 export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
   #condition: ReactiveValue<boolean>;
   #then: StaticBlock<Ops>;
   #otherwise: StaticBlock<Ops>;
+  #source: StackTraceyFrame;
 
   constructor(
     condition: ReactiveValue<boolean>,
     then: StaticBlock<Ops>,
-    otherwise: StaticBlock<Ops>
+    otherwise: StaticBlock<Ops>,
+    source: StackTraceyFrame
   ) {
     this.#condition = condition;
     this.#then = then;
     this.#otherwise = otherwise;
+    this.#source = source;
   }
 
   [DEBUG](): Structured {
@@ -45,19 +46,76 @@ export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
       condition: this.#condition,
       then: this.#then,
       otherwise: this.#otherwise,
+      source: this.#source,
     });
   }
 
   [RENDER](output: Output<Ops>, host: Host): void {
     DynamicBlock.render(
-      internalBlock<Ops>(output => {
+      block<Ops>(output => {
         let isTrue = this.#condition.value;
 
         let next = isTrue ? this.#then : this.#otherwise;
         invokeBlock(next, output, host);
-      }, 3),
+      }, this.#source),
       output,
       host
+    );
+  }
+}
+
+/**
+ * A `DynamicBlock` is an internal implementation detail of core primitive
+ * blocks that might have to be torn down.
+ *
+ * When rendered, it invokes the inner function, tracking the validity of
+ * the internal computation.
+ */
+class DynamicBlock<Ops extends Operations> implements Block<Ops> {
+  static render<Ops extends Operations>(
+    block: UserBlock<Ops>,
+    output: Output<Ops>,
+    host: Host
+  ): Updater | void {
+    let dynamic = new DynamicBlock(block);
+    return invokeBlock(dynamic, output, host);
+  }
+
+  #userBlock: UserBlock<Ops>;
+
+  private constructor(userBlock: UserBlock<Ops>) {
+    this.#userBlock = userBlock;
+  }
+
+  [DEBUG](): Structured {
+    return newtype("DynamicBlock", this.#userBlock.source);
+  }
+
+  get debugFields(): DebugFields {
+    return new DebugFields("DynamicBlock", {
+      invoke: this.#userBlock,
+    });
+  }
+
+  [RENDER](output: Output<Ops>, host: Host): void {
+    let updaters: Updater[] = [];
+    let append = output.getChild(updaters);
+    let runtime = append.getInner();
+
+    let { freshness } = unsafeCompute(() =>
+      this.#userBlock.f(append, runtime, host)
+    );
+
+    let range = runtime.finalize();
+
+    output.updateWith(
+      new DynamicBlockResult(
+        this,
+        output.getOutputFactory(),
+        toUpdater(updaters),
+        range,
+        freshness
+      )
     );
   }
 }
@@ -75,14 +133,14 @@ export class StaticBlock<Ops extends Operations> implements Block<Ops> {
   }
 
   [DEBUG](): Structured {
-    return newtype("StaticBlock", this.#userBlock.desc);
+    return newtype("StaticBlock", this.#userBlock.source);
   }
 
   [RENDER](output: Output<Ops>, host: Host): void {
     let updaters: Updater[] = [];
     let append = output.withUpdaters(updaters);
 
-    this.#userBlock.invoke(append, append.getInner(), host);
+    this.#userBlock.f(append, append.getInner(), host);
 
     output.updateWith(toUpdater(updaters));
   }

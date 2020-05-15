@@ -1,6 +1,5 @@
 import type * as qunit from "qunit";
 import {
-  AbstractOutput,
   annotate,
   args,
   callerFrame,
@@ -14,6 +13,7 @@ import {
   ReactiveState,
   ReactiveValue,
   RootBlock,
+  RegionAppender,
 } from "reactive-prototype";
 import { host, module, test } from "../../helpers";
 import { ArrayCursor, num, NumberArrayOps, NumberListOutput } from "./output";
@@ -189,7 +189,7 @@ export class ListOfNumbersTest {
 
   private context(): {
     list: number[];
-    output: (cursor: ArrayCursor) => AbstractOutput<NumberArrayOps>;
+    output: (cursor: ArrayCursor) => RegionAppender<NumberArrayOps>;
   } {
     let list: number[] = [];
     let output = (cursor: ArrayCursor): NumberListOutput =>
@@ -201,7 +201,7 @@ export class ListOfNumbersTest {
   private render<A extends Dict<ReactiveValue>>(
     template: (state: ReactiveState) => Evaluate<NumberArrayOps>,
     state: ReactiveState<A>
-  ): RenderExpectation<A> {
+  ): RenderExpectation {
     this.assert.step("initial render");
     const render = template(state);
 
@@ -212,14 +212,14 @@ export class ListOfNumbersTest {
   }
 }
 
-class RenderExpectation<Args extends Dict<ReactiveValue>> {
-  #invocation: RootBlock<NumberArrayOps, Args>;
+class RenderExpectation {
+  #invocation: RootBlock<NumberArrayOps>;
   #list: number[];
   #assert: qunit.Assert;
   #last: readonly number[] | undefined = undefined;
 
   constructor(
-    invocation: RootBlock<NumberArrayOps, Args>,
+    invocation: RootBlock<NumberArrayOps>,
     list: number[],
     assert: qunit.Assert
   ) {

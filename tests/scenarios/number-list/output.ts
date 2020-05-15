@@ -1,33 +1,33 @@
 import {
-  AbstractOutput,
+  annotate,
   BlockBuffer,
-  CursorRange,
-  DebugFields,
-  OutputFactory,
-  ReactiveValue,
-  Updater,
+  callerFrame,
+  CompilableLeaf,
   DEBUG,
+  DebugFields,
+  description,
+  Evaluate,
   Host,
   LogLevel,
-  Structured,
-  struct,
-  description,
+  Output,
+  OutputFactory,
+  PARENT,
   POLL,
   ReactiveArgument,
-  CompilableLeaf,
+  RegionAppender,
+  ReactiveRange,
   ReactiveState,
-  Output,
-  annotateWithFrame,
-  callerFrame,
-  PARENT,
-  Evaluate,
+  ReactiveValue,
+  struct,
+  Structured,
+  Updater,
 } from "reactive-prototype";
 import type { StackTraceyFrame } from "stacktracey";
 
 export interface NumberArrayOps {
   cursor: ArrayCursor;
-  leafKind: ReactiveValue<number>;
-  blockKind: {
+  atom: ReactiveValue<number>;
+  block: {
     open: void;
     head: never;
   };
@@ -57,7 +57,7 @@ class CompilableDomLeaf
       output.leaf(value, this.#caller);
     };
 
-    return annotateWithFrame(func, this.#caller);
+    return annotate(func, this.#caller);
   }
 }
 
@@ -102,18 +102,15 @@ class ArrayElementUpdate implements Updater {
 }
 
 class ArrayElementBuffer
-  implements BlockBuffer<NumberArrayOps, NumberArrayOps["blockKind"]> {
-  #buffer: number[] = [];
+  implements BlockBuffer<NumberArrayOps, NumberArrayOps["block"]> {
   #output: NumberListOutput;
-  #cursor: ArrayCursor;
 
-  constructor(output: NumberListOutput, cursor: ArrayCursor) {
+  constructor(output: NumberListOutput) {
     this.#output = output;
-    this.#cursor = cursor;
   }
 
   push(num: ReactiveValue<number>): void {
-    this.#output.appendLeaf(num);
+    this.#output.atom(num);
   }
 
   head(_head: void): void {
@@ -176,7 +173,9 @@ export class ArrayCursor {
 
 const HEADER_STYLE = "color: #900; font-weight: bold";
 
-export class ArrayRange implements CursorRange<NumberArrayOps> {
+// TODO: Since the system manages turning Output into a parent/child stack,
+// is this actually necessary or can Output serve the same purpose.
+export class ArrayRange implements ReactiveRange<NumberArrayOps> {
   static from(array: number[], host: Host, start = 0): ArrayRange {
     return new ArrayRange(array, null, host, start);
   }
@@ -204,6 +203,18 @@ export class ArrayRange implements CursorRange<NumberArrayOps> {
     this.#host = host;
   }
 
+  [DEBUG](): Structured {
+    return struct(
+      "ArrayRange",
+      ["start", description(String(this.#start))],
+      ["size", description(String(this.#size))]
+    );
+  }
+
+  get parent(): ArrayRange | null {
+    return this.#parent;
+  }
+
   get debugFields(): DebugFields {
     return new DebugFields("ArrayRange", {
       array: this.#array,
@@ -219,6 +230,10 @@ export class ArrayRange implements CursorRange<NumberArrayOps> {
     } else {
       return 0;
     }
+  }
+
+  get size(): number {
+    return this.#size;
   }
 
   get cursor(): ArrayCursor {
@@ -271,55 +286,71 @@ export class ArrayRange implements CursorRange<NumberArrayOps> {
     return cursor;
   }
 
-  private logStatus(): void {
-    this.#host.indent(LogLevel.Info, () => {
-      this.#host.log(LogLevel.Info, `array=${JSON.stringify(this.#array)}`);
-      this.#host.log(LogLevel.Info, `start=${this.start} size=${this.#size}`);
-
-      if (this.#parent) {
-        // TS FRICTION: this shouldn't be necessay, since #parent is readonly
-        const parent = this.#parent;
-
-        this.#host.indent(LogLevel.Info, () => {
-          this.#host.log(LogLevel.Info, "[parent]");
-          parent.logStatus();
-        });
-      }
-    });
-  }
-
-  clear(): ArrayCursor {
-    if (this.#parent === null) {
-      throw new Error(`invariant: cannot clear the root range`);
-    }
-
+  private ensureClearable(): ArrayRange {
     if (this.#cleared) {
       throw new Error(`invariant: can only clear a range once`);
     } else {
       this.#cleared = true;
     }
 
-    this.#host.log(
-      LogLevel.Info,
-      `removing ${this.#size} from position ${this.start}`
-    );
+    if (this.#parent === null) {
+      throw new Error(`invariant: cannot clear the root range`);
+    }
 
-    this.#host.indent(LogLevel.Info, () => {
-      this.#host.log(LogLevel.Info, "TREE, BEFORE", HEADER_STYLE);
-      this.logStatus();
+    return this.#parent;
+  }
 
+  clear(): ArrayCursor {
+    let parent = this.ensureClearable();
+
+    log(this.#host, this.#array, this, () => {
       this.#array.splice(this.start, this.#size);
-
       this.#decreaseSize(this.#size);
-      this.#host.log(LogLevel.Info, "TREE, AFTER", HEADER_STYLE);
-      this.logStatus();
     });
 
-    return new ArrayCursor(this.#array, this.#parent, this.#start);
+    return new ArrayCursor(this.#array, parent, this.#start);
   }
 }
 
-export class NumberListOutput extends AbstractOutput<NumberArrayOps> {
+function log(
+  host: Host,
+  array: number[],
+  range: ArrayRange,
+  callback: () => void
+): void {
+  host.log(
+    LogLevel.Info,
+    `removing ${range.size} from position ${range.start}`
+  );
+
+  host.indent(LogLevel.Info, () => {
+    host.log(LogLevel.Info, "TREE, BEFORE", HEADER_STYLE);
+    logStatus(host, array, range);
+
+    callback();
+
+    host.log(LogLevel.Info, "TREE, AFTER", HEADER_STYLE);
+    logStatus(host, array, range);
+  });
+}
+
+function logStatus(host: Host, array: number[], range: ArrayRange): void {
+  host.indent(LogLevel.Info, () => {
+    host.log(LogLevel.Info, `array=${JSON.stringify(array)}`);
+    host.log(LogLevel.Info, `start=${range.start} size=${range.size}`);
+
+    if (range.parent) {
+      const parent = range.parent;
+
+      host.indent(LogLevel.Info, () => {
+        host.log(LogLevel.Info, "[parent]");
+        logStatus(host, array, parent);
+      });
+    }
+  });
+}
+
+export class NumberListOutput implements RegionAppender<NumberArrayOps> {
   static from(array: number[], host: Host): NumberListOutput {
     return new NumberListOutput(array, ArrayCursor.from(array, host), host);
   }
@@ -334,7 +365,6 @@ export class NumberListOutput extends AbstractOutput<NumberArrayOps> {
     host: Host,
     parent: NumberListOutput | null = null
   ) {
-    super();
     this.#output = output;
     this.#host = host;
 
@@ -346,12 +376,11 @@ export class NumberListOutput extends AbstractOutput<NumberArrayOps> {
     );
   }
 
-  range<T>(callback: () => T): { value: T; range: ArrayRange } {
-    let result = callback();
-    return { value: result, range: this.#range };
+  finalize(): ArrayRange {
+    return this.#range;
   }
 
-  getOutput(): OutputFactory<NumberArrayOps> {
+  getChild(): OutputFactory<NumberArrayOps> {
     return cursor =>
       new NumberListOutput(this.#output, cursor, this.#host, this);
   }
@@ -360,13 +389,13 @@ export class NumberListOutput extends AbstractOutput<NumberArrayOps> {
     return this.#range.cursor;
   }
 
-  appendLeaf(num: ReactiveValue<number>): Updater {
+  atom(num: ReactiveValue<number>): Updater {
     let cursor = this.#range.append(num.value);
 
     return new ArrayElementUpdate(cursor, num);
   }
 
-  openBlock(): BlockBuffer<NumberArrayOps, Block> {
-    return new ArrayElementBuffer(this, this.#range.cursor);
+  open(): BlockBuffer<NumberArrayOps, Block> {
+    return new ArrayElementBuffer(this);
   }
 }

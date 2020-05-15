@@ -1,6 +1,5 @@
 import type { Evaluate } from "./builder";
 import {
-  callerLocation,
   DEBUG,
   DebugFields,
   description,
@@ -11,9 +10,8 @@ import {
   Structured,
   callerFrame,
   PARENT,
-} from "./debug";
-import type { Host, OutputFactory } from "./interfaces";
-import type { Operations } from "./ops";
+} from "./debug/index";
+import type { Host, OutputFactory, Operations } from "./interfaces";
 import { Output } from "./output";
 import { poll } from "./unsafe";
 import type { Updater } from "./update";
@@ -24,7 +22,7 @@ import type { StackTraceyFrame } from "stacktracey";
  * throughout the reactive lifetime of the block, and it corresponds to the entire
  * output.
  */
-export class RootBlock<Ops extends Operations, Args = unknown> {
+export class RootBlock<Ops extends Operations> {
   #program: Evaluate<Ops>;
   #outputFactory: OutputFactory<Ops>;
   #host: Host;
@@ -55,7 +53,7 @@ export class RootBlock<Ops extends Operations, Args = unknown> {
   render(cursor: Ops["cursor"]): Updater | void {
     this.#host.begin(
       LogLevel.Info,
-      `initial render at ${printStructured(callerLocation(3), true)}`
+      `initial render at ${printStructured(callerFrame(PARENT), true)}`
     );
     let updaters: Updater[] = [];
     let output = this.#outputFactory(cursor);
@@ -99,6 +97,4 @@ export class RootBlock<Ops extends Operations, Args = unknown> {
   }
 }
 
-export type Program<Ops extends Operations, Args = unknown> = (
-  output: Output<Ops>
-) => void;
+export type Program<Ops extends Operations> = (output: Output<Ops>) => void;

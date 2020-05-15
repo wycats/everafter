@@ -12,16 +12,20 @@ import { unreachable, unwrap } from "./utils";
 import {
   DebugFields,
   AnnotatedFunction,
-  Debuggable,
-  frameSource,
   DEBUG,
   Structured,
   newtype,
   description,
   LogLevel,
   printStructured,
-} from "./debug";
+  Debuggable,
+  struct,
+} from "./debug/index";
 import type { Host } from "./interfaces";
+import { TrackedCache, createCache, getValue } from "./polyfill";
+import type { StackTraceyFrame } from "stacktracey";
+
+export const POLL = Symbol("POLL");
 
 export class UnsafeDirtyTrack<T> {
   #callback: () => T;
@@ -72,79 +76,145 @@ export class UnsafeDirtyTrack<T> {
   }
 }
 
-export class UnsafeUpdatable implements Debuggable {
-  #initialize: AnnotatedFunction<() => Updater | void>;
-  #update: Updater | void = undefined;
-  #tag: Tag | null = null;
-  #snapshot = -1;
+let DEBUG_ID = 0;
 
-  constructor(initialize: AnnotatedFunction<() => Updater | void>) {
-    this.#initialize = initialize;
+export class IsDirty implements Debuggable, Updater {
+  static initialize(
+    callback: AnnotatedFunction<() => Updater | void>,
+    host: Host
+  ): Updater | void {
+    let dirty = new IsDirty(callback);
+    return poll(dirty, host);
   }
-  debugFields?: DebugFields | undefined;
 
-  initialize(): "const" | "mutable" {
-    beginTrackFrame();
+  #cache: TrackedCache<{ value: Updater | void; identity: symbol }>;
+  #source: StackTraceyFrame;
+  #identity: symbol | UNDEFINED = UNDEFINED;
 
-    let update: Updater | void | typeof UNDEFINED = UNDEFINED;
+  private constructor(callback: AnnotatedFunction<() => Updater | void>) {
+    this.#cache = createCache(() => {
+      return { value: callback.f(), identity: Symbol(String(DEBUG_ID++)) };
+    });
+    this.#source = callback.source;
+  }
 
-    try {
-      update = this.#initialize.f();
-    } finally {
-      let tag = endTrackFrame();
-      this.#tag = tag;
-      this.#snapshot = valueForTag(tag);
+  [POLL](host: Host): void | Updater {
+    const { identity, value: newUpdater } = getValue(this.#cache);
 
-      if (isConstTag(tag)) {
-        return "const";
-      } else if (update !== UNDEFINED) {
-        this.#update = update;
-        consumeTag(tag);
-        return "mutable";
-      } else {
-        // this can only happen if the `try` block didn't
-        // complete successfully, which means the whole
-        // function returns an exception
-        unreachable(null as never);
-      }
+    if (identity === this.#identity) {
+      host.logResult(LogLevel.Info, "no change");
+      return this;
     }
+
+    if (newUpdater === undefined) {
+      host.logResult(
+        LogLevel.Info,
+        "became constant, no further changes possible"
+      );
+      return;
+    }
+
+    this.#cache = createCache(() => {
+      let value = poll(newUpdater, host);
+      return { value, identity: Symbol(String(DEBUG_ID++)) };
+    });
+
+    host.logResult(LogLevel.Info, "re-executed the callback");
+
+    this.#identity = identity;
+    return this;
+  }
+
+  get debugFields(): DebugFields | undefined {
+    return new DebugFields("IsDirty", {
+      cache: this.#cache,
+      source: this.#source,
+      identity: this.#identity,
+    });
   }
 
   [DEBUG](): Structured {
-    return newtype(
-      "UnsafeUpdatable",
-      description(frameSource(this.#initialize.source))
+    return struct(
+      "IsDirty",
+      ["cache", newtype("Cache", this.#source)],
+      ["identity", description(String(this.#identity))]
     );
   }
-
-  poll(host: Host): "const" | "mutable" {
-    if (this.#tag === null || this.#update === null) {
-      throw new Error(`invariant: Can only poll after initializing`);
-    } else if (this.#tag && validateTag(this.#tag, this.#snapshot)) {
-      return "mutable";
-    } else {
-      beginTrackFrame();
-
-      try {
-        if (this.#update === undefined) {
-          throw new Error(`cannot poll an UnsafeUpdatable that was const`);
-        }
-
-        this.#update = poll(this.#update, host);
-
-        if (this.#update === undefined) {
-          return "const";
-        } else {
-          return "mutable";
-        }
-      } finally {
-        let tag = endTrackFrame();
-        this.#tag = tag;
-        this.#snapshot = valueForTag(tag);
-      }
-    }
-  }
 }
+
+// export class UnsafeUpdatable implements Debuggable {
+//   #initialize: AnnotatedFunction<() => Updater | void>;
+//   #update: Updater | void = undefined;
+//   #tag: Tag | null = null;
+//   #snapshot = -1;
+
+//   constructor(initialize: AnnotatedFunction<() => Updater | void>) {
+//     this.#initialize = initialize;
+//   }
+//   debugFields?: DebugFields | undefined;
+
+//   initialize(): "const" | "mutable" {
+//     beginTrackFrame();
+
+//     let update: Updater | void | typeof UNDEFINED = UNDEFINED;
+
+//     try {
+//       update = this.#initialize.f();
+//     } finally {
+//       let tag = endTrackFrame();
+//       this.#tag = tag;
+//       this.#snapshot = valueForTag(tag);
+
+//       if (isConstTag(tag)) {
+//         return "const";
+//       } else if (update !== UNDEFINED) {
+//         this.#update = update;
+//         consumeTag(tag);
+//         return "mutable";
+//       } else {
+//         // this can only happen if the `try` block didn't
+//         // complete successfully, which means the whole
+//         // function returns an exception
+//         unreachable(null as never);
+//       }
+//     }
+//   }
+
+//   [DEBUG](): Structured {
+//     return newtype(
+//       "UnsafeUpdatable",
+//       description(frameSource(this.#initialize.source))
+//     );
+//   }
+
+//   poll(host: Host): "const" | "mutable" {
+//     if (this.#tag === null || this.#update === null) {
+//       throw new Error(`invariant: Can only poll after initializing`);
+//     } else if (this.#tag && validateTag(this.#tag, this.#snapshot)) {
+//       return "mutable";
+//     } else {
+//       beginTrackFrame();
+
+//       try {
+//         if (this.#update === undefined) {
+//           throw new Error(`cannot poll an UnsafeUpdatable that was const`);
+//         }
+
+//         this.#update = poll(this.#update, host);
+
+//         if (this.#update === undefined) {
+//           return "const";
+//         } else {
+//           return "mutable";
+//         }
+//       } finally {
+//         let tag = endTrackFrame();
+//         this.#tag = tag;
+//         this.#snapshot = valueForTag(tag);
+//       }
+//     }
+//   }
+// }
 
 /**
  * This class represents a single bit of information: whether the input values
@@ -176,6 +246,7 @@ export class Freshness {
 }
 
 const UNDEFINED = Symbol("UNDEFINED");
+type UNDEFINED = typeof UNDEFINED;
 
 export function unsafeCompute<T>(
   callback: () => T
@@ -198,11 +269,11 @@ export function unsafeCompute<T>(
   }
 }
 
-export const POLL = Symbol("POLL");
-
 export function poll(updater: Updater, host: Host): Updater | void {
-  host.begin(LogLevel.Info, printStructured(updater[DEBUG](), true));
+  let debug = updater[DEBUG]();
+
+  host.begin(LogLevel.Info, printStructured(debug, true));
   let result = host.indent(LogLevel.Info, () => updater[POLL](host));
-  host.end(LogLevel.Info, printStructured(updater[DEBUG](), false));
+  host.end(LogLevel.Info, printStructured(debug, false));
   return result;
 }

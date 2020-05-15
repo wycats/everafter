@@ -1,16 +1,15 @@
 // eslint-disable-next-line import/no-cycle
-import { UnsafeUpdatable, POLL, poll } from "./unsafe";
+import { POLL, poll, IsDirty } from "./unsafe";
 import {
   DEBUG,
   Debuggable,
   LogLevel,
   AnnotatedFunction,
-  newtype,
   Structured,
   DebugFields,
   struct,
-} from "./debug";
-import type { Host } from "./interfaces";
+} from "./debug/index";
+import type { Host, Operations, UserBlock } from "./interfaces";
 
 /**
  * An `Updater` is an object that can be polled periodically in order to
@@ -29,27 +28,8 @@ export interface Updater extends Debuggable {
   [POLL](host: Host): Updater | void;
 }
 
-export class UpdatingOperation implements Updater {
-  #computation: UnsafeUpdatable;
-
-  constructor(computation: UnsafeUpdatable) {
-    this.#computation = computation;
-  }
-
-  [DEBUG](): Structured {
-    return newtype("UpdatingOperation", this.#computation[DEBUG]());
-  }
-
-  [POLL](host: Host): Updater | void {
-    let result = host.indent(LogLevel.Info, () => this.#computation.poll(host));
-
-    switch (result) {
-      case "const":
-        return;
-      case "mutable":
-        return this;
-    }
-  }
+export interface ReactiveRegion<Ops extends Operations> {
+  initialize(cursor: Ops["cursor"], callback: UserBlock<Ops>): Updater;
 }
 
 /**
@@ -62,17 +42,11 @@ export class UpdatingOperation implements Updater {
  * wrapped in an `UpdatingOperation`, which implements `Updater` for the
  * operation.
  */
-export function updating(
-  operation: AnnotatedFunction<() => Updater | void>
-): UpdatingOperation | void {
-  let tracked = new UnsafeUpdatable(operation);
-  let kind = tracked.initialize();
-
-  if (kind === "const") {
-    return;
-  }
-
-  return new UpdatingOperation(tracked);
+export function initialize(
+  operation: AnnotatedFunction<() => Updater | void>,
+  host: Host
+): Updater | void {
+  return IsDirty.initialize(operation, host);
 }
 
 export type PresentUpdaters = readonly [Updater, ...Updater[]];

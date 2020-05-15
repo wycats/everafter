@@ -3,5 +3,6 @@
   "prettier.arrowParens": "avoid",
   "files.exclude": {
     "node_modules": true
-  }
+  },
+  "eslint.enable": true
 }

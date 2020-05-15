@@ -2,18 +2,16 @@ import type { StackTraceyFrame } from "stacktracey";
 import { invokeBlock } from "./block-internals";
 import { ConditionBlock, StaticBlock } from "./block-primitives";
 import {
-  annotatedBlock,
+  annotate,
   AnnotatedFunction,
-  annotateWithFrame,
   callerFrame,
-  PARENT,
   DebugFields,
-} from "./debug";
-import type { AbstractOutput, Host } from "./interfaces";
-import type { Operations } from "./ops";
+  PARENT,
+} from "./debug/index";
+import type { Host, Operations, RegionAppender } from "./interfaces";
 import type { Output } from "./output";
 import type { Dict } from "./utils";
-import { Const, ReactiveValue, Derived } from "./value";
+import { Const, Derived, ReactiveValue } from "./value";
 
 export type RuntimeState = Dict<ReactiveValue>;
 
@@ -23,27 +21,27 @@ export interface Compilable<Ops extends Operations> {
 
 export interface CompilableLeaf<
   Ops extends Operations,
-  _L extends Ops["leafKind"]
+  _L extends Ops["atom"]
 > {
   compile(state: ReactiveState): Evaluate<Ops>;
 }
 
 export interface CompilableOpen<
   Ops extends Operations,
-  B extends Ops["blockKind"] = Ops["blockKind"]
+  B extends Ops["block"] = Ops["block"]
 > {
   compile(state: ReactiveState): Evaluate<Ops, B["open"]>;
 }
 
 export interface CompilableHead<
   Ops extends Operations,
-  _B extends Ops["blockKind"]
+  _B extends Ops["block"]
 > {
   compile(state: ReactiveState): Evaluate<Ops>;
 }
 
 export type Evaluate<Ops extends Operations, Out = void> = AnnotatedFunction<
-  (output: Output<Ops>, runtime: AbstractOutput<Ops>, host: Host) => Out
+  (output: Output<Ops>, runtime: RegionAppender<Ops>, host: Host) => Out
 >;
 
 type UserBuilderBlock<Ops extends Operations> = AnnotatedFunction<
@@ -62,7 +60,7 @@ type ReactiveArgumentsForValues<A extends ReactiveValue[]> = {
 };
 
 interface Builder<Ops extends Operations> {
-  leaf(leaf: CompilableLeaf<Ops, Ops["leafKind"]>): void;
+  leaf(leaf: CompilableLeaf<Ops, Ops["atom"]>): void;
 
   /**
    * increment the directness parameter if calling an inner `ifBlock`
@@ -76,15 +74,15 @@ interface Builder<Ops extends Operations> {
   /**
    * increment the directness parameter if calling an inner `open`
    */
-  open<B extends Ops["blockKind"]>(
+  open<B extends Ops["block"]>(
     value: CompilableOpen<Ops, B>,
     directness: number
   ): BlockBuilder<Ops, B>;
 
-  close<B extends Ops["blockKind"]>(block: Block<Ops, B>): void;
+  close<B extends Ops["block"]>(block: Block<Ops, B>): void;
 }
 
-class BlockBuilder<Ops extends Operations, B extends Ops["blockKind"]> {
+class BlockBuilder<Ops extends Operations, B extends Ops["block"]> {
   #open: CompilableOpen<Ops, B>;
   #parent: Builder<Ops>;
   #head: CompilableHead<Ops, B>[] = [];
@@ -114,7 +112,7 @@ class BlockBuilder<Ops extends Operations, B extends Ops["blockKind"]> {
   }
 }
 
-class Block<Ops extends Operations, B extends Ops["blockKind"]>
+class Block<Ops extends Operations, B extends Ops["block"]>
   implements Compilable<Ops> {
   #open: CompilableOpen<Ops, B>;
   #head: readonly CompilableHead<Ops, B>[];
@@ -140,7 +138,7 @@ class Block<Ops extends Operations, B extends Ops["blockKind"]>
 
     let func = (
       output: Output<Ops>,
-      runtime: AbstractOutput<Ops>,
+      runtime: RegionAppender<Ops>,
       host: Host
     ): void => {
       let buffer = output.open(open.f(output, runtime, host));
@@ -158,7 +156,7 @@ class Block<Ops extends Operations, B extends Ops["blockKind"]>
       buffer.close();
     };
 
-    return annotateWithFrame(func, this.#location);
+    return annotate(func, this.#location);
   }
 }
 
@@ -166,7 +164,7 @@ class Conditional<Ops extends Operations> implements Compilable<Ops> {
   #condition: ReactiveArgument<boolean>;
   #then: CompilableBlock<Ops>;
   #else: CompilableBlock<Ops>;
-  #location: StackTraceyFrame;
+  #source: StackTraceyFrame;
 
   constructor(
     condition: ReactiveArgument<boolean>,
@@ -177,7 +175,7 @@ class Conditional<Ops extends Operations> implements Compilable<Ops> {
     this.#condition = condition;
     this.#then = then;
     this.#else = otherwise;
-    this.#location = location;
+    this.#source = location;
   }
 
   compile(state: ReactiveState): Evaluate<Ops> {
@@ -187,14 +185,19 @@ class Conditional<Ops extends Operations> implements Compilable<Ops> {
 
     let func = (
       output: Output<Ops>,
-      _runtime: AbstractOutput<Ops>,
+      _runtime: RegionAppender<Ops>,
       host: Host
     ): void => {
-      let cond = new ConditionBlock<Ops>(condition, then, otherwise);
+      let cond = new ConditionBlock<Ops>(
+        condition,
+        then,
+        otherwise,
+        this.#source
+      );
       output.updateWith(invokeBlock(cond, output.getChild(), host));
     };
 
-    return annotateWithFrame(func, this.#location);
+    return annotate(func, this.#source);
   }
 }
 
@@ -207,7 +210,7 @@ export class StatementsBuilder<Ops extends Operations> implements Builder<Ops> {
     return this.#statements;
   }
 
-  leaf(leaf: CompilableLeaf<Ops, Ops["leafKind"]>): void {
+  leaf(leaf: CompilableLeaf<Ops, Ops["atom"]>): void {
     this.#statements.push(leaf);
   }
 
@@ -230,7 +233,7 @@ export class StatementsBuilder<Ops extends Operations> implements Builder<Ops> {
     );
   }
 
-  open<B extends Ops["blockKind"]>(
+  open<B extends Ops["block"]>(
     open: CompilableOpen<Ops, B>,
     directness: number
   ): BlockBuilder<Ops, B> {
@@ -238,7 +241,7 @@ export class StatementsBuilder<Ops extends Operations> implements Builder<Ops> {
     return new BlockBuilder(open, this, location);
   }
 
-  close<B extends Ops["blockKind"]>(block: Block<Ops, B>): void {
+  close<B extends Ops["block"]>(block: Block<Ops, B>): void {
     this.#statements.push(block);
   }
 }
@@ -266,8 +269,8 @@ class CompilableBlock<Ops extends Operations> {
   compile(state: ReactiveState): StaticBlock<Ops> {
     let statements = this.#statements.map(s => s.compile(state));
 
-    let func = annotatedBlock(
-      (output: Output<Ops>, runtime: AbstractOutput<Ops>, host: Host): void => {
+    let func = annotate(
+      (output: Output<Ops>, runtime: RegionAppender<Ops>, host: Host): void => {
         for (let statement of statements) {
           statement.f(output, runtime, host);
         }
@@ -286,7 +289,7 @@ class StaticBlockBuilder<Ops extends Operations> implements Builder<Ops> {
     return this.#statements;
   }
 
-  leaf(leaf: CompilableLeaf<Ops, Ops["leafKind"]>): void {
+  leaf(leaf: CompilableLeaf<Ops, Ops["atom"]>): void {
     this.#statements.push(leaf);
   }
 
@@ -306,18 +309,18 @@ class StaticBlockBuilder<Ops extends Operations> implements Builder<Ops> {
     this.#statements.push(cond);
   }
 
-  open<B extends Ops["blockKind"]>(
+  open<B extends Ops["block"]>(
     open: CompilableOpen<Ops, B>
   ): BlockBuilder<Ops, B> {
     return new BlockBuilder(open, this, callerFrame(PARENT));
   }
 
-  close<B extends Ops["blockKind"]>(block: Block<Ops, B>): void {
+  close<B extends Ops["block"]>(block: Block<Ops, B>): void {
     this.#statements.push(block);
   }
 }
 
-class BlockBodyBuilder<Ops extends Operations, B extends Ops["blockKind"]>
+class BlockBodyBuilder<Ops extends Operations, B extends Ops["block"]>
   implements Builder<Ops> {
   #open: CompilableOpen<Ops, B>;
   #parent: Builder<Ops>;
@@ -350,7 +353,7 @@ class BlockBodyBuilder<Ops extends Operations, B extends Ops["blockKind"]>
     this.#parent.close(this.done());
   }
 
-  leaf(leaf: CompilableLeaf<Ops, Ops["leafKind"]>): void {
+  leaf(leaf: CompilableLeaf<Ops, Ops["atom"]>): void {
     this.#builder.leaf(leaf);
   }
 
@@ -363,7 +366,7 @@ class BlockBodyBuilder<Ops extends Operations, B extends Ops["blockKind"]>
     this.#builder.ifBlock(condition, then, otherwise, source);
   }
 
-  open<B extends Ops["blockKind"]>(
+  open<B extends Ops["block"]>(
     open: CompilableOpen<Ops, B>,
     directness: number
   ): BlockBuilder<Ops, B> {
@@ -387,7 +390,7 @@ export class ProgramBuilder<Ops extends Operations>
 
     let func = (
       output: Output<Ops>,
-      runtime: AbstractOutput<Ops>,
+      runtime: RegionAppender<Ops>,
       host: Host
     ): void => {
       for (let statement of statements) {
@@ -395,10 +398,10 @@ export class ProgramBuilder<Ops extends Operations>
       }
     };
 
-    return annotateWithFrame(func, this.#location);
+    return annotate(func, this.#location);
   }
 
-  leaf(leaf: CompilableLeaf<Ops, Ops["leafKind"]>): void {
+  leaf(leaf: CompilableLeaf<Ops, Ops["atom"]>): void {
     this.#statements.leaf(leaf);
   }
 
@@ -411,13 +414,13 @@ export class ProgramBuilder<Ops extends Operations>
     this.#statements.ifBlock(condition, then, otherwise, source);
   }
 
-  open<B extends Ops["blockKind"]>(
+  open<B extends Ops["block"]>(
     open: CompilableOpen<Ops, B>
   ): BlockBuilder<Ops, B> {
     return this.#statements.open(open, PARENT + 1);
   }
 
-  close<B extends Ops["blockKind"]>(block: Block<Ops, B>): void {
+  close<B extends Ops["block"]>(block: Block<Ops, B>): void {
     this.#statements.close(block);
   }
 }

@@ -4,7 +4,6 @@ import HTMLSerializer from "@simple-dom/serializer";
 import voidMap from "@simple-dom/void-map";
 import type * as qunit from "qunit";
 import {
-  AbstractOutput,
   annotate,
   args,
   callerFrame,
@@ -18,6 +17,7 @@ import {
   ReactiveState,
   ReactiveValue,
   RootBlock,
+  RegionAppender,
 } from "reactive-prototype";
 import { host, module, test } from "../../helpers";
 import { DomCursor, DomOps, element, SimpleDomOutput, text } from "./output";
@@ -218,7 +218,7 @@ export class ValueTest {
 
   private context(): {
     parent: SimpleElement;
-    output: (cursor: DomCursor) => AbstractOutput<DomOps>;
+    output: (cursor: DomCursor) => RegionAppender<DomOps>;
   } {
     let doc = createDocument();
     let parent = doc.createElement("div");
@@ -231,7 +231,7 @@ export class ValueTest {
   private render<A extends Dict<ReactiveValue>>(
     template: (state: ReactiveState) => Evaluate<DomOps>,
     state: ReactiveState<A>
-  ): RenderExpectation<A> {
+  ): RenderExpectation {
     const render = template(state);
 
     let { parent, output } = this.context();
@@ -246,14 +246,14 @@ export class ValueTest {
   }
 }
 
-class RenderExpectation<Args extends Dict<ReactiveValue>> {
-  #invocation: RootBlock<DomOps, Args>;
+class RenderExpectation {
+  #invocation: RootBlock<DomOps>;
   #element: SimpleElement;
   #assert: qunit.Assert;
   #last: string | undefined = undefined;
 
   constructor(
-    invocation: RootBlock<DomOps, Args>,
+    invocation: RootBlock<DomOps>,
     element: SimpleElement,
     assert: qunit.Assert
   ) {

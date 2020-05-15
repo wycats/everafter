@@ -6,23 +6,26 @@ import type {
   SimpleNode,
 } from "@simple-dom/interface";
 import {
-  AbstractOutput,
-  annotateWithFrame,
+  annotate,
   BlockBuffer,
   callerFrame,
   CompilableLeaf,
   CompilableOpen,
-  Cursor,
-  CursorRange,
+  DEBUG,
   DebugFields,
+  description,
   Evaluate,
+  Operations,
   Output,
   OutputFactory,
   PARENT,
   ReactiveArgument,
+  RegionAppender,
+  ReactiveRange,
   ReactiveState,
   ReactiveValue,
   Stack,
+  Structured,
   unreachable,
   Updater,
 } from "reactive-prototype";
@@ -66,7 +69,7 @@ export class CompilableElement implements CompilableOpen<DomOps, ElementBlock> {
   compile(state: ReactiveState): Evaluate<DomOps, OpenElement> {
     let open = runtimeElement(this.#name.hydrate(state));
 
-    return annotateWithFrame((_output: Output<DomOps>) => open, this.#source);
+    return annotate((_output: Output<DomOps>) => open, this.#source);
   }
 }
 
@@ -84,7 +87,7 @@ export function element(
   return new CompilableElement(name, caller);
 }
 
-class CompilableDomLeaf<T, L extends DomOps["leafKind"]>
+class CompilableDomLeaf<T, L extends DomOps["atom"]>
   implements CompilableLeaf<DomOps, L> {
   #value: ReactiveArgument<T>;
   #caller: StackTraceyFrame;
@@ -110,7 +113,7 @@ class CompilableDomLeaf<T, L extends DomOps["leafKind"]>
 
   compile(state: ReactiveState): Evaluate<DomOps> {
     let value = this.#value.hydrate(state);
-    return annotateWithFrame(this.#toRuntime(value), this.#caller);
+    return annotate(this.#toRuntime(value), this.#caller);
   }
 }
 
@@ -166,17 +169,17 @@ type InlineKind = InlineText | InlineComment | InlineNode;
 
 interface RuntimeInlineText {
   readonly kind: "Text";
-  readonly value: ReactiveValue<string>;
+  readonly data: ReactiveValue<string>;
 }
 
 interface RuntimeInlineComment {
   readonly kind: "Comment";
-  readonly value: ReactiveValue<string>;
+  readonly data: ReactiveValue<string>;
 }
 
 interface RuntimeInlineNode {
   readonly kind: "Node";
-  readonly value: ReactiveValue<SimpleNode>;
+  readonly node: ReactiveValue<SimpleNode>;
 }
 
 type RuntimeInlineKind =
@@ -187,7 +190,7 @@ type RuntimeInlineKind =
 export function runtimeText(value: ReactiveValue<string>): RuntimeInlineText {
   return {
     kind: "Text",
-    value,
+    data: value,
   };
 }
 
@@ -198,7 +201,7 @@ export function runtimeComment(
 ): RuntimeInlineComment {
   return {
     kind: "Comment",
-    value,
+    data: value,
   };
 }
 
@@ -207,24 +210,19 @@ export function runtimeNode(
 ): RuntimeInlineNode {
   return {
     kind: "Node",
-    value,
+    node: value,
   };
 }
 
-export interface DomCursor extends Cursor {
-  readonly parentNode: ParentNode;
-  readonly nextSibling: SimpleNode | null;
-}
-
-export interface DomOps {
+export interface DomOps extends Operations {
   cursor: DomCursor;
-  blockKind: BlockKind;
-  leafKind: RuntimeInlineKind;
+  atom: RuntimeInlineKind;
+  block: BlockKind;
 }
 
 export type ParentNode = SimpleElement | SimpleDocumentFragment;
 
-export class DomCursor implements Cursor {
+export class DomCursor {
   constructor(
     readonly parentNode: ParentNode,
     readonly nextSibling: SimpleNode | null
@@ -235,7 +233,7 @@ export class DomCursor implements Cursor {
   }
 }
 
-export class DomRange implements CursorRange<DomOps> {
+export class DomRange implements ReactiveRange<DomOps> {
   constructor(
     readonly parentNode: ParentNode,
     readonly start: SimpleNode,
@@ -246,6 +244,10 @@ export class DomRange implements CursorRange<DomOps> {
         `assert: a DomRange's start and end must have the same cursor`
       );
     }
+  }
+
+  [DEBUG](): Structured {
+    return description("DomRange");
   }
 
   clear(): DomCursor {
@@ -259,6 +261,33 @@ export class DomRange implements CursorRange<DomOps> {
     }
 
     return new DomCursor(this.parentNode, afterLast);
+  }
+}
+
+export class AppendingRange {
+  #start: SimpleNode | null = null;
+  #end: SimpleNode | null = null;
+
+  appended(node: SimpleNode): void {
+    this.#end = node;
+
+    if (this.#start === null) {
+      this.#start = node;
+    }
+  }
+
+  finalize(cursor: DomCursor): DomRange {
+    let doc = cursor.parentNode.ownerDocument;
+
+    if (this.#start === null || this.#end === null) {
+      let comment = doc.createComment("");
+      cursor.insert(comment);
+      this.appended(comment);
+
+      return new DomRange(cursor.parentNode, comment, comment);
+    } else {
+      return new DomRange(cursor.parentNode, this.#start, this.#end);
+    }
   }
 }
 
@@ -282,9 +311,10 @@ export class DomElementBuffer implements BlockBuffer<DomOps, ElementBlock> {
   }
 }
 
-export class SimpleDomOutput extends AbstractOutput<DomOps> {
+export class SimpleDomOutput implements RegionAppender<DomOps> {
   #document: SimpleDocument;
-  #stack: Stack<SimpleElement | SimpleDocumentFragment>;
+  #stack: Stack<ParentNode>;
+  #range = new AppendingRange();
 
   constructor(
     cursor: DomCursor,
@@ -292,9 +322,12 @@ export class SimpleDomOutput extends AbstractOutput<DomOps> {
       cursor.parentNode
     )
   ) {
-    super();
     this.#document = cursor.parentNode.ownerDocument;
     this.#stack = stack;
+  }
+
+  finalize(): ReactiveRange<DomOps> {
+    return this.#range.finalize(this.getCursor());
   }
 
   getCursor(): DomCursor {
@@ -309,71 +342,41 @@ export class SimpleDomOutput extends AbstractOutput<DomOps> {
 
   closeElement(): void {
     let element = this.#stack.pop();
-    this.getCursor().insert(element);
+    this.insert(element);
   }
 
-  private getOffset(): number {
-    let parent = this.#stack.current;
-
-    return parent.childNodes.length;
+  private insert(node: SimpleNode): void {
+    this.getCursor().insert(node);
+    this.#range.appended(node);
   }
 
-  range<T>(callback: () => T): { value: T; range: CursorRange<DomOps> } {
-    let startOffset = this.getOffset();
-    let startParent = this.getCursor().parentNode;
-    let value = callback();
-    let endOffset = this.getOffset();
-    let endParent = this.getCursor().parentNode;
-
-    if (startParent !== endParent) {
-      throw new Error(
-        `invariant: the callback to wrap() must push the same number of elements as it pops, leaving the original parent element as the current element on the stack`
-      );
-    }
-
-    if (startOffset === endOffset) {
-      let placeholder = this.#document.createComment("");
-      this.getCursor().insert(placeholder);
-
-      return {
-        value,
-        range: new DomRange(startParent, placeholder, placeholder),
-      };
-    } else {
-      let startNode = startParent.childNodes[startOffset];
-      let endNode = startParent.childNodes[endOffset - 1];
-      return { value, range: new DomRange(startParent, startNode, endNode) };
-    }
-  }
-
-  getOutput(): OutputFactory<DomOps> {
+  getChild(): OutputFactory<DomOps> {
     return (cursor: DomCursor) => new SimpleDomOutput(cursor, this.#stack);
   }
 
-  appendLeaf(inline: RuntimeInlineKind): Updater {
+  atom(inline: RuntimeInlineKind): Updater {
     switch (inline.kind) {
       case "Text": {
-        let current = inline.value.compute();
+        let current = inline.data.compute();
         let node = this.#document.createTextNode(current.value);
-        this.getCursor().insert(node);
+        this.insert(node);
 
-        return new NodeValueUpdate(node, inline.value);
+        return new NodeValueUpdate(node, inline.data);
       }
 
       case "Comment": {
-        let current = inline.value.compute();
-        let node = this.#document.createComment(current.value);
+        let node = this.#document.createComment(inline.data.value);
+        this.insert(node);
         this.getCursor().insert(node);
 
-        return new NodeValueUpdate(node, inline.value);
+        return new NodeValueUpdate(node, inline.data);
       }
 
       case "Node": {
-        let current = inline.value.compute();
-        let node = current.value;
+        let node = inline.node.value;
         this.getCursor().insert(node);
 
-        return new NodeUpdate(node, inline.value);
+        return new NodeUpdate(node, inline.node);
       }
 
       default:
@@ -381,13 +384,12 @@ export class SimpleDomOutput extends AbstractOutput<DomOps> {
     }
   }
 
-  openBlock(open: DomBlockOpen): DomElementBuffer {
+  open(open: DomBlockOpen): DomElementBuffer {
     switch (open.kind) {
       case "Element": {
         let current = open.value.compute();
         let element = this.#document.createElement(current.value);
         return new DomElementBuffer(element, this);
-        break;
       }
       default:
         throw new Error(`unexpected open block kind, expected Element`);

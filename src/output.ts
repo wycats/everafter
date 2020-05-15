@@ -1,22 +1,23 @@
-import type { Operations, CursorRange } from "./ops";
 import type { ReactiveValue } from "./value";
 import type {
-  AbstractOutput,
+  RegionAppender,
   UserBlock,
   BlockBuffer,
   Block,
   Host,
   OutputFactory,
+  Operations,
 } from "./interfaces";
-import { updating, Updater } from "./update";
+import { initialize, Updater } from "./update";
 // eslint-disable-next-line import/no-cycle
 import { StaticBlock, ConditionBlock } from "./block-primitives";
 import {
   LogLevel,
   printStructured,
   callerFrame,
-  annotateWithFrame,
-} from "./debug";
+  annotate,
+  PARENT,
+} from "./debug/index";
 // eslint-disable-next-line import/no-cycle
 import { invokeBlock } from "./block-internals";
 import type { StackTraceyFrame } from "stacktracey";
@@ -27,11 +28,11 @@ export class Builder {}
  * The concrete object that gets passed into user blocks.
  */
 export class Output<Ops extends Operations> {
-  #inner: AbstractOutput<Ops>;
+  #inner: RegionAppender<Ops>;
   #updaters: Updater[];
   #host: Host;
 
-  constructor(inner: AbstractOutput<Ops>, updates: Updater[], host: Host) {
+  constructor(inner: RegionAppender<Ops>, updates: Updater[], host: Host) {
     if (inner instanceof Output) {
       throw new Error(`assert: can't wrap TrackedOutput around TrackedOutput`);
     }
@@ -57,27 +58,30 @@ export class Output<Ops extends Operations> {
   }
 
   // TODO: This is fishy
-  getInner(): AbstractOutput<Ops> {
+  getInner(): RegionAppender<Ops> {
     return this.#inner;
   }
 
   getOutputFactory(): OutputFactory<Ops> {
-    return this.#inner.getOutput();
+    return this.#inner.getChild();
   }
 
-  range<T>(callback: () => T): { value: T; range: CursorRange<Ops> } {
-    return this.#inner.range(callback);
-  }
+  // range<T>(callback: () => T): { value: T; range: ReactiveRange<Ops> } {
+  //   return this.#inner.wrapRange(callback);
+  // }
 
-  getChild(): Output<Ops> {
-    let outputFactory = this.#inner.getOutput();
+  getChild(updaters: Updater[] = this.#updaters): Output<Ops> {
+    let outputFactory = this.#inner.getChild();
     let output = outputFactory(this.#inner.getCursor());
-    return new Output(output, this.#updaters, this.#host);
+    return new Output(output, updaters, this.#host);
   }
 
-  leaf(leaf: Ops["leafKind"], caller: StackTraceyFrame = callerFrame(2)): void {
+  leaf(leaf: Ops["atom"], caller: StackTraceyFrame = callerFrame(2)): void {
     this.updateWith(
-      updating(annotateWithFrame(() => this.#inner.appendLeaf(leaf), caller))
+      initialize(
+        annotate(() => this.#inner.atom(leaf), caller),
+        this.#host
+      )
     );
   }
 
@@ -89,7 +93,8 @@ export class Output<Ops extends Operations> {
   ifBlock(
     condition: ReactiveValue<boolean>,
     then: UserBlock<Ops>,
-    otherwise: UserBlock<Ops>
+    otherwise: UserBlock<Ops>,
+    source = callerFrame(PARENT)
   ): void {
     let thenBlock = new StaticBlock(then);
     let otherwiseBlock = new StaticBlock(otherwise);
@@ -97,7 +102,8 @@ export class Output<Ops extends Operations> {
     let conditionBlock = new ConditionBlock(
       condition,
       thenBlock,
-      otherwiseBlock
+      otherwiseBlock,
+      source
     );
 
     this.updateWith(invokeBlock(conditionBlock, this.getChild(), this.#host));
@@ -107,7 +113,7 @@ export class Output<Ops extends Operations> {
     invokeBlock(block, this, this.#host);
   }
 
-  open<B extends Ops["blockKind"]>(value: B["open"]): BlockBuffer<Ops, B> {
-    return this.#inner.openBlock(value);
+  open<B extends Ops["block"]>(value: B["open"]): BlockBuffer<Ops, B> {
+    return this.#inner.open(value);
   }
 }

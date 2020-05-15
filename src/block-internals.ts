@@ -6,9 +6,18 @@ import {
   printStructured,
   struct,
   Structured,
-} from "./debug";
-import { Block, Host, OutputFactory, RENDER, UserBlock } from "./interfaces";
-import type { CursorRange, Operations } from "./ops";
+  frameSource,
+  description,
+} from "./debug/index";
+import {
+  Block,
+  Host,
+  OutputFactory,
+  RENDER,
+  UserBlock,
+  Operations,
+  ReactiveRange,
+} from "./interfaces";
 // eslint-disable-next-line import/no-cycle
 import { Output } from "./output";
 import { Freshness, unsafeCompute, POLL, poll } from "./unsafe";
@@ -56,7 +65,10 @@ export class DynamicBlock<Ops extends Operations> implements Block<Ops> {
   }
 
   [DEBUG](): Structured {
-    return newtype("DynamicBlock", this.#userBlock.desc);
+    return newtype(
+      "DynamicBlock",
+      description(frameSource(this.#userBlock.source))
+    );
   }
 
   get debugFields(): DebugFields {
@@ -67,16 +79,14 @@ export class DynamicBlock<Ops extends Operations> implements Block<Ops> {
 
   [RENDER](output: Output<Ops>, host: Host): void {
     let updaters: Updater[] = [];
-    let append = output.withUpdaters(updaters);
+    let append = output.getChild(updaters);
+    let runtime = append.getInner();
 
-    let {
-      range,
-      value: { freshness },
-    } = append.range(() =>
-      unsafeCompute(() =>
-        this.#userBlock.invoke(append, append.getInner(), host)
-      )
+    let { freshness } = unsafeCompute(() =>
+      this.#userBlock.f(append, runtime, host)
     );
+
+    let range = runtime.finalize();
 
     output.updateWith(
       new DynamicBlockResult(
@@ -94,25 +104,59 @@ export function isInternal<Ops extends Operations>(block: Block<Ops>): boolean {
   return block instanceof DynamicBlock;
 }
 
+// export class RangeResource<Ops extends Operations> implements Updater {
+//   static initialize<Ops extends Operations>(cursor: Ops["cursor"]): RangeResource<Ops> {
+//     return new RangeResource()
+//   }
+
+//   readonly #range: ReactiveRange<Ops>;
+//   readonly #block: Block<Ops>;
+
+//   constructor(range: ReactiveRange<Ops>, block: Block<Ops>) {
+//     this.#range = range;
+//     this.#block = block;
+//   }
+
+//   [POLL](host: Host): void | Updater {
+//     throw new Error("Method not implemented.");
+//   }
+
+//   get debugFields(): DebugFields {
+//     return new DebugFields("RangeResource", {
+//       range: this.#range,
+//       block: this.#block,
+//     });
+//   }
+
+//   [DEBUG](): Structured {
+//     return struct(
+//       "RangeResource",
+//       ["range", this.#range],
+//       ["block", this.#block]
+//     );
+//     throw new Error("Method not implemented.");
+//   }
+// }
+
 export class DynamicBlockResult<Ops extends Operations> implements Updater {
   // The block that should be rendered if `#freshness` is stale and the
   // block needs to be rebuilt.
-  readonly #block: DynamicBlock<Ops>;
+  readonly #block: Block<Ops>;
 
   readonly #Output: OutputFactory<Ops>;
 
   readonly #updater: Updater | void;
 
   // A region of the output.
-  readonly #range: CursorRange<Ops>;
+  readonly #range: ReactiveRange<Ops>;
 
   readonly #freshness: Freshness;
 
   constructor(
-    block: DynamicBlock<Ops>,
+    block: Block<Ops>,
     Output: OutputFactory<Ops>,
     updater: Updater | void,
-    range: CursorRange<Ops>,
+    range: ReactiveRange<Ops>,
     freshness: Freshness
   ) {
     this.#block = block;
