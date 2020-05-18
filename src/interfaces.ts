@@ -1,5 +1,5 @@
 import type { Updater } from "./update";
-import type { Output } from "./output";
+import type { Region } from "./region";
 import {
   Debuggable,
   Logger,
@@ -8,6 +8,9 @@ import {
   INFO_LOGS,
   LogFilter,
   AnnotatedFunction,
+  printStructured,
+  IntoStructured,
+  intoStructured,
 } from "./debug/index";
 
 export interface BlockDetails {
@@ -29,14 +32,14 @@ export interface Operations {
   cursor: unknown;
 
   /**
-   * A given reactive output can support more than one kind of atom. A leaf
+   * A given reactive output can support more than one kind of atom. An atom
    * has one or more reactive inputs, and additional information about how to
    * insert it into the cursor.
    *
-   * For example, for a DOM output, a text leaf would contain a reactive string
+   * For example, for a DOM output, a text atom would contain a reactive string
    * and know how to insert it, as a text node, at the cursor.
    *
-   * For an array output, a number leaf would contain a reactive number and know
+   * For an array output, a number atom would contain a reactive number and know
    * how to insert it directly into the array.
    */
   atom: unknown;
@@ -84,7 +87,7 @@ export interface ReactiveRange<Ops extends Operations> extends Debuggable {
  * An {@link OutputFactory} for a given set of reactive operations takes a cursor
  * and gives back a reactive output.
  */
-export type OutputFactory<Ops extends Operations> = (
+export type AppenderForCursor<Ops extends Operations> = (
   cursor: Ops["cursor"]
 ) => RegionAppender<Ops>;
 
@@ -112,7 +115,7 @@ export interface RegionAppender<Ops extends Operations> {
    * function will be called with a cursor that is logically inside of the
    * current reactive output.
    */
-  getChild(): OutputFactory<Ops>;
+  getChild(): AppenderForCursor<Ops>;
 
   /**
    * The {@link finalize} method is called once all operations for the current
@@ -132,7 +135,7 @@ export interface RegionAppender<Ops extends Operations> {
   /**
    * Insert an atom at the current cursor, returning a possible `Updater`.
    */
-  atom(leaf: Ops["atom"]): Updater | void;
+  atom(atom: Ops["atom"]): Updater | void;
 
   /**
    * Open a block at the current cursor, returning an appropriate block
@@ -142,8 +145,7 @@ export interface RegionAppender<Ops extends Operations> {
 }
 
 export type UserBlockFunction<Ops extends Operations> = (
-  output: Output<Ops>,
-  runtime: RegionAppender<Ops>,
+  output: Region<Ops>,
   host: Host
 ) => void;
 
@@ -155,7 +157,7 @@ export interface BlockBuffer<
   Ops extends Operations,
   Kind extends Ops["block"]
 > {
-  head(head: Kind["head"]): void;
+  head(head: Kind["head"]): Updater | void;
   flush(): void;
   close(): void;
 }
@@ -170,18 +172,15 @@ export const RENDER = Symbol("RENDER");
  * polled to attempt to update it.
  */
 export interface Block<Ops extends Operations> extends Debuggable {
-  [RENDER](output: Output<Ops>, host: Host): void;
+  [RENDER](output: Region<Ops>, host: Host): void;
 }
-
-export type LogStep = Generator<Promise<unknown>, void, unknown>;
 
 export interface Host {
   logger: Logger;
   filter: LogFilter;
   log(level: LogLevel, message: string, ...style: string[]): void;
-  begin(level: LogLevel, string: string): void;
   logResult(level: LogLevel, string: string, ...style: string[]): void;
-  end(level: LogLevel, string: string): void;
+  context<T>(level: LogLevel, structured: IntoStructured, callback: () => T): T;
   indent<T>(level: LogLevel, callback: () => T): T;
 }
 
@@ -197,17 +196,19 @@ export function defaultHost({
     log(messageLevel: LogLevel, message: string, ...style: string[]): void {
       logger.log(messageLevel, filter, message, ...style);
     },
-    begin(level: LogLevel, message: string): void {
-      logger.begin(level, filter, message);
-    },
     logResult(level: LogLevel, message: string, ...style: string[]): void {
       logger.result(level, filter, message, ...style);
     },
-    end(level: LogLevel, message: string): void {
-      logger.end(level, filter, message);
-    },
     indent<T>(level: LogLevel, callback: () => T): T {
       return logger.indent(level, filter, callback);
+    },
+    context<T>(level: LogLevel, into: IntoStructured, callback: () => T): T {
+      let structured = intoStructured(into);
+
+      logger.begin(level, filter, printStructured(structured, true));
+      let result = this.indent(LogLevel.Info, () => callback());
+      logger.end(LogLevel.Info, filter, printStructured(structured, false));
+      return result;
     },
   };
 }

@@ -14,16 +14,14 @@ import {
   AnnotatedFunction,
   DEBUG,
   Structured,
-  newtype,
   description,
   LogLevel,
-  printStructured,
   Debuggable,
   struct,
+  Source,
 } from "./debug/index";
 import type { Host } from "./interfaces";
 import { TrackedCache, createCache, getValue } from "./polyfill";
-import type { StackTraceyFrame } from "stacktracey";
 
 export const POLL = Symbol("POLL");
 
@@ -88,7 +86,7 @@ export class IsDirty implements Debuggable, Updater {
   }
 
   #cache: TrackedCache<{ value: Updater | void; identity: symbol }>;
-  #source: StackTraceyFrame;
+  #source: Source;
   #identity: symbol | UNDEFINED = UNDEFINED;
 
   private constructor(callback: AnnotatedFunction<() => Updater | void>) {
@@ -136,7 +134,7 @@ export class IsDirty implements Debuggable, Updater {
   [DEBUG](): Structured {
     return struct(
       "IsDirty",
-      ["cache", newtype("Cache", this.#source)],
+      ["cache", this.#source.describe("Cache")],
       ["identity", description(String(this.#identity))]
     );
   }
@@ -270,10 +268,5 @@ export function unsafeCompute<T>(
 }
 
 export function poll(updater: Updater, host: Host): Updater | void {
-  let debug = updater[DEBUG]();
-
-  host.begin(LogLevel.Info, printStructured(debug, true));
-  let result = host.indent(LogLevel.Info, () => updater[POLL](host));
-  host.end(LogLevel.Info, printStructured(debug, false));
-  return result;
+  return host.context(LogLevel.Info, updater, () => updater[POLL](host));
 }

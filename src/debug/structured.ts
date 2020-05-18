@@ -1,6 +1,4 @@
 import { isDebuggable, DEBUG, Debuggable } from "./debuggable";
-import { frameSource } from "./callers";
-import type { StackTraceyFrame } from "stacktracey";
 
 /**
  * Make this a class so we get a nominal type (so it can be compared
@@ -84,24 +82,21 @@ export class List extends Structured {
 export type IntoStructured =
   | Structured
   | Debuggable
-  | StackTraceyFrame
   | readonly IntoStructured[];
 
 function isArray<T>(input: unknown | T[]): input is readonly T[] {
   return Array.isArray(input);
 }
 
-function intoStructured(input: IntoStructured): Structured {
+export function intoStructured(input: IntoStructured): Structured {
   if (isArray(input)) {
     return new List(input.map(intoStructured));
   }
 
   if (input instanceof Structured) {
     return input;
-  } else if (isDebuggable(input)) {
-    return input[DEBUG]();
   } else {
-    return description(frameSource(input));
+    return input[DEBUG]();
   }
 }
 
@@ -123,6 +118,14 @@ export function description(name: string): Structured {
   return new Newtype(name);
 }
 
+export function nullable(value: IntoStructured | null | undefined): Structured {
+  if (value === null || value === undefined) {
+    return description(String(value));
+  } else {
+    return intoStructured(value);
+  }
+}
+
 export function printStructured(
   input: IntoStructured,
   verbose: boolean
@@ -134,4 +137,42 @@ export function printStructured(
   }
 
   return structured.print();
+}
+
+export function anything(input: unknown): Structured {
+  if (input instanceof Structured) {
+    return input;
+  } else if (isDebuggable(input)) {
+    return input[DEBUG]();
+  } else if (Array.isArray(input)) {
+    return new List(input.map(anything));
+  } else {
+    if (input === null) {
+      return description("null");
+    }
+
+    switch (typeof input) {
+      case "undefined":
+      case "boolean":
+      case "number":
+        return description(String(input));
+      case "symbol":
+        return newtype("symbol", description(input.description || "anonymous"));
+      case "string":
+        return newtype("string", description(input));
+      case "bigint":
+        return newtype("bigint", description(String(input)));
+      case "function":
+        return description("Function");
+      case "object": {
+        if (input === null) {
+          return description("null");
+        } else {
+          return description("object");
+        }
+      }
+      default:
+        throw new Error(`unexpected unreachable`);
+    }
+  }
 }

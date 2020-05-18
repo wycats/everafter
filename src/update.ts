@@ -90,11 +90,14 @@ export function toUpdater(updaters: Updater[] | void): Updater | void {
   } else if (present.length === 1) {
     return present[0];
   } else {
-    return new StaticBlockResult(present);
+    return new Updaters(present);
   }
 }
 
-export class StaticBlockResult implements Updater {
+/**
+ * Take a bunch of updaters and turn them into a single updater.
+ */
+export class Updaters implements Updater {
   // The updaters that should be polled when this result is polled and
   // `#freshness` is not stale.
   #updaters: readonly [Updater, ...Updater[]];

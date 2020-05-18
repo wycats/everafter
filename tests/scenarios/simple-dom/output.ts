@@ -8,60 +8,111 @@ import type {
 import {
   annotate,
   BlockBuffer,
-  callerFrame,
-  CompilableLeaf,
+  caller,
+  CompilableAtom,
   CompilableOpen,
   DEBUG,
   DebugFields,
   description,
   Evaluate,
   Operations,
-  Output,
-  OutputFactory,
+  Region,
+  AppenderForCursor,
   PARENT,
   ReactiveArgument,
   RegionAppender,
   ReactiveRange,
   ReactiveState,
-  ReactiveValue,
+  Var,
   Stack,
   Structured,
   unreachable,
   Updater,
+  CompilableHead,
+  Source,
 } from "reactive-prototype";
-import type { StackTraceyFrame } from "stacktracey";
-import { NodeUpdate, NodeValueUpdate } from "../../update";
+import { NodeUpdate, NodeValueUpdate, AttributeUpdate } from "./update";
 
 type ElementBlock = {
   open: OpenElement;
-  head: HeadAttr;
+  head: HeadDomAttr;
 };
 
 type BlockKind = ElementBlock;
 
 interface OpenElement {
   readonly kind: "Element";
-  readonly value: ReactiveValue<string>;
+  readonly value: Var<string>;
 }
 
 type DomBlockOpen = OpenElement;
 
-interface HeadAttr {
+export class CompilableAttr implements CompilableHead<DomOps, ElementBlock> {
+  #name: ReactiveArgument<string>;
+  #value: ReactiveArgument<string>;
+  #namespace: ReactiveArgument<AttrNamespace> | null;
+  #source: Source;
+
+  constructor(
+    name: ReactiveArgument<string>,
+    value: ReactiveArgument<string>,
+    namespace: ReactiveArgument<AttrNamespace> | null,
+    source: Source
+  ) {
+    this.#name = name;
+    this.#value = value;
+    this.#namespace = namespace;
+    this.#source = source;
+  }
+
+  compile(state: ReactiveState): Evaluate<DomOps, HeadDomAttr> {
+    let name = this.#name.hydrate(state);
+    let value = this.#value.hydrate(state);
+    let namespace = this.#namespace ? this.#namespace.hydrate(state) : null;
+
+    return annotate(_region => runtimeAttr(name, value, namespace));
+  }
+}
+
+export function attr(
+  name: ReactiveArgument<string>,
+  value: ReactiveArgument<string>,
+  namespace?: ReactiveArgument<AttrNamespace>
+): CompilableAttr {
+  return new CompilableAttr(name, value, namespace || null, caller(PARENT));
+}
+
+export interface DomAttr {
+  readonly name: Var<string>;
+  readonly value: Var<string>;
+  readonly ns: Var<AttrNamespace> | null;
+}
+
+export interface HeadDomAttr {
   readonly kind: "Attr";
-  readonly value: {
-    readonly name: string;
-    readonly value: string;
-    readonly ns: AttrNamespace;
+  readonly value: DomAttr;
+}
+
+function runtimeAttr(
+  name: Var<string>,
+  value: Var<string>,
+  ns: Var<AttrNamespace> | null
+): HeadDomAttr {
+  return {
+    kind: "Attr",
+    value: {
+      name,
+      value,
+      ns,
+    },
   };
 }
 
-type DomBlockHead = HeadAttr;
-
 export class CompilableElement implements CompilableOpen<DomOps, ElementBlock> {
   #name: ReactiveArgument<string>;
-  #source: StackTraceyFrame;
+  #source: Source;
 
-  constructor(name: ReactiveArgument<string>, source: StackTraceyFrame) {
+  constructor(name: ReactiveArgument<string>, source: Source) {
     this.#name = name;
     this.#source = source;
   }
@@ -69,11 +120,11 @@ export class CompilableElement implements CompilableOpen<DomOps, ElementBlock> {
   compile(state: ReactiveState): Evaluate<DomOps, OpenElement> {
     let open = runtimeElement(this.#name.hydrate(state));
 
-    return annotate((_output: Output<DomOps>) => open, this.#source);
+    return annotate((_output: Region<DomOps>) => open, this.#source);
   }
 }
 
-export function runtimeElement(name: ReactiveValue<string>): OpenElement {
+export function runtimeElement(name: Var<string>): OpenElement {
   return {
     kind: "Element",
     value: name,
@@ -83,57 +134,45 @@ export function runtimeElement(name: ReactiveValue<string>): OpenElement {
 export function element(
   name: ReactiveArgument<string>
 ): CompilableOpen<DomOps> {
-  let caller = callerFrame(PARENT);
-  return new CompilableElement(name, caller);
+  return new CompilableElement(name, caller(PARENT));
 }
 
-class CompilableDomLeaf<T, L extends DomOps["atom"]>
-  implements CompilableLeaf<DomOps, L> {
+class CompilableDomAtom<T, L extends DomOps["atom"]>
+  implements CompilableAtom<DomOps, L> {
   #value: ReactiveArgument<T>;
-  #caller: StackTraceyFrame;
-  #toRuntime: (value: ReactiveValue<T>) => (output: Output<DomOps>) => void;
+  #source: Source;
+  #toRuntime: (value: Var<T>) => (output: Region<DomOps>) => void;
 
   constructor(
     value: ReactiveArgument<T>,
-    caller: StackTraceyFrame,
-    toRuntime: (value: ReactiveValue<T>) => (output: Output<DomOps>) => void
+    source: Source,
+    toRuntime: (value: Var<T>) => (output: Region<DomOps>) => void
   ) {
     this.#value = value;
-    this.#caller = caller;
+    this.#source = source;
     this.#toRuntime = toRuntime;
   }
 
   get debugFields(): DebugFields {
-    return new DebugFields("CompilableDomLeaf", {
+    return new DebugFields("CompilableDomAtom", {
       value: this.#value,
-      caller: this.#caller,
+      caller: this.#source,
       toRuntime: this.#toRuntime,
     });
   }
 
   compile(state: ReactiveState): Evaluate<DomOps> {
     let value = this.#value.hydrate(state);
-    return annotate(this.#toRuntime(value), this.#caller);
-  }
-}
-
-interface InlineText {
-  readonly kind: "Text";
-  readonly value: ReactiveArgument<string>;
-}
-
-class InlineText extends CompilableDomLeaf<string, RuntimeInlineText> {
-  toRuntime(value: ReactiveValue<string>): (output: Output<DomOps>) => void {
-    return output => output.leaf(runtimeText(value));
+    return annotate(this.#toRuntime(value), this.#source);
   }
 }
 
 export function text(
   value: ReactiveArgument<string>
-): CompilableDomLeaf<string, RuntimeInlineText> {
-  let caller = callerFrame(PARENT);
-  return new CompilableDomLeaf(value, caller, value => output =>
-    output.leaf(runtimeText(value), caller)
+): CompilableDomAtom<string, RuntimeInlineText> {
+  let source = caller(PARENT);
+  return new CompilableDomAtom(value, source, value => output =>
+    output.atom(runtimeText(value), source)
   );
 }
 
@@ -144,10 +183,10 @@ interface InlineComment {
 
 export function comment(
   value: ReactiveArgument<string>
-): CompilableDomLeaf<string, RuntimeInlineComment> {
-  let caller = callerFrame(PARENT);
-  return new CompilableDomLeaf(value, caller, value => output =>
-    output.leaf(runtimeComment(value), caller)
+): CompilableDomAtom<string, RuntimeInlineComment> {
+  let source = caller(PARENT);
+  return new CompilableDomAtom(value, source, value => output =>
+    output.atom(runtimeComment(value), source)
   );
 }
 
@@ -158,28 +197,26 @@ interface InlineNode {
 
 export function node(
   value: ReactiveArgument<SimpleNode>
-): CompilableDomLeaf<SimpleNode, RuntimeInlineNode> {
-  let caller = callerFrame(PARENT);
-  return new CompilableDomLeaf(value, caller, value => output =>
-    output.leaf(runtimeNode(value), caller)
+): CompilableDomAtom<SimpleNode, RuntimeInlineNode> {
+  let source = caller(PARENT);
+  return new CompilableDomAtom(value, source, value => output =>
+    output.atom(runtimeNode(value), source)
   );
 }
 
-type InlineKind = InlineText | InlineComment | InlineNode;
-
 interface RuntimeInlineText {
   readonly kind: "Text";
-  readonly data: ReactiveValue<string>;
+  readonly data: Var<string>;
 }
 
 interface RuntimeInlineComment {
   readonly kind: "Comment";
-  readonly data: ReactiveValue<string>;
+  readonly data: Var<string>;
 }
 
 interface RuntimeInlineNode {
   readonly kind: "Node";
-  readonly node: ReactiveValue<SimpleNode>;
+  readonly node: Var<SimpleNode>;
 }
 
 type RuntimeInlineKind =
@@ -187,27 +224,21 @@ type RuntimeInlineKind =
   | RuntimeInlineComment
   | RuntimeInlineNode;
 
-export function runtimeText(value: ReactiveValue<string>): RuntimeInlineText {
+export function runtimeText(value: Var<string>): RuntimeInlineText {
   return {
     kind: "Text",
     data: value,
   };
 }
 
-// export function text(value: ReactiveArgument<string>):
-
-export function runtimeComment(
-  value: ReactiveValue<string>
-): RuntimeInlineComment {
+export function runtimeComment(value: Var<string>): RuntimeInlineComment {
   return {
     kind: "Comment",
     data: value,
   };
 }
 
-export function runtimeNode(
-  value: ReactiveValue<SimpleNode>
-): RuntimeInlineNode {
+export function runtimeNode(value: Var<SimpleNode>): RuntimeInlineNode {
   return {
     kind: "Node",
     node: value,
@@ -300,8 +331,10 @@ export class DomElementBuffer implements BlockBuffer<DomOps, ElementBlock> {
     this.#output = output;
   }
 
-  head(head: HeadAttr): void {
-    this.#current.setAttribute(head.value.name, head.value.value);
+  head({ value: attr }: HeadDomAttr): Updater {
+    this.#current.setAttribute(attr.name.current, attr.value.current);
+
+    return new AttributeUpdate(this.#current, attr);
   }
   flush(): void {
     this.#output.flushElement(this.#current);
@@ -350,7 +383,7 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
     this.#range.appended(node);
   }
 
-  getChild(): OutputFactory<DomOps> {
+  getChild(): AppenderForCursor<DomOps> {
     return (cursor: DomCursor) => new SimpleDomOutput(cursor, this.#stack);
   }
 
@@ -365,7 +398,7 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
       }
 
       case "Comment": {
-        let node = this.#document.createComment(inline.data.value);
+        let node = this.#document.createComment(inline.data.current);
         this.insert(node);
         this.getCursor().insert(node);
 
@@ -373,7 +406,7 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
       }
 
       case "Node": {
-        let node = inline.node.value;
+        let node = inline.node.current;
         this.getCursor().insert(node);
 
         return new NodeUpdate(node, inline.node);

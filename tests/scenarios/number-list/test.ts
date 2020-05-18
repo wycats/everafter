@@ -2,16 +2,16 @@ import type * as qunit from "qunit";
 import {
   annotate,
   args,
-  callerFrame,
+  caller,
   Cell,
   Derived,
   Dict,
   Evaluate,
   PARENT,
   program,
-  Reactive,
+  Arg,
   ReactiveState,
-  ReactiveValue,
+  Var,
   RootBlock,
   RegionAppender,
 } from "reactive-prototype";
@@ -26,25 +26,22 @@ export class ListOfNumbersTest {
 
   @test "simple number list"(): void {
     const ARGS = args({
-      first: Reactive<number>(),
-      second: Reactive<number>(),
-      third: Reactive<number>(),
-      sum: Reactive<number>(),
+      first: Arg<number>(),
+      second: Arg<number>(),
+      third: Arg<number>(),
+      sum: Arg<number>(),
     });
 
     const sum = annotate(
-      (
-        first: ReactiveValue<number>,
-        second: ReactiveValue<number>,
-        third: ReactiveValue<number>
-      ): number => first.value + second.value + third.value
+      (first: Var<number>, second: Var<number>, third: Var<number>): number =>
+        first.current + second.current + third.current
     );
 
-    const template = program<NumberArrayOps>(ARGS, b => {
-      b.leaf(num(ARGS.get("first")));
-      b.leaf(num(ARGS.get("second")));
-      b.leaf(num(ARGS.get("third")));
-      b.leaf(num(ARGS.get("sum")));
+    const template = program<NumberArrayOps>(b => {
+      b.atom(num(ARGS.get("first")));
+      b.atom(num(ARGS.get("second")));
+      b.atom(num(ARGS.get("third")));
+      b.atom(num(ARGS.get("sum")));
     });
 
     const first = Cell(10);
@@ -63,63 +60,56 @@ export class ListOfNumbersTest {
     result.rerender();
 
     result.update(() => {
-      first.value = 15;
-      third.value = 50;
+      first.current = 15;
+      third.current = 50;
     }, [15, 20, 50, 85]);
   }
 
   @test blocks(): void {
     const ARGS = args({
-      "positive.first": Reactive<number>(),
-      "positive.second": Reactive<number>(),
-      "positive.third": Reactive<number>(),
-      "positive.sum": Reactive<number>(),
-      "negative.first": Reactive<number>(),
-      "negative.second": Reactive<number>(),
-      "negative.third": Reactive<number>(),
-      "negative.sum": Reactive<number>(),
-      showPositive: Reactive<boolean>(),
-      showAbs: Reactive<boolean>(),
+      "positive.first": Arg<number>(),
+      "positive.second": Arg<number>(),
+      "positive.third": Arg<number>(),
+      "positive.sum": Arg<number>(),
+      "negative.first": Arg<number>(),
+      "negative.second": Arg<number>(),
+      "negative.third": Arg<number>(),
+      "negative.sum": Arg<number>(),
+      showPositive: Arg<boolean>(),
+      showAbs: Arg<boolean>(),
     });
 
     const positiveSum = annotate(
-      (
-        first: ReactiveValue<number>,
-        second: ReactiveValue<number>,
-        third: ReactiveValue<number>
-      ): number => first.value + second.value + third.value
+      (first: Var<number>, second: Var<number>, third: Var<number>): number =>
+        first.current + second.current + third.current
     );
 
     const negativeSum = annotate(
-      (
-        first: ReactiveValue<number>,
-        second: ReactiveValue<number>,
-        third: ReactiveValue<number>
-      ): number =>
-        Math.abs(first.value) + Math.abs(second.value) + Math.abs(third.value)
+      (first: Var<number>, second: Var<number>, third: Var<number>): number =>
+        Math.abs(first.current) +
+        Math.abs(second.current) +
+        Math.abs(third.current)
     );
 
-    const abs = annotate((num: ReactiveValue<number>): number =>
-      Math.abs(num.value)
-    );
+    const abs = annotate((num: Var<number>): number => Math.abs(num.current));
 
-    const template = program<NumberArrayOps>(ARGS, b => {
+    const template = program<NumberArrayOps>(b => {
       b.ifBlock(
         ARGS.get("showPositive"),
         annotate(b => {
           b.ifBlock(
             ARGS.get("showAbs"),
             annotate(b => {
-              b.leaf(num(ARGS.call(abs, ARGS.get("positive.first"))));
-              b.leaf(num(ARGS.call(abs, ARGS.get("positive.second"))));
-              b.leaf(num(ARGS.call(abs, ARGS.get("positive.third"))));
-              b.leaf(num(ARGS.call(abs, ARGS.get("positive.sum"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("positive.first"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("positive.second"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("positive.third"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("positive.sum"))));
             }),
             annotate(b => {
-              b.leaf(num(ARGS.get("positive.first")));
-              b.leaf(num(ARGS.get("positive.second")));
-              b.leaf(num(ARGS.get("positive.third")));
-              b.leaf(num(ARGS.get("positive.sum")));
+              b.atom(num(ARGS.get("positive.first")));
+              b.atom(num(ARGS.get("positive.second")));
+              b.atom(num(ARGS.get("positive.third")));
+              b.atom(num(ARGS.get("positive.sum")));
             })
           );
         }),
@@ -127,16 +117,16 @@ export class ListOfNumbersTest {
           b.ifBlock(
             ARGS.get("showAbs"),
             annotate(b => {
-              b.leaf(num(ARGS.call(abs, ARGS.get("negative.first"))));
-              b.leaf(num(ARGS.call(abs, ARGS.get("negative.second"))));
-              b.leaf(num(ARGS.call(abs, ARGS.get("negative.third"))));
-              b.leaf(num(ARGS.call(abs, ARGS.get("negative.sum"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("negative.first"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("negative.second"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("negative.third"))));
+              b.atom(num(ARGS.call(abs, ARGS.get("negative.sum"))));
             }),
             annotate(b => {
-              b.leaf(num(ARGS.get("negative.first")));
-              b.leaf(num(ARGS.get("negative.second")));
-              b.leaf(num(ARGS.get("negative.third")));
-              b.leaf(num(ARGS.get("negative.sum")));
+              b.atom(num(ARGS.get("negative.first")));
+              b.atom(num(ARGS.get("negative.second")));
+              b.atom(num(ARGS.get("negative.third")));
+              b.atom(num(ARGS.get("negative.sum")));
             })
           );
         })
@@ -174,16 +164,16 @@ export class ListOfNumbersTest {
     result.rerender();
 
     result.update(() => {
-      firstPos.value = 15;
-      thirdPos.value = 50;
+      firstPos.current = 15;
+      thirdPos.current = 50;
     }, [15, 20, 50, 85]);
 
     result.update(() => {
-      showPositive.value = false;
+      showPositive.current = false;
     }, [-10, -20, -30, 60]);
 
     result.update(() => {
-      showAbs.value = true;
+      showAbs.current = true;
     }, [10, 20, 30, 60]);
   }
 
@@ -198,7 +188,7 @@ export class ListOfNumbersTest {
     return { list, output };
   }
 
-  private render<A extends Dict<ReactiveValue>>(
+  private render<A extends Dict<Var>>(
     template: (state: ReactiveState) => Evaluate<NumberArrayOps>,
     state: ReactiveState<A>
   ): RenderExpectation {
@@ -207,7 +197,7 @@ export class ListOfNumbersTest {
 
     let { list, output } = this.context();
     let root = new RootBlock(render, output, this.#host);
-    root.render(ArrayCursor.from(list, this.#host));
+    root.render(ArrayCursor.from(list, this.#host), caller(PARENT));
     return new RenderExpectation(root, list, this.assert);
   }
 }
@@ -236,7 +226,7 @@ class RenderExpectation {
 
   rerender(): void {
     this.#assert.step("no-op rerender");
-    this.#invocation.rerender(callerFrame(PARENT));
+    this.#invocation.rerender(caller(PARENT));
 
     if (this.#last === undefined) {
       throw new Error(`must render before rerendering`);
@@ -249,7 +239,7 @@ class RenderExpectation {
   update(callback: () => void, expected: readonly number[]): void {
     this.#assert.step("updating");
     callback();
-    this.#invocation.rerender(callerFrame(PARENT));
+    this.#invocation.rerender(caller(PARENT));
     this.assertList(expected);
     this.#assert.verifySteps(["updating"], "updating: done");
   }

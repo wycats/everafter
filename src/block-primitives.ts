@@ -1,31 +1,39 @@
-import type { StackTraceyFrame } from "stacktracey";
-// eslint-disable-next-line import/no-cycle
-import { DynamicBlockResult, invokeBlock } from "./block-internals";
 import {
+  block,
   DEBUG,
   DebugFields,
+  description,
+  LogLevel,
   newtype,
   struct,
   Structured,
-  block,
+  Source,
 } from "./debug/index";
-import { Block, Host, Operations, RENDER, UserBlock } from "./interfaces";
-import type { Output } from "./output";
-import { unsafeCompute } from "./unsafe";
-import { toUpdater, Updater } from "./update";
-import type { ReactiveValue } from "./value";
+import {
+  Block,
+  Host,
+  Operations,
+  ReactiveRange,
+  RENDER,
+  UserBlock,
+} from "./interfaces";
+import type { Region } from "./region";
+import { createCache, getValue, isConst, TrackedCache } from "./polyfill";
+import { POLL } from "./unsafe";
+import type { Updater } from "./update";
+import type { Var } from "./value";
 
 export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
-  #condition: ReactiveValue<boolean>;
+  #condition: Var<boolean>;
   #then: StaticBlock<Ops>;
   #otherwise: StaticBlock<Ops>;
-  #source: StackTraceyFrame;
+  #source: Source;
 
   constructor(
-    condition: ReactiveValue<boolean>,
+    condition: Var<boolean>,
     then: StaticBlock<Ops>,
     otherwise: StaticBlock<Ops>,
-    source: StackTraceyFrame
+    source: Source
   ) {
     this.#condition = condition;
     this.#then = then;
@@ -50,73 +58,63 @@ export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
     });
   }
 
-  [RENDER](output: Output<Ops>, host: Host): void {
-    DynamicBlock.render(
-      block<Ops>(output => {
-        let isTrue = this.#condition.value;
+  [RENDER](output: Region<Ops>, host: Host): void {
+    output.updateWith(
+      dynamic(
+        block<Ops>(output => {
+          let isTrue = this.#condition.current;
 
-        let next = isTrue ? this.#then : this.#otherwise;
-        invokeBlock(next, output, host);
-      }, this.#source),
-      output,
-      host
+          let next = isTrue ? this.#then : this.#otherwise;
+          invokeBlock(next, output, host);
+        }, this.#source),
+        output
+      )
     );
   }
 }
 
-/**
- * A `DynamicBlock` is an internal implementation detail of core primitive
- * blocks that might have to be torn down.
- *
- * When rendered, it invokes the inner function, tracking the validity of
- * the internal computation.
- */
-class DynamicBlock<Ops extends Operations> implements Block<Ops> {
-  static render<Ops extends Operations>(
-    block: UserBlock<Ops>,
-    output: Output<Ops>,
-    host: Host
-  ): Updater | void {
-    let dynamic = new DynamicBlock(block);
-    return invokeBlock(dynamic, output, host);
+export function dynamic<Ops extends Operations>(
+  userBlock: UserBlock<Ops>,
+  output: Region<Ops>
+): DynamicBlock {
+  let range: ReactiveRange<Ops> | undefined = undefined;
+
+  return DynamicBlock.initialize(() => {
+    range = output.renderDynamic(userBlock, range);
+  });
+}
+
+class DynamicBlock implements Updater {
+  static initialize(render: () => void): DynamicBlock {
+    let cache = createCache(render);
+    getValue(cache);
+    return new DynamicBlock(cache);
   }
 
-  #userBlock: UserBlock<Ops>;
+  #cache: TrackedCache<void>;
 
-  private constructor(userBlock: UserBlock<Ops>) {
-    this.#userBlock = userBlock;
+  constructor(cache: TrackedCache<void>) {
+    this.#cache = cache;
   }
 
-  [DEBUG](): Structured {
-    return newtype("DynamicBlock", this.#userBlock.source);
+  [POLL](): void | Updater {
+    getValue(this.#cache);
+
+    if (isConst(this.#cache)) {
+      return;
+    } else {
+      return this;
+    }
   }
 
-  get debugFields(): DebugFields {
-    return new DebugFields("DynamicBlock", {
-      invoke: this.#userBlock,
+  get debugFields(): DebugFields | undefined {
+    return new DebugFields("Dynamic", {
+      cache: this.#cache,
     });
   }
 
-  [RENDER](output: Output<Ops>, host: Host): void {
-    let updaters: Updater[] = [];
-    let append = output.getChild(updaters);
-    let runtime = append.getInner();
-
-    let { freshness } = unsafeCompute(() =>
-      this.#userBlock.f(append, runtime, host)
-    );
-
-    let range = runtime.finalize();
-
-    output.updateWith(
-      new DynamicBlockResult(
-        this,
-        output.getOutputFactory(),
-        toUpdater(updaters),
-        range,
-        freshness
-      )
-    );
+  [DEBUG](): Structured {
+    return description("Dynamic");
   }
 }
 
@@ -136,12 +134,17 @@ export class StaticBlock<Ops extends Operations> implements Block<Ops> {
     return newtype("StaticBlock", this.#userBlock.source);
   }
 
-  [RENDER](output: Output<Ops>, host: Host): void {
-    let updaters: Updater[] = [];
-    let append = output.withUpdaters(updaters);
-
-    this.#userBlock.f(append, append.getInner(), host);
-
-    output.updateWith(toUpdater(updaters));
+  [RENDER](output: Region<Ops>): void {
+    output.renderStatic(this.#userBlock);
   }
+}
+
+export function invokeBlock<Ops extends Operations>(
+  block: Block<Ops>,
+  output: Region<Ops>,
+  host: Host
+): void {
+  let level = LogLevel.Info;
+
+  host.context(level, block, () => block[RENDER](output, host));
 }

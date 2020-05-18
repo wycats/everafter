@@ -2,24 +2,70 @@ import type {
   SimpleText,
   SimpleComment,
   SimpleNode,
+  SimpleElement,
 } from "@simple-dom/interface";
 import {
-  ReactiveValue,
+  Var,
   Updater,
   DEBUG,
   POLL,
   Structured,
   struct,
   description,
+  DebugFields,
+  nullable,
 } from "reactive-prototype";
 import HTMLSerializer from "@simple-dom/serializer";
 import voidMap from "@simple-dom/void-map";
+import type { DomAttr } from "./output";
+
+export class AttributeUpdate implements Updater {
+  #element: SimpleElement;
+  #attr: DomAttr;
+
+  constructor(element: SimpleElement, attr: DomAttr) {
+    this.#element = element;
+    this.#attr = attr;
+  }
+
+  get debugFields(): DebugFields {
+    return new DebugFields("AttributeUpdate", {
+      element: this.#element,
+      attr: this.#attr,
+    });
+  }
+
+  [DEBUG](): Structured {
+    return struct(
+      "AttributeUpdate",
+      ["element", description(this.#element.tagName.toLowerCase())],
+      [
+        "attr",
+        struct(
+          "Attr",
+          ["name", this.#attr.name],
+          ["value", this.#attr.value],
+          ["namespace", nullable(this.#attr.ns)]
+        ),
+      ]
+    );
+  }
+
+  [POLL](): void | Updater {
+    this.#element.setAttribute(
+      this.#attr.name.current,
+      this.#attr.value.current
+    );
+
+    return this;
+  }
+}
 
 export class NodeValueUpdate implements Updater {
   #node: SimpleText | SimpleComment;
-  #value: ReactiveValue<string>;
+  #value: Var<string>;
 
-  constructor(node: SimpleText | SimpleComment, value: ReactiveValue<string>) {
+  constructor(node: SimpleText | SimpleComment, value: Var<string>) {
     this.#node = node;
     this.#value = value;
   }
@@ -43,9 +89,9 @@ export class NodeValueUpdate implements Updater {
 
 export class NodeUpdate implements Updater {
   #node: SimpleNode;
-  #value: ReactiveValue<SimpleNode>;
+  #value: Var<SimpleNode>;
 
-  constructor(node: SimpleNode, value: ReactiveValue<SimpleNode>) {
+  constructor(node: SimpleNode, value: Var<SimpleNode>) {
     this.#node = node;
     this.#value = value;
   }

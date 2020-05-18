@@ -1,68 +1,67 @@
 import {
   annotate,
   BlockBuffer,
-  callerFrame,
-  CompilableLeaf,
+  caller,
+  CompilableAtom,
   DEBUG,
   DebugFields,
   description,
   Evaluate,
   Host,
   LogLevel,
-  Output,
-  OutputFactory,
+  Region,
+  AppenderForCursor,
   PARENT,
   POLL,
   ReactiveArgument,
   RegionAppender,
   ReactiveRange,
   ReactiveState,
-  ReactiveValue,
+  Var,
   struct,
   Structured,
   Updater,
+  Source,
 } from "reactive-prototype";
-import type { StackTraceyFrame } from "stacktracey";
 
 export interface NumberArrayOps {
   cursor: ArrayCursor;
-  atom: ReactiveValue<number>;
+  atom: Var<number>;
   block: {
     open: void;
     head: never;
   };
 }
 
-class CompilableDomLeaf
-  implements CompilableLeaf<NumberArrayOps, ReactiveValue<number>> {
+class CompilableDomAtom implements CompilableAtom<NumberArrayOps, Var<number>> {
   #value: ReactiveArgument<number>;
-  #caller: StackTraceyFrame;
+  #source: Source;
 
-  constructor(value: ReactiveArgument<number>, caller: StackTraceyFrame) {
+  constructor(value: ReactiveArgument<number>, source: Source) {
     this.#value = value;
-    this.#caller = caller;
+    this.#source = source;
   }
 
   get debugFields(): DebugFields {
-    return new DebugFields("CompilableDomLeaf", {
+    return new DebugFields("CompilableDomAtom", {
       value: this.#value,
-      caller: this.#caller,
+      caller: this.#source,
     });
   }
 
   compile(state: ReactiveState): Evaluate<NumberArrayOps> {
     let value = this.#value.hydrate(state);
 
-    let func = (output: Output<NumberArrayOps>): void => {
-      output.leaf(value, this.#caller);
+    let func = (output: Region<NumberArrayOps>): void => {
+      output.atom(value, this.#source);
     };
 
-    return annotate(func, this.#caller);
+    return annotate(func, this.#source);
   }
 }
 
-export function num(num: ReactiveArgument<number>): CompilableDomLeaf {
-  return new CompilableDomLeaf(num, callerFrame(PARENT));
+export function num(num: ReactiveArgument<number>): CompilableDomAtom {
+  return new CompilableDomAtom(num, caller(PARENT));
 }
 
 export interface Block {
@@ -72,9 +71,9 @@ export interface Block {
 
 class ArrayElementUpdate implements Updater {
   #cursor: ArrayCursor;
-  #value: ReactiveValue<number>;
+  #value: Var<number>;
 
-  constructor(cursor: ArrayCursor, value: ReactiveValue<number>) {
+  constructor(cursor: ArrayCursor, value: Var<number>) {
     this.#cursor = cursor;
     this.#value = value;
   }
@@ -109,7 +108,7 @@ class ArrayElementBuffer
     this.#output = output;
   }
 
-  push(num: ReactiveValue<number>): void {
+  push(num: Var<number>): void {
     this.#output.atom(num);
   }
 
@@ -380,7 +379,7 @@ export class NumberListOutput implements RegionAppender<NumberArrayOps> {
     return this.#range;
   }
 
-  getChild(): OutputFactory<NumberArrayOps> {
+  getChild(): AppenderForCursor<NumberArrayOps> {
     return cursor =>
       new NumberListOutput(this.#output, cursor, this.#host, this);
   }
@@ -389,8 +388,8 @@ export class NumberListOutput implements RegionAppender<NumberArrayOps> {
     return this.#range.cursor;
   }
 
-  atom(num: ReactiveValue<number>): Updater {
-    let cursor = this.#range.append(num.value);
+  atom(num: Var<number>): Updater {
+    let cursor = this.#range.append(num.current);
 
     return new ArrayElementUpdate(cursor, num);
   }

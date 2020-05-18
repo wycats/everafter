@@ -2,7 +2,7 @@ In Reactive Prototype, all higher-level features are built up from primitives, w
 
 The core "reactive calculus" has four primitives:
 
-1. Atomic, leaf values
+1. Atomic values
 2. Call
 3. Conditional
 4. Iteration

@@ -1,5 +1,39 @@
 import StackTracey, { StackTraceyFrame } from "stacktracey";
 import type { Operations, UserBlock, UserBlockFunction } from "../interfaces";
+import { Debuggable, DEBUG } from "./debuggable";
+import { Structured, description } from "./structured";
+
+export class Source implements Debuggable {
+  #frame: StackTraceyFrame;
+  #desc: string | null;
+
+  constructor(frame: StackTraceyFrame, desc?: string) {
+    this.#frame = frame;
+    this.#desc = desc || null;
+  }
+
+  [DEBUG](): Structured {
+    if (this.#desc) {
+      return description(`${this.#desc} at ${this.description}`);
+    } else {
+      return description(this.description);
+    }
+  }
+
+  describe(description: string): Source {
+    return new Source(this.#frame, description);
+  }
+
+  get description(): string {
+    let file = this.#frame.file;
+    file = file.replace(/^webpack:\/\/\/(tests|src)/, "webpack:///./$1");
+    return `${file}:${this.#frame.line}:${this.#frame.column}`;
+  }
+}
+
+export function source(frame: StackTraceyFrame, desc?: string): Source {
+  return new Source(frame, desc);
+}
 
 /**
  * The number of frames to walk back to find the frame
@@ -16,20 +50,14 @@ export const CURRENT = 1;
  */
 export const PARENT = 2;
 
-export function callerFrame(depth: number): StackTraceyFrame {
+export function caller(depth: number, desc?: string): Source {
   let trace = new StackTracey();
-  return trace.withSource(depth);
-}
-
-export function frameSource(frame: StackTraceyFrame): string {
-  let file = frame.file;
-  file = file.replace(/^webpack:\/\/\/(tests|src)/, "webpack:///./$1");
-  return `${file}:${frame.line}:${frame.column}`;
+  return new Source(trace.withSource(depth), desc);
 }
 
 export interface AnnotatedFunction<F extends Function> {
   f: F;
-  source: StackTraceyFrame;
+  source: Source;
 }
 
 export function copyAnnotation<F extends Function>(
@@ -44,7 +72,7 @@ export function copyAnnotation<F extends Function>(
 
 function annotateWithFrame<F extends Function>(
   f: F,
-  source: StackTraceyFrame
+  source: Source
 ): AnnotatedFunction<F> {
   return {
     f,
@@ -58,9 +86,9 @@ function annotateWithFrame<F extends Function>(
  */
 export function annotate<F extends Function>(
   f: F,
-  caller = callerFrame(PARENT)
+  source = caller(PARENT)
 ): AnnotatedFunction<F> {
-  return annotateWithFrame(f, caller);
+  return annotateWithFrame(f, source);
 }
 
 /**
@@ -71,7 +99,7 @@ export function annotate<F extends Function>(
  */
 export function block<Ops extends Operations>(
   invoke: UserBlockFunction<Ops>,
-  frame = callerFrame(PARENT)
+  frame = caller(PARENT)
 ): UserBlock<Ops> {
   return annotateWithFrame(invoke, frame);
 }
