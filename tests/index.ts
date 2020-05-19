@@ -3,7 +3,7 @@ import "file-loader?name=[name].[ext]!./index.html";
 
 import "./scenarios/index";
 
-import { Config, config, dump } from "qunit";
+import { config, dump } from "qunit";
 
 config.autostart = true;
 config.urlConfig.push({

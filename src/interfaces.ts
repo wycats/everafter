@@ -11,12 +11,11 @@ import {
   printStructured,
   IntoStructured,
   intoStructured,
+  Structured,
+  DebugFields,
+  DEBUG,
+  description,
 } from "./debug/index";
-
-export interface BlockDetails {
-  open: unknown;
-  head: unknown;
-}
 
 /**
  * `Operations` ties together the type parameters that a reactive output uses
@@ -59,7 +58,7 @@ export interface Operations {
    * as its tag name, get a number of file attributes as "head" items, and get
    * closed when the file is done.
    */
-  block: BlockDetails;
+  block: Operations;
 }
 
 /**
@@ -81,6 +80,31 @@ export interface ReactiveRange<Ops extends Operations> extends Debuggable {
    * the output, and a new cursor is created for new content.
    */
   clear(): Ops["cursor"];
+}
+
+/**
+ * A special case of `ReactiveRange` that can't be cleared.
+ *
+ * TODO: This is fishy and should be revisited once everything else is in place
+ */
+export class StaticReactiveRange<Ops extends Operations>
+  implements ReactiveRange<Ops> {
+  #cursor: Ops["cursor"];
+
+  constructor(cursor: Ops["cursor"]) {
+    this.#cursor = cursor;
+  }
+
+  clear(): Ops["cursor"] {
+    return this.#cursor;
+  }
+  get debugFields(): DebugFields {
+    return new DebugFields("StaticRange", { cursor: this.#cursor });
+  }
+
+  [DEBUG](): Structured {
+    return description("StaticRange");
+  }
 }
 
 /**
@@ -141,7 +165,7 @@ export interface RegionAppender<Ops extends Operations> {
    * Open a block at the current cursor, returning an appropriate block
    * buffer for the kind of block being created.
    */
-  open<B extends Ops["block"]>(open: B["open"]): BlockBuffer<Ops, B>;
+  // open<O extends Ops["block"]>(open: O): Region<O>;
 }
 
 export type UserBlockFunction<Ops extends Operations> = (
@@ -152,15 +176,6 @@ export type UserBlockFunction<Ops extends Operations> = (
 export type UserBlock<Ops extends Operations> = AnnotatedFunction<
   UserBlockFunction<Ops>
 >;
-
-export interface BlockBuffer<
-  Ops extends Operations,
-  Kind extends Ops["block"]
-> {
-  head(head: Kind["head"]): Updater | void;
-  flush(): void;
-  close(): void;
-}
 
 export const RENDER = Symbol("RENDER");
 

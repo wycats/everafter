@@ -7,7 +7,6 @@ import {
 } from "./debug/index";
 import type {
   Block,
-  BlockBuffer,
   Host,
   Operations,
   ReactiveRange,
@@ -16,6 +15,7 @@ import type {
 } from "./interfaces";
 import { initialize, toUpdater, Updater } from "./update";
 import { invokeBlock } from "./block-primitives";
+import type { CursorAdapter } from "./builder";
 
 /**
  * A {@link Region} is created for each area of the output. The {@link Region}
@@ -60,8 +60,23 @@ export class Region<Ops extends Operations> {
     );
   }
 
-  open<B extends Ops["block"]>(value: B["open"]): BlockBuffer<Ops, B> {
-    return this.#appender.open(value);
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>
+  ): Region<ChildOps> {
+    let appender = adapter.child(this.#appender.getCursor());
+    return new Region(appender, this.#host, this.#updaters);
+  }
+
+  flush<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>,
+    child: Region<ChildOps>
+  ): Region<Ops> {
+    let appender = adapter.flush(
+      this.#appender.getCursor(),
+      child.#appender.getCursor()
+    );
+
+    return new Region(appender, this.#host, this.#updaters);
   }
 
   /**

@@ -1,4 +1,4 @@
-import { ConditionBlock, StaticBlock } from "../block-primitives";
+import { ConditionBlock, StaticBlock, invokeBlock } from "../block-primitives";
 import {
   annotate,
   AnnotatedFunction,
@@ -6,7 +6,7 @@ import {
   Source,
   caller,
 } from "../debug/index";
-import type { Host, Operations } from "../interfaces";
+import type { Host, Operations, RegionAppender } from "../interfaces";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
@@ -25,27 +25,18 @@ export interface CompilableAtom<
   compile(state: ReactiveState): Evaluate<Ops>;
 }
 
-export interface CompilableOpen<
-  Ops extends Operations,
-  B extends Ops["block"] = Ops["block"]
-> {
-  compile(state: ReactiveState): Evaluate<Ops, B["open"]>;
-}
-
-export interface CompilableHead<
-  Ops extends Operations,
-  B extends Ops["block"]
-> {
-  compile(state: ReactiveState): Evaluate<Ops, B["head"]>;
-}
-
 export type Evaluate<Ops extends Operations, Out = void> = AnnotatedFunction<
   (region: Region<Ops>, host: Host) => Out
 >;
 
 type UserBuilderBlock<Ops extends Operations> = AnnotatedFunction<
-  (builder: Builder<Ops>) => void
+  (builder: StaticBlockBuilder<Ops>) => void
 >;
+
+export interface CursorAdapter<O1 extends Operations, O2 extends Operations> {
+  child(cursor: O1["cursor"]): RegionAppender<O2>;
+  flush(parent: O1["cursor"], child: O2["cursor"]): RegionAppender<O1>;
+}
 
 interface Builder<Ops extends Operations> {
   atom(atom: CompilableAtom<Ops, Ops["atom"]>): void;
@@ -57,91 +48,16 @@ interface Builder<Ops extends Operations> {
     condition: A,
     then: UserBuilderBlock<Ops>,
     otherwise: UserBuilderBlock<Ops>,
-    caller?: Source
+    source?: Source
   ): void;
-  /**
-   * increment the directness parameter if calling an inner `open`
-   */
-  open<B extends Ops["block"]>(
-    value: CompilableOpen<Ops, B>,
-    directness: number
-  ): BlockBuilder<Ops, B>;
 
-  close<B extends Ops["block"]>(block: Block<Ops, B>): void;
-}
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>,
+    parent?: Builder<Ops>,
+    source?: Source
+  ): ForeignBlockBuilder<Ops, ChildOps>;
 
-class BlockBuilder<Ops extends Operations, B extends Ops["block"]> {
-  #open: CompilableOpen<Ops, B>;
-  #parent: Builder<Ops>;
-  #head: CompilableHead<Ops, B>[] = [];
-  #location: Source;
-
-  constructor(
-    open: CompilableOpen<Ops, B>,
-    parent: Builder<Ops>,
-    location: Source
-  ) {
-    this.#open = open;
-    this.#parent = parent;
-    this.#location = location;
-  }
-
-  head(head: CompilableHead<Ops, B>): void {
-    this.#head.push(head);
-  }
-
-  flush(): BlockBodyBuilder<Ops, B> {
-    return new BlockBodyBuilder(
-      this.#open,
-      this.#parent,
-      this.#head,
-      this.#location
-    );
-  }
-}
-
-class Block<Ops extends Operations, B extends Ops["block"]>
-  implements Compilable<Ops> {
-  #open: CompilableOpen<Ops, B>;
-  #head: readonly CompilableHead<Ops, B>[];
-  #statements: readonly Statement<Ops>[];
-  #location: Source;
-
-  constructor(
-    open: CompilableOpen<Ops, B>,
-    head: readonly CompilableHead<Ops, B>[],
-    statements: readonly Statement<Ops>[],
-    location: Source
-  ) {
-    this.#open = open;
-    this.#head = head;
-    this.#statements = statements;
-    this.#location = location;
-  }
-
-  compile(state: ReactiveState): Evaluate<Ops> {
-    let open = this.#open.compile(state);
-    let head = this.#head.map(h => h.compile(state));
-    let body = this.#statements.map(s => s.compile(state));
-
-    let func = (region: Region<Ops>, host: Host): void => {
-      let buffer = region.open(open.f(region, host));
-
-      for (let item of head) {
-        region.updateWith(buffer.head(item.f(region, host)));
-      }
-
-      buffer.flush();
-
-      for (let item of body) {
-        item.f(region, host);
-      }
-
-      buffer.close();
-    };
-
-    return annotate(func, this.#location);
-  }
+  close(block: CompilableBlock<Ops>): void;
 }
 
 class Conditional<Ops extends Operations> implements Compilable<Ops> {
@@ -164,8 +80,8 @@ class Conditional<Ops extends Operations> implements Compilable<Ops> {
 
   compile(state: ReactiveState): Evaluate<Ops> {
     let condition = this.#condition.hydrate(state);
-    let then = this.#then.compile(state);
-    let otherwise = this.#else.compile(state);
+    let then = this.#then.intoBlock(state);
+    let otherwise = this.#else.intoBlock(state);
 
     let func = (output: Region<Ops>): void => {
       let cond = new ConditionBlock<Ops>(
@@ -206,34 +122,39 @@ export class StatementsBuilder<Ops extends Operations> implements Builder<Ops> {
     otherwise: UserBuilderBlock<Ops>,
     source: Source
   ): void {
-    let thenBlock = CompilableBlock.from(then);
-    let otherwiseBlock = CompilableBlock.from(otherwise);
+    let thenBlock = CompilableStaticBlock.from(then);
+    let otherwiseBlock = CompilableStaticBlock.from(otherwise);
 
     this.#statements.push(
       new Conditional(condition, thenBlock, otherwiseBlock, source)
     );
   }
 
-  open<B extends Ops["block"]>(
-    open: CompilableOpen<Ops, B>,
-    directness: number
-  ): BlockBuilder<Ops, B> {
-    let location = caller(directness);
-    return new BlockBuilder(open, this, location);
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>,
+    parent: Builder<Ops>,
+    source: Source
+  ): ForeignBlockBuilder<Ops, ChildOps> {
+    return new ForeignBlockBuilder(parent, adapter, source);
   }
 
-  close<B extends Ops["block"]>(block: Block<Ops, B>): void {
+  close(block: CompilableStaticBlock<Ops>): void {
     this.#statements.push(block);
   }
 }
 
-class CompilableBlock<Ops extends Operations> {
+interface CompilableBlock<Ops extends Operations> {
+  intoBlock(state: ReactiveState): StaticBlock<Ops>;
+}
+
+class CompilableStaticBlock<Ops extends Operations>
+  implements CompilableBlock<Ops>, Compilable<Ops> {
   static from<Ops extends Operations>(
     block: UserBuilderBlock<Ops>
   ): CompilableBlock<Ops> {
-    let builder = new StaticBlockBuilder<Ops>();
+    let builder = new StaticBlockBuilder<Ops>(block.source);
     block.f(builder);
-    return new CompilableBlock(builder.done(), block.source);
+    return builder.done();
   }
 
   #statements: readonly Statement<Ops>[];
@@ -244,7 +165,15 @@ class CompilableBlock<Ops extends Operations> {
     this.#source = source;
   }
 
-  compile(state: ReactiveState): StaticBlock<Ops> {
+  compile(state: ReactiveState<Dict<Var<unknown>>>): Evaluate<Ops, void> {
+    let block = this.intoBlock(state);
+
+    return annotate((region, host) => {
+      invokeBlock(block, region, host);
+    }, this.#source);
+  }
+
+  intoBlock(state: ReactiveState): StaticBlock<Ops> {
     let statements = this.#statements.map(s => s.compile(state));
 
     let func = annotate((output: Region<Ops>, host: Host): void => {
@@ -259,9 +188,27 @@ class CompilableBlock<Ops extends Operations> {
 
 class StaticBlockBuilder<Ops extends Operations> implements Builder<Ops> {
   #statements: Statement<Ops>[] = [];
+  #source: Source;
 
-  done(): readonly Statement<Ops>[] {
-    return this.#statements;
+  constructor(source: Source) {
+    this.#source = source;
+  }
+
+  done(): CompilableStaticBlock<Ops> {
+    return new CompilableStaticBlock(this.#statements, this.#source);
+  }
+
+  invoke(compilableBlock: CompilableBlock<Ops>): void {
+    this.#statements.push({
+      compile: (state: ReactiveState): Evaluate<Ops> => {
+        let block = compilableBlock.intoBlock(state);
+
+        return annotate(
+          (region: Region<Ops>, host: Host) => invokeBlock(block, region, host),
+          this.#source
+        );
+      },
+    });
   }
 
   atom(atom: CompilableAtom<Ops, Ops["atom"]>): void {
@@ -276,56 +223,94 @@ class StaticBlockBuilder<Ops extends Operations> implements Builder<Ops> {
   ): void {
     let cond = new Conditional(
       condition,
-      CompilableBlock.from(then),
-      CompilableBlock.from(otherwise),
+      CompilableStaticBlock.from(then),
+      CompilableStaticBlock.from(otherwise),
       source
     );
 
     this.#statements.push(cond);
   }
 
-  open<B extends Ops["block"]>(
-    open: CompilableOpen<Ops, B>
-  ): BlockBuilder<Ops, B> {
-    return new BlockBuilder(open, this, caller(PARENT));
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>,
+    parent: Builder<Ops>,
+    source: Source
+  ): ForeignBlockBuilder<Ops, ChildOps> {
+    return new ForeignBlockBuilder(parent, adapter, source);
   }
 
-  close<B extends Ops["block"]>(block: Block<Ops, B>): void {
+  close(block: CompilableStaticBlock<Ops>): void {
     this.#statements.push(block);
   }
 }
 
-class BlockBodyBuilder<Ops extends Operations, B extends Ops["block"]>
-  implements Builder<Ops> {
-  #open: CompilableOpen<Ops, B>;
-  #parent: Builder<Ops>;
-  #head: readonly CompilableHead<Ops, B>[];
+class ForeignBlock<ParentOps extends Operations, Ops extends Operations>
+  implements CompilableBlock<ParentOps>, Compilable<ParentOps> {
+  static from<Ops extends Operations>(
+    block: UserBuilderBlock<Ops>
+  ): CompilableBlock<Ops> {
+    let builder = new StaticBlockBuilder<Ops>(block.source);
+    block.f(builder);
+    return builder.done();
+  }
+
+  #head: CompilableBlock<Ops>;
+  #body: CompilableBlock<ParentOps>;
+  #adapter: CursorAdapter<ParentOps, Ops>;
   #source: Source;
-  #builder = new StatementsBuilder<Ops>();
 
   constructor(
-    open: CompilableOpen<Ops, B>,
-    parent: Builder<Ops>,
-    head: readonly CompilableHead<Ops, B>[],
+    head: CompilableBlock<Ops>,
+    body: CompilableBlock<ParentOps>,
+    adapter: CursorAdapter<ParentOps, Ops>,
     source: Source
   ) {
-    this.#open = open;
-    this.#parent = parent;
     this.#head = head;
+    this.#body = body;
+    this.#adapter = adapter;
     this.#source = source;
   }
 
-  done(): Block<Ops, B> {
-    return new Block(
-      this.#open,
-      this.#head,
-      this.#builder.done(),
-      this.#source
-    );
+  compile(state: ReactiveState): Evaluate<ParentOps, void> {
+    let block = this.intoBlock(state);
+
+    return annotate((region, host) => {
+      invokeBlock(block, region, host);
+    }, this.#source);
   }
 
-  close(): void {
-    this.#parent.close(this.done());
+  intoBlock(state: ReactiveState): StaticBlock<ParentOps> {
+    let head = this.#head.intoBlock(state);
+    let body = this.#body.intoBlock(state);
+
+    let func = annotate((region: Region<ParentOps>, host: Host): void => {
+      let child = region.open(this.#adapter);
+
+      invokeBlock(head, child, host);
+      let grandchild = region.flush(this.#adapter, child);
+      invokeBlock(body, grandchild, host);
+    }, this.#source);
+
+    return new StaticBlock(func);
+  }
+}
+
+class ForeignBlockBuilder<ParentOps extends Operations, Ops extends Operations>
+  implements Builder<Ops> {
+  #parent: Builder<ParentOps>;
+  #builder: StaticBlockBuilder<Ops>;
+  #adapter: CursorAdapter<ParentOps, Ops>;
+  #source: Source;
+
+  constructor(
+    parent: Builder<ParentOps>,
+    adapter: CursorAdapter<ParentOps, Ops>,
+    source: Source
+  ) {
+    this.#parent = parent;
+    this.#adapter = adapter;
+    this.#builder = new StaticBlockBuilder(source);
+    this.#source = source;
   }
 
   atom(atom: CompilableAtom<Ops, Ops["atom"]>): void {
@@ -336,16 +321,84 @@ class BlockBodyBuilder<Ops extends Operations, B extends Ops["block"]>
     condition: ReactiveArgument<boolean>,
     then: UserBuilderBlock<Ops>,
     otherwise: UserBuilderBlock<Ops>,
-    source = caller(PARENT)
+    source: Source
   ): void {
     this.#builder.ifBlock(condition, then, otherwise, source);
   }
 
-  open<B extends Ops["block"]>(
-    open: CompilableOpen<Ops, B>,
-    directness: number
-  ): BlockBuilder<Ops, B> {
-    return this.#builder.open(open, directness + 1);
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>,
+    parent: Builder<Ops>,
+    source: Source
+  ): ForeignBlockBuilder<Ops, ChildOps> {
+    return this.#builder.open(adapter, parent, source);
+  }
+
+  close(block: CompilableStaticBlock<Ops>): void {
+    this.#builder.close(block);
+  }
+
+  flush(): BlockBodyBuilder<Ops, ParentOps> {
+    return new BlockBodyBuilder(
+      this.#parent,
+      this.#builder.done(),
+      this.#adapter,
+      this.#source
+    );
+  }
+}
+
+class BlockBodyBuilder<HeadOps extends Operations, Ops extends Operations>
+  implements Builder<Ops> {
+  #parent: Builder<Ops>;
+  #head: CompilableBlock<HeadOps>;
+  #adapter: CursorAdapter<Ops, HeadOps>;
+  #builder: StaticBlockBuilder<Ops>;
+  #source: Source;
+
+  constructor(
+    parent: Builder<Ops>,
+    head: CompilableBlock<HeadOps>,
+    adapter: CursorAdapter<Ops, HeadOps>,
+    source: Source
+  ) {
+    this.#parent = parent;
+    this.#head = head;
+    this.#adapter = adapter;
+    this.#builder = new StaticBlockBuilder(source);
+    this.#source = source;
+  }
+
+  close(): void {
+    let block = new ForeignBlock(
+      this.#head,
+      this.#builder.done(),
+      this.#adapter,
+      this.#source
+    );
+
+    this.#parent.close(block);
+  }
+
+  atom(atom: CompilableAtom<Ops, Ops["atom"]>): void {
+    this.#builder.atom(atom);
+  }
+
+  ifBlock<A extends ReactiveArgument<boolean>>(
+    condition: A,
+    then: UserBuilderBlock<Ops>,
+    otherwise: UserBuilderBlock<Ops>,
+    source: Source
+  ): void {
+    this.#builder.ifBlock(condition, then, otherwise, source);
+  }
+
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>,
+    parent: Builder<Ops>,
+    source: Source
+  ): ForeignBlockBuilder<Ops, ChildOps> {
+    return this.#builder.open(adapter, parent, source);
   }
 }
 
@@ -383,13 +436,13 @@ export class Program<Ops extends Operations>
     this.#statements.ifBlock(condition, then, otherwise, source);
   }
 
-  open<B extends Ops["block"]>(
-    open: CompilableOpen<Ops, B>
-  ): BlockBuilder<Ops, B> {
-    return this.#statements.open(open, PARENT + 1);
+  open<ChildOps extends Operations>(
+    adapter: CursorAdapter<Ops, ChildOps>
+  ): ForeignBlockBuilder<Ops, ChildOps> {
+    return this.#statements.open(adapter, this, caller(PARENT));
   }
 
-  close<B extends Ops["block"]>(block: Block<Ops, B>): void {
+  close(block: CompilableStaticBlock<Ops>): void {
     this.#statements.close(block);
   }
 }
@@ -416,11 +469,13 @@ export function state(dict: Dict<Var>, args: ReactiveArguments): ReactiveState {
   return args.hydrate(dict);
 }
 
-// export type ReactiveArguments = Dict<ReactiveArgument<unknown>>;
+export type ProgramBlock<Ops extends Operations> = (
+  state: ReactiveState
+) => Evaluate<Ops>;
 
 export function program<Ops extends Operations>(
   callback: (builder: Program<Ops>) => void
-): (state: ReactiveState) => Evaluate<Ops> {
+): ProgramBlock<Ops> {
   return state => {
     let source = caller(PARENT);
     let builder = new Program<Ops>(source);

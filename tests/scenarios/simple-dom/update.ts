@@ -52,10 +52,18 @@ export class AttributeUpdate implements Updater {
   }
 
   [POLL](): void | Updater {
-    this.#element.setAttribute(
-      this.#attr.name.current,
-      this.#attr.value.current
-    );
+    if (this.#attr.ns) {
+      this.#element.setAttributeNS(
+        this.#attr.ns.current,
+        this.#attr.name.current,
+        this.#attr.value.current
+      );
+    } else {
+      this.#element.setAttribute(
+        this.#attr.name.current,
+        this.#attr.value.current
+      );
+    }
 
     return this;
   }

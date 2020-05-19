@@ -7,29 +7,28 @@ import type {
 } from "@simple-dom/interface";
 import {
   annotate,
-  BlockBuffer,
+  AppenderForCursor,
   caller,
   CompilableAtom,
-  CompilableOpen,
   DEBUG,
   DebugFields,
   description,
   Evaluate,
   Operations,
-  Region,
-  AppenderForCursor,
   PARENT,
   ReactiveArgument,
-  RegionAppender,
   ReactiveRange,
   ReactiveState,
-  Var,
+  Region,
+  RegionAppender,
+  Source,
   Stack,
   Structured,
   unreachable,
   Updater,
-  CompilableHead,
-  Source,
+  Var,
+  CursorAdapter,
+  StaticReactiveRange,
 } from "reactive-prototype";
 import { NodeUpdate, NodeValueUpdate, AttributeUpdate } from "./update";
 
@@ -38,16 +37,12 @@ type ElementBlock = {
   head: HeadDomAttr;
 };
 
-type BlockKind = ElementBlock;
-
 interface OpenElement {
   readonly kind: "Element";
   readonly value: Var<string>;
 }
 
-type DomBlockOpen = OpenElement;
-
-export class CompilableAttr implements CompilableHead<DomOps, ElementBlock> {
+export class CompilableAttr implements CompilableAtom<AttrOps, DomAttr> {
   #name: ReactiveArgument<string>;
   #value: ReactiveArgument<string>;
   #namespace: ReactiveArgument<AttrNamespace> | null;
@@ -65,12 +60,12 @@ export class CompilableAttr implements CompilableHead<DomOps, ElementBlock> {
     this.#source = source;
   }
 
-  compile(state: ReactiveState): Evaluate<DomOps, HeadDomAttr> {
+  compile(state: ReactiveState): Evaluate<AttrOps> {
     let name = this.#name.hydrate(state);
     let value = this.#value.hydrate(state);
-    let namespace = this.#namespace ? this.#namespace.hydrate(state) : null;
+    let ns = this.#namespace ? this.#namespace.hydrate(state) : null;
 
-    return annotate(_region => runtimeAttr(name, value, namespace));
+    return annotate(region => region.atom({ name, value, ns }), this.#source);
   }
 }
 
@@ -93,37 +88,6 @@ export interface HeadDomAttr {
   readonly value: DomAttr;
 }
 
-function runtimeAttr(
-  name: Var<string>,
-  value: Var<string>,
-  ns: Var<AttrNamespace> | null
-): HeadDomAttr {
-  return {
-    kind: "Attr",
-    value: {
-      name,
-      value,
-      ns,
-    },
-  };
-}
-
-export class CompilableElement implements CompilableOpen<DomOps, ElementBlock> {
-  #name: ReactiveArgument<string>;
-  #source: Source;
-
-  constructor(name: ReactiveArgument<string>, source: Source) {
-    this.#name = name;
-    this.#source = source;
-  }
-
-  compile(state: ReactiveState): Evaluate<DomOps, OpenElement> {
-    let open = runtimeElement(this.#name.hydrate(state));
-
-    return annotate((_output: Region<DomOps>) => open, this.#source);
-  }
-}
-
 export function runtimeElement(name: Var<string>): OpenElement {
   return {
     kind: "Element",
@@ -131,10 +95,18 @@ export function runtimeElement(name: Var<string>): OpenElement {
   };
 }
 
-export function element(
-  name: ReactiveArgument<string>
-): CompilableOpen<DomOps> {
-  return new CompilableElement(name, caller(PARENT));
+export function element(tagName: string): CursorAdapter<DomOps, AttrOps> {
+  return {
+    child(cursor: DomCursor): SimpleAttrOutput {
+      let element = cursor.parentNode.ownerDocument.createElement(tagName);
+      return new SimpleAttrOutput(element);
+    },
+
+    flush(parent: DomCursor, child: SimpleElement): RegionAppender<DomOps> {
+      parent.insert(child);
+      return new SimpleDomOutput(new DomCursor(child, null));
+    },
+  };
 }
 
 class CompilableDomAtom<T, L extends DomOps["atom"]>
@@ -176,11 +148,6 @@ export function text(
   );
 }
 
-interface InlineComment {
-  readonly kind: "Comment";
-  readonly value: ReactiveArgument<string>;
-}
-
 export function comment(
   value: ReactiveArgument<string>
 ): CompilableDomAtom<string, RuntimeInlineComment> {
@@ -188,11 +155,6 @@ export function comment(
   return new CompilableDomAtom(value, source, value => output =>
     output.atom(runtimeComment(value), source)
   );
-}
-
-interface InlineNode {
-  readonly kind: "Node";
-  readonly value: ReactiveArgument<SimpleNode>;
 }
 
 export function node(
@@ -245,10 +207,16 @@ export function runtimeNode(value: Var<SimpleNode>): RuntimeInlineNode {
   };
 }
 
+export interface AttrOps extends Operations {
+  cursor: SimpleElement;
+  atom: DomAttr;
+  block: never;
+}
+
 export interface DomOps extends Operations {
   cursor: DomCursor;
   atom: RuntimeInlineKind;
-  block: BlockKind;
+  block: AttrOps;
 }
 
 export type ParentNode = SimpleElement | SimpleDocumentFragment;
@@ -322,25 +290,38 @@ export class AppendingRange {
   }
 }
 
-export class DomElementBuffer implements BlockBuffer<DomOps, ElementBlock> {
+export class SimpleAttrOutput implements RegionAppender<AttrOps> {
   #current: SimpleElement;
-  #output: SimpleDomOutput;
 
-  constructor(parent: SimpleElement, output: SimpleDomOutput) {
-    this.#current = parent;
-    this.#output = output;
+  constructor(current: SimpleElement) {
+    this.#current = current;
   }
 
-  head({ value: attr }: HeadDomAttr): Updater {
-    this.#current.setAttribute(attr.name.current, attr.value.current);
+  getChild(): AppenderForCursor<AttrOps> {
+    throw new Error("Method not implemented.");
+  }
 
-    return new AttributeUpdate(this.#current, attr);
+  finalize(): ReactiveRange<AttrOps> {
+    // nothing to do
+    return new StaticReactiveRange<AttrOps>(this.getCursor());
   }
-  flush(): void {
-    this.#output.flushElement(this.#current);
+
+  getCursor(): SimpleElement {
+    return this.#current;
   }
-  close(): void {
-    this.#output.closeElement();
+
+  atom(atom: DomAttr): void | Updater {
+    if (atom.ns) {
+      this.#current.setAttributeNS(
+        atom.ns.current,
+        atom.name.current,
+        atom.value.current
+      );
+    } else {
+      this.#current.setAttribute(atom.name.current, atom.value.current);
+    }
+
+    return new AttributeUpdate(this.#current, atom);
   }
 }
 
@@ -359,23 +340,14 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
     this.#stack = stack;
   }
 
-  finalize(): ReactiveRange<DomOps> {
-    return this.#range.finalize(this.getCursor());
-  }
-
   getCursor(): DomCursor {
     // in principle, working through a current cursor should make this code
     // more amenable to rehydration as a future extension.
     return new DomCursor(this.#stack.current, null);
   }
 
-  flushElement(element: SimpleElement): void {
-    this.#stack.push(element);
-  }
-
-  closeElement(): void {
-    let element = this.#stack.pop();
-    this.insert(element);
+  finalize(): ReactiveRange<DomOps> {
+    return this.#range.finalize(this.getCursor());
   }
 
   private insert(node: SimpleNode): void {
@@ -414,18 +386,6 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
 
       default:
         unreachable(inline);
-    }
-  }
-
-  open(open: DomBlockOpen): DomElementBuffer {
-    switch (open.kind) {
-      case "Element": {
-        let current = open.value.compute();
-        let element = this.#document.createElement(current.value);
-        return new DomElementBuffer(element, this);
-      }
-      default:
-        throw new Error(`unexpected open block kind, expected Element`);
     }
   }
 }

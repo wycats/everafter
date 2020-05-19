@@ -1,6 +1,5 @@
 import {
   annotate,
-  BlockBuffer,
   caller,
   CompilableAtom,
   DEBUG,
@@ -27,10 +26,7 @@ import {
 export interface NumberArrayOps {
   cursor: ArrayCursor;
   atom: Var<number>;
-  block: {
-    open: void;
-    head: never;
-  };
+  block: never;
 }
 
 class CompilableDomAtom implements CompilableAtom<NumberArrayOps, Var<number>> {
@@ -97,29 +93,6 @@ class ArrayElementUpdate implements Updater {
     }
 
     return this;
-  }
-}
-
-class ArrayElementBuffer
-  implements BlockBuffer<NumberArrayOps, NumberArrayOps["block"]> {
-  #output: NumberListOutput;
-
-  constructor(output: NumberListOutput) {
-    this.#output = output;
-  }
-
-  push(num: Var<number>): void {
-    this.#output.atom(num);
-  }
-
-  head(_head: void): void {
-    return;
-  }
-  flush(): void {
-    return;
-  }
-  close(): void {
-    return;
   }
 }
 
@@ -392,9 +365,5 @@ export class NumberListOutput implements RegionAppender<NumberArrayOps> {
     let cursor = this.#range.append(num.current);
 
     return new ArrayElementUpdate(cursor, num);
-  }
-
-  open(): BlockBuffer<NumberArrayOps, Block> {
-    return new ArrayElementBuffer(this);
   }
 }

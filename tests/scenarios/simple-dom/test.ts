@@ -196,8 +196,8 @@ export class ValueTest {
     // the "program"
     //
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
-    const template = program<DomOps>(b => {
-      let el = b.open(element(ARGS.const("p")));
+    const template = program<DomOps>(p => {
+      let el = p.open(element("p"));
       let body = el.flush();
       body.atom(text(ARGS.get("hello")));
       body.atom(text(ARGS.const(" ")));
@@ -238,8 +238,8 @@ export class ValueTest {
     //
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
     const template = program<DomOps>(b => {
-      let el = b.open(element(ARGS.const("p")));
-      el.head(attr(ARGS.const("title"), ARGS.get("title")));
+      let el = b.open(element("p"));
+      el.atom(attr(ARGS.const("title"), ARGS.get("title")));
       let body = el.flush();
       body.atom(text(ARGS.get("hello")));
       body.atom(text(ARGS.const(" ")));
@@ -295,8 +295,8 @@ export class ValueTest {
     //
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
     const template = program<DomOps>(b => {
-      let el = b.open(element(ARGS.const("p")));
-      el.head(attr(ARGS.const("title"), ARGS.get("title")));
+      let el = b.open(element("p"));
+      el.atom(attr(ARGS.const("title"), ARGS.get("title")));
       let body = el.flush();
       body.atom(text(ARGS.get("hello")));
       body.atom(text(ARGS.const(" ")));
