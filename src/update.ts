@@ -9,7 +9,7 @@ import {
   DebugFields,
   struct,
 } from "./debug/index";
-import type { Host, Operations, UserBlock } from "./interfaces";
+import type { Host, UserBlock } from "./interfaces";
 
 /**
  * An `Updater` is an object that can be polled periodically in order to
@@ -28,8 +28,8 @@ export interface Updater extends Debuggable {
   [POLL](host: Host): Updater | void;
 }
 
-export interface ReactiveRegion<Ops extends Operations> {
-  initialize(cursor: Ops["cursor"], callback: UserBlock<Ops>): Updater;
+export interface ReactiveRegion<Cursor, Atom> {
+  initialize(cursor: Cursor, callback: UserBlock<Cursor, Atom>): Updater;
 }
 
 /**

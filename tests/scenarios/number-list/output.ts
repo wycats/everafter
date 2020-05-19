@@ -21,16 +21,28 @@ import {
   Structured,
   Updater,
   Source,
+  Operations,
 } from "everafter";
 
-export interface NumberArrayOps {
-  cursor: ArrayCursor;
-  atom: Var<number>;
-  defaultAtom: ReactiveParameter<number>;
-  block: never;
+export type ArrayAtom = Var<number>;
+
+export class NumberArrayOps implements Operations<ArrayCursor, ArrayAtom> {
+  #host: Host;
+
+  constructor(host: Host) {
+    this.#host = host;
+  }
+
+  appender(cursor: ArrayCursor): RegionAppender<ArrayCursor, ArrayAtom> {
+    return new NumberListOutput(cursor, this.#host);
+  }
+
+  defaultAtom(atom: Var<number>): ArrayAtom {
+    return atom;
+  }
 }
 
-class CompilableDomAtom extends CompilableAtom<NumberArrayOps, Var<number>> {
+class CompilableDomAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   #value: ReactiveParameter<number>;
   #source: Source;
 
@@ -47,10 +59,10 @@ class CompilableDomAtom extends CompilableAtom<NumberArrayOps, Var<number>> {
     });
   }
 
-  compile(state: ReactiveState): Evaluate<NumberArrayOps> {
+  compile(state: ReactiveState): Evaluate<ArrayCursor, ArrayAtom> {
     let value = this.#value.hydrate(state);
 
-    let func = (output: Region<NumberArrayOps>): void => {
+    let func = (output: Region<ArrayCursor, ArrayAtom>): void => {
       output.atom(value, this.#source);
     };
 
@@ -153,7 +165,7 @@ const HEADER_STYLE = "color: #900; font-weight: bold";
 
 // TODO: Since the system manages turning Output into a parent/child stack,
 // is this actually necessary or can Output serve the same purpose.
-export class ArrayRange implements ReactiveRange<NumberArrayOps> {
+export class ArrayRange implements ReactiveRange<ArrayCursor> {
   static from(array: number[], host: Host, start = 0): ArrayRange {
     return new ArrayRange(array, null, host, start);
   }
@@ -328,7 +340,8 @@ function logStatus(host: Host, array: number[], range: ArrayRange): void {
   });
 }
 
-export class NumberListOutput implements RegionAppender<NumberArrayOps> {
+export class NumberListOutput
+  implements RegionAppender<ArrayCursor, ArrayAtom> {
   static from(array: number[], host: Host): NumberListOutput {
     return new NumberListOutput(ArrayCursor.from(array, host), host);
   }
@@ -357,7 +370,7 @@ export class NumberListOutput implements RegionAppender<NumberArrayOps> {
     return this.#range;
   }
 
-  getChild(): AppenderForCursor<NumberArrayOps> {
+  getChild(): AppenderForCursor<ArrayCursor, ArrayAtom> {
     return cursor => new NumberListOutput(cursor, this.#host, this);
   }
 

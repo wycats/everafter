@@ -1,5 +1,5 @@
 import StackTracey, { StackTraceyFrame } from "stacktracey";
-import type { Operations, UserBlock, UserBlockFunction } from "../interfaces";
+import type { UserBlock, UserBlockFunction } from "../interfaces";
 import { Debuggable, DEBUG } from "./debuggable";
 import { Structured, description } from "./structured";
 
@@ -97,9 +97,9 @@ export function annotate<F extends Function>(
  *
  * Otherwise, it's fine to use {@link annotate}.
  */
-export function block<Ops extends Operations>(
-  invoke: UserBlockFunction<Ops>,
+export function block<Cursor, Atom>(
+  invoke: UserBlockFunction<Cursor, Atom>,
   frame = caller(PARENT)
-): UserBlock<Ops> {
+): UserBlock<Cursor, Atom> {
   return annotateWithFrame(invoke, frame);
 }

@@ -8,7 +8,6 @@ import {
 import type {
   Block,
   Host,
-  Operations,
   ReactiveRange,
   RegionAppender,
   UserBlock,
@@ -22,10 +21,10 @@ import type { CursorAdapter } from "./builder";
  * inserts the content into a cursor, and produces a set of updaters that will
  * be run whenever inputs to the region have changed.
  */
-export class Region<Ops extends Operations> {
-  static render<Ops extends Operations>(
-    block: UserBlock<Ops>,
-    appender: RegionAppender<Ops>,
+export class Region<Cursor, Atom> {
+  static render<Cursor, Atom>(
+    block: UserBlock<Cursor, Atom>,
+    appender: RegionAppender<Cursor, Atom>,
     host: Host
   ): Updater | void {
     let region = new Region(appender, host);
@@ -33,12 +32,12 @@ export class Region<Ops extends Operations> {
     return toUpdater(region.#updaters);
   }
 
-  #appender: RegionAppender<Ops>;
+  #appender: RegionAppender<Cursor, Atom>;
   #updaters: Updater[];
   #host: Host;
 
   constructor(
-    appender: RegionAppender<Ops>,
+    appender: RegionAppender<Cursor, Atom>,
     host: Host,
     updaters: Updater[] = []
   ) {
@@ -51,7 +50,7 @@ export class Region<Ops extends Operations> {
     this.#updaters = updaters;
   }
 
-  atom(atom: Ops["atom"], source = caller(PARENT)): void {
+  atom(atom: Atom, source = caller(PARENT)): void {
     this.updateWith(
       initialize(
         annotate(() => this.#appender.atom(atom), source),
@@ -60,17 +59,17 @@ export class Region<Ops extends Operations> {
     );
   }
 
-  open<ChildOps extends Operations>(
-    adapter: CursorAdapter<Ops, ChildOps>
-  ): Region<ChildOps> {
+  open<ChildCursor, ChildAtom>(
+    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>
+  ): Region<ChildCursor, ChildAtom> {
     let appender = adapter.child(this.#appender.getCursor());
     return new Region(appender, this.#host, this.#updaters);
   }
 
-  flush<ChildOps extends Operations>(
-    adapter: CursorAdapter<Ops, ChildOps>,
-    child: Region<ChildOps>
-  ): Region<Ops> {
+  flush<ChildCursor, ChildAtom>(
+    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
+    child: Region<ChildCursor, ChildAtom>
+  ): Region<Cursor, Atom> {
     let appender = adapter.flush(
       this.#appender.getCursor(),
       child.#appender.getCursor()
@@ -106,9 +105,9 @@ export class Region<Ops extends Operations> {
    * @internal
    */
   renderDynamic(
-    block: UserBlock<Ops>,
-    into?: ReactiveRange<Ops>
-  ): ReactiveRange<Ops> {
+    block: UserBlock<Cursor, Atom>,
+    into?: ReactiveRange<Cursor>
+  ): ReactiveRange<Cursor> {
     let cursor = into ? into.clear() : this.#appender.getCursor();
 
     let appender = this.#appender.getChild()(cursor);
@@ -126,7 +125,7 @@ export class Region<Ops extends Operations> {
    *
    * @internal
    */
-  renderStatic(block: UserBlock<Ops>): void {
+  renderStatic(block: UserBlock<Cursor, Atom>): void {
     let region = new Region(this.#appender, this.#host);
 
     block.f(region, this.#host);
@@ -137,7 +136,7 @@ export class Region<Ops extends Operations> {
   /**
    * @internal
    */
-  renderBlock(block: Block<Ops>): void {
+  renderBlock(block: Block<Cursor, Atom>): void {
     let output = this.#appender.getChild()(this.#appender.getCursor());
     let child = new Region(output, this.#host, this.#updaters);
 

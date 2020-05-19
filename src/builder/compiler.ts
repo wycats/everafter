@@ -1,5 +1,5 @@
 import { PARENT, caller } from "../debug/index";
-import type { Host, Operations, AppenderForCursor } from "../interfaces";
+import type { Host, Operations } from "../interfaces";
 import type { Dict } from "../utils";
 import {
   ReactiveParameter,
@@ -10,14 +10,7 @@ import {
   DynamicRuntimeValues,
 } from "./param";
 import { RootBlock } from "../root";
-import {
-  CompilerDelegate,
-  Program,
-  ReactiveState,
-  Evaluate,
-  CompilableAtom,
-  ProgramBlock,
-} from "./builder";
+import { Program, ReactiveState, Evaluate, ProgramBlock } from "./builder";
 
 /**
  * A {@link Compiler} knows about its reactive parameters, and can compile
@@ -32,39 +25,34 @@ import {
  * JavaScript-only users don't need to worry about this detail, of course.
  */
 export class Compiler<
-  Ops extends Operations,
+  Cursor,
+  Atom,
   Params extends ReactiveParameters = ReactiveParameters
 > {
-  static for<
-    Ops extends Operations,
-    I extends ReactiveInputs<Dict<ReactiveParameter>>
-  >(
+  static for<Cursor, Atom, I extends ReactiveInputs<Dict<ReactiveParameter>>>(
     inputs: I,
     host: Host,
-    delegate: CompilerDelegate<Ops>
-  ): Compiler<Ops, ReactiveParametersForInputs<I>> {
+    operations: Operations<Cursor, Atom, unknown>
+  ): Compiler<Cursor, Atom, ReactiveParametersForInputs<I>> {
     let reactiveParams = ReactiveParameters.for(inputs);
-    let appender = delegate.appender(host);
-    return new Compiler(reactiveParams, appender, delegate, host) as Compiler<
-      Ops,
+    return new Compiler(reactiveParams, operations, host) as Compiler<
+      Cursor,
+      Atom,
       ReactiveParametersForInputs<I>
     >;
   }
 
   #params: Params;
-  #appender: AppenderForCursor<Ops>;
-  #delegate: CompilerDelegate<Ops>;
+  #operations: Operations<Cursor, Atom>;
   #host: Host;
 
   constructor(
     params: Params,
-    appender: AppenderForCursor<Ops>,
-    delegate: CompilerDelegate<Ops>,
+    operations: Operations<Cursor, Atom>,
     host: Host
   ) {
     this.#params = params;
-    this.#appender = appender;
-    this.#delegate = delegate;
+    this.#operations = operations;
     this.#host = host;
   }
 
@@ -74,24 +62,23 @@ export class Compiler<
 
   compile(
     callback: (
-      builder: Program<Ops>,
+      builder: Program<Cursor, Atom>,
       callbackParams: ReactiveDict<Params>
     ) => void
-  ): CompiledProgram<Ops, Params> {
-    let block = (state: ReactiveState): Evaluate<Ops> => {
+  ): CompiledProgram<Cursor, Atom, Params> {
+    let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
       let source = caller(PARENT);
-      let builder = new Program<Ops>(this, source);
+      let builder = new Program<Cursor, Atom>(source);
       callback(builder, this.#params.dict as ReactiveDict<Params>);
       return builder.compile(state);
     };
 
-    return new CompiledProgram(block, this.#appender, this.#params, this.#host);
-  }
-
-  intoAtom<A extends Ops["atom"]>(
-    atom: Ops["defaultAtom"]
-  ): CompilableAtom<Ops, A> {
-    return this.#delegate.intoAtom(atom);
+    return new CompiledProgram(
+      block,
+      this.#operations,
+      this.#params,
+      this.#host
+    );
   }
 }
 
@@ -106,33 +93,30 @@ export class Compiler<
  * A {@link CompiledProgram} is evaluated at runtime by providing the concrete
  * reactive values and a concrete cursor for the reactive region.
  */
-export class CompiledProgram<
-  Ops extends Operations,
-  Params extends ReactiveParameters
-> {
-  #block: ProgramBlock<Ops>;
-  #appender: AppenderForCursor<Ops>;
+export class CompiledProgram<Cursor, Atom, Params extends ReactiveParameters> {
+  #block: ProgramBlock<Cursor, Atom>;
+  #operations: Operations<Cursor, Atom>;
   #params: Params;
   #host: Host;
 
   constructor(
-    block: ProgramBlock<Ops>,
-    appender: AppenderForCursor<Ops>,
+    block: ProgramBlock<Cursor, Atom>,
+    operations: Operations<Cursor, Atom>,
     params: Params,
     host: Host
   ) {
     this.#block = block;
-    this.#appender = appender;
+    this.#operations = operations;
     this.#params = params;
     this.#host = host;
   }
 
   render(
     dict: DynamicRuntimeValues<Params>,
-    cursor: Ops["cursor"]
-  ): RootBlock<Ops> {
+    cursor: Cursor
+  ): RootBlock<Cursor, Atom> {
     let evaluate = this.#block(this.#params.hydrate(dict));
-    let block = new RootBlock<Ops>(evaluate, this.#appender, this.#host);
+    let block = new RootBlock(evaluate, this.#operations, this.#host);
     block.render(cursor);
     return block;
   }

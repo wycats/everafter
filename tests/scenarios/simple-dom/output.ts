@@ -29,28 +29,25 @@ import {
   Var,
   CursorAdapter,
   StaticReactiveRange,
-  CompilerDelegate,
 } from "everafter";
 import { NodeUpdate, NodeValueUpdate, AttributeUpdate } from "./update";
 
-export const DOM_COMPILER: CompilerDelegate<DomOps> = {
-  appender(): AppenderForCursor<DomOps> {
-    return cursor => new SimpleDomOutput(cursor);
-  },
+export class DomOps implements Operations<DomCursor, DomAtom, Var<string>> {
+  appender(cursor: DomCursor): RegionAppender<DomCursor, DomAtom> {
+    return new SimpleDomOutput(cursor);
+  }
 
-  intoAtom<A extends RuntimeInlineKind>(
-    atom: ReactiveParameter<string>
-  ): CompilableAtom<DomOps, A> {
-    return text(atom);
-  },
-};
+  defaultAtom(atom: Var<string>): DomAtom {
+    return runtimeText(atom);
+  }
+}
 
 interface OpenElement {
   readonly kind: "Element";
   readonly value: Var<string>;
 }
 
-export class CompilableAttr implements CompilableAtom<AttrOps, DomAttr> {
+export class CompilableAttr implements CompilableAtom<AttrCursor, AttrAtom> {
   #name: ReactiveParameter<string>;
   #value: ReactiveParameter<string>;
   #namespace: ReactiveParameter<AttrNamespace> | null;
@@ -68,7 +65,7 @@ export class CompilableAttr implements CompilableAtom<AttrOps, DomAttr> {
     this.#source = source;
   }
 
-  compile(state: ReactiveState): Evaluate<AttrOps> {
+  compile(state: ReactiveState): Evaluate<AttrCursor, AttrAtom> {
     let name = this.#name.hydrate(state);
     let value = this.#value.hydrate(state);
     let ns = this.#namespace ? this.#namespace.hydrate(state) : null;
@@ -103,32 +100,37 @@ export function runtimeElement(name: Var<string>): OpenElement {
   };
 }
 
-export function element(tagName: string): CursorAdapter<DomOps, AttrOps> {
+export function element(
+  tagName: string
+): CursorAdapter<DomCursor, DomAtom, AttrCursor, AttrAtom> {
   return {
     child(cursor: DomCursor): SimpleAttrOutput {
       let element = cursor.parentNode.ownerDocument.createElement(tagName);
       return new SimpleAttrOutput(element);
     },
 
-    flush(parent: DomCursor, child: SimpleElement): RegionAppender<DomOps> {
+    flush(
+      parent: DomCursor,
+      child: SimpleElement
+    ): RegionAppender<DomCursor, DomAtom> {
       parent.insert(child);
       return new SimpleDomOutput(new DomCursor(child, null));
     },
   };
 }
 
-class CompilableDomAtom<T, L extends DomOps["atom"]> extends CompilableAtom<
-  DomOps,
-  L
+class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
+  DomCursor,
+  A
 > {
   #value: ReactiveParameter<T>;
   #source: Source;
-  #toRuntime: (value: Var<T>) => (output: Region<DomOps>) => void;
+  #toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void;
 
   constructor(
     value: ReactiveParameter<T>,
     source: Source,
-    toRuntime: (value: Var<T>) => (output: Region<DomOps>) => void
+    toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void
   ) {
     super();
 
@@ -145,7 +147,7 @@ class CompilableDomAtom<T, L extends DomOps["atom"]> extends CompilableAtom<
     });
   }
 
-  compile(state: ReactiveState): Evaluate<DomOps> {
+  compile(state: ReactiveState): Evaluate<DomCursor, DomAttr> {
     let value = this.#value.hydrate(state);
     return annotate(this.#toRuntime(value), this.#source);
   }
@@ -153,7 +155,7 @@ class CompilableDomAtom<T, L extends DomOps["atom"]> extends CompilableAtom<
 
 export function text(
   value: ReactiveParameter<string>
-): CompilableDomAtom<string, RuntimeInlineText> {
+): CompilableDomAtom<string, TextAtom> {
   let source = caller(PARENT);
   return new CompilableDomAtom(value, source, value => output =>
     output.atom(runtimeText(value), source)
@@ -162,7 +164,7 @@ export function text(
 
 export function comment(
   value: ReactiveParameter<string>
-): CompilableDomAtom<string, RuntimeInlineComment> {
+): CompilableDomAtom<string, CommentAtom> {
   let source = caller(PARENT);
   return new CompilableDomAtom(value, source, value => output =>
     output.atom(runtimeComment(value), source)
@@ -171,65 +173,61 @@ export function comment(
 
 export function node(
   value: ReactiveParameter<SimpleNode>
-): CompilableDomAtom<SimpleNode, RuntimeInlineNode> {
+): CompilableDomAtom<SimpleNode, NodeAtom> {
   let source = caller(PARENT);
   return new CompilableDomAtom(value, source, value => output =>
     output.atom(runtimeNode(value), source)
   );
 }
 
-export interface RuntimeInlineText {
+export interface TextAtom {
   readonly kind: "Text";
   readonly data: Var<string>;
 }
 
-export interface RuntimeInlineComment {
+export interface CommentAtom {
   readonly kind: "Comment";
   readonly data: Var<string>;
 }
 
-export interface RuntimeInlineNode {
+export interface NodeAtom {
   readonly kind: "Node";
   readonly node: Var<SimpleNode>;
 }
 
-export type RuntimeInlineKind =
-  | RuntimeInlineText
-  | RuntimeInlineComment
-  | RuntimeInlineNode;
+export type DomAtom = TextAtom | CommentAtom | NodeAtom;
 
-export function runtimeText(value: Var<string>): RuntimeInlineText {
+export function runtimeText(value: Var<string>): TextAtom {
   return {
     kind: "Text",
     data: value,
   };
 }
 
-export function runtimeComment(value: Var<string>): RuntimeInlineComment {
+export function runtimeComment(value: Var<string>): CommentAtom {
   return {
     kind: "Comment",
     data: value,
   };
 }
 
-export function runtimeNode(value: Var<SimpleNode>): RuntimeInlineNode {
+export function runtimeNode(value: Var<SimpleNode>): NodeAtom {
   return {
     kind: "Node",
     node: value,
   };
 }
 
-export interface AttrOps extends Operations {
-  cursor: SimpleElement;
-  atom: DomAttr;
-  block: never;
-}
+export type AttrCursor = SimpleElement;
+export type AttrAtom = DomAttr;
 
-export interface DomOps extends Operations {
-  cursor: DomCursor;
-  atom: RuntimeInlineKind;
-  defaultAtom: ReactiveParameter<string>;
-  block: AttrOps;
+export class AttrOps implements Operations<AttrCursor, AttrAtom> {
+  appender(cursor: SimpleElement): RegionAppender<SimpleElement, DomAttr> {
+    return new SimpleAttrOutput(cursor);
+  }
+  defaultAtom(atom: AttrAtom): AttrAtom {
+    return atom;
+  }
 }
 
 export type ParentNode = SimpleElement | SimpleDocumentFragment;
@@ -245,7 +243,7 @@ export class DomCursor {
   }
 }
 
-export class DomRange implements ReactiveRange<DomOps> {
+export class DomRange implements ReactiveRange<DomCursor> {
   constructor(
     readonly parentNode: ParentNode,
     readonly start: SimpleNode,
@@ -303,20 +301,20 @@ export class AppendingRange {
   }
 }
 
-export class SimpleAttrOutput implements RegionAppender<AttrOps> {
+export class SimpleAttrOutput implements RegionAppender<AttrCursor, AttrAtom> {
   #current: SimpleElement;
 
   constructor(current: SimpleElement) {
     this.#current = current;
   }
 
-  getChild(): AppenderForCursor<AttrOps> {
+  getChild(): AppenderForCursor<AttrCursor, AttrAtom> {
     throw new Error("Method not implemented.");
   }
 
-  finalize(): ReactiveRange<AttrOps> {
+  finalize(): ReactiveRange<AttrCursor> {
     // nothing to do
-    return new StaticReactiveRange<AttrOps>(this.getCursor());
+    return new StaticReactiveRange(this.getCursor());
   }
 
   getCursor(): SimpleElement {
@@ -338,7 +336,7 @@ export class SimpleAttrOutput implements RegionAppender<AttrOps> {
   }
 }
 
-export class SimpleDomOutput implements RegionAppender<DomOps> {
+export class SimpleDomOutput implements RegionAppender<DomCursor, DomAtom> {
   #document: SimpleDocument;
   #stack: Stack<ParentNode>;
   #range = new AppendingRange();
@@ -359,7 +357,7 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
     return new DomCursor(this.#stack.current, null);
   }
 
-  finalize(): ReactiveRange<DomOps> {
+  finalize(): ReactiveRange<DomCursor> {
     return this.#range.finalize(this.getCursor());
   }
 
@@ -368,11 +366,11 @@ export class SimpleDomOutput implements RegionAppender<DomOps> {
     this.#range.appended(node);
   }
 
-  getChild(): AppenderForCursor<DomOps> {
+  getChild(): AppenderForCursor<DomCursor, DomAtom> {
     return (cursor: DomCursor) => new SimpleDomOutput(cursor, this.#stack);
   }
 
-  atom(inline: RuntimeInlineKind): Updater {
+  atom(inline: DomAtom): Updater {
     switch (inline.kind) {
       case "Text": {
         let current = inline.data.compute();

@@ -8,12 +8,7 @@ import {
   PARENT,
   Structured,
 } from "./debug/index";
-import type {
-  AppenderForCursor,
-  Host,
-  Operations,
-  UserBlock,
-} from "./interfaces";
+import type { Host, UserBlock, Operations } from "./interfaces";
 import { Region } from "./region";
 import { poll } from "./unsafe";
 import type { Updater } from "./update";
@@ -23,26 +18,27 @@ import type { Updater } from "./update";
  * throughout the reactive lifetime of the block, and it corresponds to the entire
  * output.
  */
-export class RootBlock<Ops extends Operations> {
-  #program: UserBlock<Ops>;
-  #appenderForCursor: AppenderForCursor<Ops>;
+export class RootBlock<Cursor, Atom> {
+  #program: UserBlock<Cursor, Atom>;
+  #operations: Operations<Cursor, Atom>;
   #host: Host;
   #update: Updater | void = undefined;
 
   constructor(
-    program: Evaluate<Ops>,
-    outputFactory: AppenderForCursor<Ops>,
+    program: Evaluate<Cursor, Atom>,
+    operations: Operations<Cursor, Atom>,
     host: Host
   ) {
     this.#program = program;
-    this.#appenderForCursor = outputFactory;
+    this.#operations = operations;
     this.#host = host;
   }
 
   get debugFields(): DebugFields {
     return new DebugFields("Invocation", {
       program: this.#program,
-      Output: this.#appenderForCursor,
+      operations: this.#operations,
+      host: this.#host,
       update: this.#update,
     });
   }
@@ -52,14 +48,14 @@ export class RootBlock<Ops extends Operations> {
   }
 
   render(
-    cursor: Ops["cursor"],
+    cursor: Cursor,
     source = caller(PARENT, "initial render")
   ): Updater | void {
     this.#host.context(LogLevel.Info, source, () => {
       this.#update = this.#host.indent(LogLevel.Info, () =>
         Region.render(
           this.#program,
-          this.#appenderForCursor(cursor),
+          this.#operations.appender(cursor),
           this.#host
         )
       );

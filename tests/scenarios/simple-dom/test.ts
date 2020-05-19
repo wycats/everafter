@@ -31,7 +31,7 @@ import {
   element,
   SimpleDomOutput,
   text,
-  DOM_COMPILER,
+  DomAtom,
 } from "./output";
 
 @module("values")
@@ -345,13 +345,13 @@ export class ValueTest {
 
   private compiler<I extends ReactiveInputs<Dict<ReactiveParameter>>>(
     inputs: I
-  ): Compiler<DomOps, ReactiveParametersForInputs<I>> {
-    return Compiler.for(inputs, this.#host, DOM_COMPILER);
+  ): Compiler<DomCursor, DomAtom, ReactiveParametersForInputs<I>> {
+    return Compiler.for(inputs, this.#host, new DomOps());
   }
 
   private context(): {
     parent: SimpleElement;
-    output: (cursor: DomCursor) => RegionAppender<DomOps>;
+    output: (cursor: DomCursor) => RegionAppender<DomCursor, DomAtom>;
   } {
     let doc = createDocument();
     let parent = doc.createElement("div");
@@ -362,7 +362,7 @@ export class ValueTest {
   }
 
   private render<A extends Dict<Var>>(
-    program: CompiledProgram<DomOps, ReactiveParameters>,
+    program: CompiledProgram<DomCursor, DomAtom, ReactiveParameters>,
     state: A
   ): RenderExpectation {
     let { parent } = this.context();
@@ -372,13 +372,13 @@ export class ValueTest {
 }
 
 class RenderExpectation {
-  #invocation: RootBlock<DomOps>;
+  #invocation: RootBlock<DomCursor, DomAtom>;
   #element: SimpleElement;
   #assert: qunit.Assert;
   #last: string | undefined = undefined;
 
   constructor(
-    invocation: RootBlock<DomOps>,
+    invocation: RootBlock<DomCursor, DomAtom>,
     element: SimpleElement,
     assert: qunit.Assert
   ) {

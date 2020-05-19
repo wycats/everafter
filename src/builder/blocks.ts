@@ -1,0 +1,151 @@
+import type { Host } from "../interfaces";
+// eslint-disable-next-line import/no-cycle
+import {
+  Compilable,
+  ReactiveState,
+  Evaluate,
+  StaticBlockBuilder,
+  Statement,
+  CursorAdapter,
+} from "./builder";
+import type { ReactiveParameter } from "./param";
+import { Source, annotate, AnnotatedFunction } from "../debug";
+import { StaticBlock, ConditionBlock, invokeBlock } from "../block-primitives";
+import type { Region } from "../region";
+import type { Dict } from "../utils";
+import type { Var } from "../value";
+
+export interface CompilableBlock<Cursor, Atom> {
+  intoBlock(state: ReactiveState): StaticBlock<Cursor, Atom>;
+}
+
+export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
+  #condition: ReactiveParameter<boolean>;
+  #then: CompilableBlock<Cursor, Atom>;
+  #else: CompilableBlock<Cursor, Atom>;
+  #source: Source;
+
+  constructor(
+    condition: ReactiveParameter<boolean>,
+    then: CompilableBlock<Cursor, Atom>,
+    otherwise: CompilableBlock<Cursor, Atom>,
+    location: Source
+  ) {
+    this.#condition = condition;
+    this.#then = then;
+    this.#else = otherwise;
+    this.#source = location;
+  }
+
+  compile(state: ReactiveState): Evaluate<Cursor, Atom> {
+    let condition = this.#condition.hydrate(state);
+    let then = this.#then.intoBlock(state);
+    let otherwise = this.#else.intoBlock(state);
+
+    let func = (output: Region<Cursor, Atom>): void => {
+      let cond = new ConditionBlock<Cursor, Atom>(
+        condition,
+        then,
+        otherwise,
+        this.#source
+      );
+
+      output.renderBlock(cond);
+    };
+
+    return annotate(func, this.#source);
+  }
+}
+
+export type UserBuilderBlock<Cursor, Atom> = AnnotatedFunction<
+  (builder: StaticBlockBuilder<Cursor, Atom>) => void
+>;
+
+export class CompilableStaticBlock<Cursor, Atom>
+  implements CompilableBlock<Cursor, Atom>, Compilable<Cursor, Atom> {
+  static from<Cursor, Atom>(
+    block: UserBuilderBlock<Cursor, Atom>
+  ): CompilableBlock<Cursor, Atom> {
+    let builder = new StaticBlockBuilder<Cursor, Atom>(block.source);
+    block.f(builder);
+    return builder.done();
+  }
+
+  #statements: readonly Statement<Cursor, Atom>[];
+  #source: Source;
+
+  constructor(statements: readonly Statement<Cursor, Atom>[], source: Source) {
+    this.#statements = statements;
+    this.#source = source;
+  }
+
+  compile(
+    state: ReactiveState<Dict<Var<unknown>>>
+  ): Evaluate<Cursor, Atom, void> {
+    let block = this.intoBlock(state);
+
+    return annotate((region, host) => {
+      invokeBlock(block, region, host);
+    }, this.#source);
+  }
+
+  intoBlock(state: ReactiveState): StaticBlock<Cursor, Atom> {
+    let statements = this.#statements.map(s => s.compile(state));
+
+    let func = annotate((output: Region<Cursor, Atom>, host: Host): void => {
+      for (let statement of statements) {
+        statement.f(output, host);
+      }
+    }, this.#source);
+
+    return new StaticBlock(func);
+  }
+}
+
+export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom>
+  implements
+    CompilableBlock<ParentCursor, ParentAtom>,
+    Compilable<ParentCursor, ParentAtom> {
+  #head: CompilableBlock<Cursor, Atom>;
+  #body: CompilableBlock<ParentCursor, ParentAtom>;
+  #adapter: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>;
+  #source: Source;
+
+  constructor(
+    head: CompilableBlock<Cursor, Atom>,
+    body: CompilableBlock<ParentCursor, ParentAtom>,
+    adapter: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>,
+    source: Source
+  ) {
+    this.#head = head;
+    this.#body = body;
+    this.#adapter = adapter;
+    this.#source = source;
+  }
+
+  compile(state: ReactiveState): Evaluate<ParentCursor, ParentAtom, void> {
+    let block = this.intoBlock(state);
+
+    return annotate((region, host) => {
+      invokeBlock(block, region, host);
+    }, this.#source);
+  }
+
+  intoBlock(state: ReactiveState): StaticBlock<ParentCursor, ParentAtom> {
+    let head = this.#head.intoBlock(state);
+    let body = this.#body.intoBlock(state);
+
+    let func = annotate(
+      (region: Region<ParentCursor, ParentAtom>, host: Host): void => {
+        let child = region.open(this.#adapter);
+
+        invokeBlock(head, child, host);
+        let grandchild = region.flush(this.#adapter, child);
+        invokeBlock(body, grandchild, host);
+      },
+      this.#source
+    );
+
+    return new StaticBlock(func);
+  }
+}

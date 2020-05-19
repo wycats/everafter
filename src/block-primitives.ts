@@ -9,30 +9,23 @@ import {
   Structured,
   Source,
 } from "./debug/index";
-import {
-  Block,
-  Host,
-  Operations,
-  ReactiveRange,
-  RENDER,
-  UserBlock,
-} from "./interfaces";
+import { Block, Host, ReactiveRange, RENDER, UserBlock } from "./interfaces";
 import type { Region } from "./region";
 import { createCache, getValue, isConst, TrackedCache } from "./polyfill";
 import { POLL } from "./unsafe";
 import type { Updater } from "./update";
 import type { Var } from "./value";
 
-export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
+export class ConditionBlock<Cursor, Atom> implements Block<Cursor, Atom> {
   #condition: Var<boolean>;
-  #then: StaticBlock<Ops>;
-  #otherwise: StaticBlock<Ops>;
+  #then: StaticBlock<Cursor, Atom>;
+  #otherwise: StaticBlock<Cursor, Atom>;
   #source: Source;
 
   constructor(
     condition: Var<boolean>,
-    then: StaticBlock<Ops>,
-    otherwise: StaticBlock<Ops>,
+    then: StaticBlock<Cursor, Atom>,
+    otherwise: StaticBlock<Cursor, Atom>,
     source: Source
   ) {
     this.#condition = condition;
@@ -58,10 +51,10 @@ export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
     });
   }
 
-  [RENDER](output: Region<Ops>, host: Host): void {
+  [RENDER](output: Region<Cursor, Atom>, host: Host): void {
     output.updateWith(
       dynamic(
-        block<Ops>(output => {
+        block<Cursor, Atom>(output => {
           let isTrue = this.#condition.current;
 
           let next = isTrue ? this.#then : this.#otherwise;
@@ -73,11 +66,11 @@ export class ConditionBlock<Ops extends Operations> implements Block<Ops> {
   }
 }
 
-export function dynamic<Ops extends Operations>(
-  userBlock: UserBlock<Ops>,
-  output: Region<Ops>
+export function dynamic<Cursor, Atom>(
+  userBlock: UserBlock<Cursor, Atom>,
+  output: Region<Cursor, Atom>
 ): DynamicBlock {
-  let range: ReactiveRange<Ops> | undefined = undefined;
+  let range: ReactiveRange<Cursor> | undefined = undefined;
 
   return DynamicBlock.initialize(() => {
     range = output.renderDynamic(userBlock, range);
@@ -123,10 +116,10 @@ class DynamicBlock implements Updater {
  * never be torn down and recreated. This means that any static parts
  * of the initial output will remain in the output forever.
  */
-export class StaticBlock<Ops extends Operations> implements Block<Ops> {
-  #userBlock: UserBlock<Ops>;
+export class StaticBlock<Cursor, Atom> implements Block<Cursor, Atom> {
+  #userBlock: UserBlock<Cursor, Atom>;
 
-  constructor(invoke: UserBlock<Ops>) {
+  constructor(invoke: UserBlock<Cursor, Atom>) {
     this.#userBlock = invoke;
   }
 
@@ -134,14 +127,14 @@ export class StaticBlock<Ops extends Operations> implements Block<Ops> {
     return newtype("StaticBlock", this.#userBlock.source);
   }
 
-  [RENDER](output: Region<Ops>): void {
+  [RENDER](output: Region<Cursor, Atom>): void {
     output.renderStatic(this.#userBlock);
   }
 }
 
-export function invokeBlock<Ops extends Operations>(
-  block: Block<Ops>,
-  output: Region<Ops>,
+export function invokeBlock<Cursor, Atom>(
+  block: Block<Cursor, Atom>,
+  output: Region<Cursor, Atom>,
   host: Host
 ): void {
   let level = LogLevel.Info;

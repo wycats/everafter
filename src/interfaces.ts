@@ -17,50 +17,13 @@ import {
   description,
 } from "./debug/index";
 
-/**
- * `Operations` ties together the type parameters that a reactive output uses
- * throughout its implementation.
- */
-export interface Operations {
-  /**
-   * A cursor is a position in the reactive output where new atoms are inserted.
-   *
-   * For example, a DOM cursor is a `parentNode` and `nextSibling`. An array
-   * cursor is an offset into the array.
-   */
-  cursor: unknown;
-
-  /**
-   * A given reactive output can support more than one kind of atom. An atom
-   * has one or more reactive inputs, and additional information about how to
-   * insert it into the cursor.
-   *
-   * For example, for a DOM output, a text atom would contain a reactive string
-   * and know how to insert it, as a text node, at the cursor.
-   *
-   * For an array output, a number atom would contain a reactive number and know
-   * how to insert it directly into the array.
-   */
-  atom: unknown;
-
-  defaultAtom: unknown;
-
-  /**
-   * A given reactive output can support more than one kind of block that appears
-   * in the output. After a block is opened, a number of its "head" items can be
-   * inserted into the output, and the head is then flushed. After the head is
-   * flushed, a number of normal body elements are inserted, and the block is
-   * finally closed.
-   *
-   * For example, for a DOM output, an element block would be opened with a
-   * reactive string as its tag name, get a number of attributes as "head"
-   * items, and get closed when the element is closed.
-   *
-   * For a file system output, a file block would be opened with a file name
-   * as its tag name, get a number of file attributes as "head" items, and get
-   * closed when the file is done.
-   */
-  block: Operations;
+export interface Operations<
+  Cursor = unknown,
+  Atom = unknown,
+  DefaultAtom = Atom
+> {
+  appender(cursor: Cursor): RegionAppender<Cursor, Atom>;
+  defaultAtom(atom: DefaultAtom): Atom;
 }
 
 /**
@@ -76,12 +39,12 @@ export interface Operations {
  *
  * @see {RegionAppender::range}
  */
-export interface ReactiveRange<Ops extends Operations> extends Debuggable {
+export interface ReactiveRange<Cursor> extends Debuggable {
   /**
    * When a reactive range is cleared, all of its contents are removed from
    * the output, and a new cursor is created for new content.
    */
-  clear(): Ops["cursor"];
+  clear(): Cursor;
 }
 
 /**
@@ -89,15 +52,14 @@ export interface ReactiveRange<Ops extends Operations> extends Debuggable {
  *
  * TODO: This is fishy and should be revisited once everything else is in place
  */
-export class StaticReactiveRange<Ops extends Operations>
-  implements ReactiveRange<Ops> {
-  #cursor: Ops["cursor"];
+export class StaticReactiveRange<Cursor> implements ReactiveRange<Cursor> {
+  #cursor: Cursor;
 
-  constructor(cursor: Ops["cursor"]) {
+  constructor(cursor: Cursor) {
     this.#cursor = cursor;
   }
 
-  clear(): Ops["cursor"] {
+  clear(): Cursor {
     return this.#cursor;
   }
   get debugFields(): DebugFields {
@@ -113,9 +75,9 @@ export class StaticReactiveRange<Ops extends Operations>
  * An {@link OutputFactory} for a given set of reactive operations takes a cursor
  * and gives back a reactive output.
  */
-export type AppenderForCursor<Ops extends Operations> = (
-  cursor: Ops["cursor"]
-) => RegionAppender<Ops>;
+export type AppenderForCursor<Cursor, Atom> = (
+  cursor: Cursor
+) => RegionAppender<Cursor, Atom>;
 
 /**
  * A {@link RegionAppender} is the core engine that reflects fresh input values
@@ -131,7 +93,7 @@ export type AppenderForCursor<Ops extends Operations> = (
  * cleared (producing a cursor), and the other branch of the conditional will
  * execute, inserting new content at the cursor.
  */
-export interface RegionAppender<Ops extends Operations> {
+export interface RegionAppender<Cursor, Atom> {
   /**
    * The {@link getChild} method returns a function that takes a cursor and
    * produces a new instance of a reactive output, parameterized over the
@@ -141,14 +103,14 @@ export interface RegionAppender<Ops extends Operations> {
    * function will be called with a cursor that is logically inside of the
    * current reactive output.
    */
-  getChild(): AppenderForCursor<Ops>;
+  getChild(): AppenderForCursor<Cursor, Atom>;
 
   /**
    * The {@link finalize} method is called once all operations for the current
    * output region have finished. The {@link ReactiveRange} that is returned
    * will be cleared if necessary.
    */
-  finalize(): ReactiveRange<Ops>;
+  finalize(): ReactiveRange<Cursor>;
 
   /**
    * Provide a cursor that corresponds to the current location in the output.
@@ -156,12 +118,12 @@ export interface RegionAppender<Ops extends Operations> {
    * A cursor is transient. Reactive Prototype will not hold onto it, so
    * a {@link RegionAppender} doesn't need to do any bookkeeping related to it.
    */
-  getCursor(): Ops["cursor"];
+  getCursor(): Cursor;
 
   /**
    * Insert an atom at the current cursor, returning a possible `Updater`.
    */
-  atom(atom: Ops["atom"]): Updater | void;
+  atom(atom: Atom): Updater | void;
 
   /**
    * Open a block at the current cursor, returning an appropriate block
@@ -170,13 +132,13 @@ export interface RegionAppender<Ops extends Operations> {
   // open<O extends Ops["block"]>(open: O): Region<O>;
 }
 
-export type UserBlockFunction<Ops extends Operations> = (
-  output: Region<Ops>,
+export type UserBlockFunction<Cursor, Atom> = (
+  output: Region<Cursor, Atom>,
   host: Host
 ) => void;
 
-export type UserBlock<Ops extends Operations> = AnnotatedFunction<
-  UserBlockFunction<Ops>
+export type UserBlock<Cursor, Atom> = AnnotatedFunction<
+  UserBlockFunction<Cursor, Atom>
 >;
 
 export const RENDER = Symbol("RENDER");
@@ -188,8 +150,8 @@ export const RENDER = Symbol("RENDER");
  * When a `Block` is first rendered, it produces an `Updater` that can be
  * polled to attempt to update it.
  */
-export interface Block<Ops extends Operations> extends Debuggable {
-  [RENDER](output: Region<Ops>, host: Host): void;
+export interface Block<Cursor, Atom> extends Debuggable {
+  [RENDER](output: Region<Cursor, Atom>, host: Host): void;
 }
 
 export interface Host {

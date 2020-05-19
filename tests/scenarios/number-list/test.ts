@@ -16,8 +16,13 @@ import {
 } from "everafter";
 import type * as qunit from "qunit";
 import { host, module, test } from "../../helpers";
-import { ArrayCursor, num, NumberArrayOps, NumberListOutput } from "./output";
-import { ARRAY_COMPILER } from "./compiler";
+import {
+  ArrayCursor,
+  num,
+  NumberArrayOps,
+  NumberListOutput,
+  ArrayAtom,
+} from "./output";
 
 @module("list of numbers")
 export class ListOfNumbersTest {
@@ -34,7 +39,7 @@ export class ListOfNumbersTest {
         sum: Param<number>(),
       },
       this.#host,
-      ARRAY_COMPILER
+      new NumberArrayOps(this.#host)
     );
 
     const sum = annotate(
@@ -83,7 +88,7 @@ export class ListOfNumbersTest {
         showAbs: Param<boolean>(),
       },
       this.#host,
-      ARRAY_COMPILER
+      new NumberArrayOps(this.#host)
     );
 
     const positiveSum = annotate(
@@ -184,7 +189,7 @@ export class ListOfNumbersTest {
 
   private context(): {
     list: number[];
-    output: (cursor: ArrayCursor) => RegionAppender<NumberArrayOps>;
+    output: (cursor: ArrayCursor) => RegionAppender<ArrayCursor, ArrayAtom>;
   } {
     let list: number[] = [];
     let output = (cursor: ArrayCursor): NumberListOutput =>
@@ -194,7 +199,7 @@ export class ListOfNumbersTest {
   }
 
   private render<A extends Dict<Var>>(
-    program: CompiledProgram<NumberArrayOps, ReactiveParameters>,
+    program: CompiledProgram<ArrayCursor, ArrayAtom, ReactiveParameters>,
     state: A
   ): RenderExpectation {
     this.assert.step("initial render");
@@ -205,13 +210,13 @@ export class ListOfNumbersTest {
 }
 
 class RenderExpectation {
-  #invocation: RootBlock<NumberArrayOps>;
+  #invocation: RootBlock<ArrayCursor, ArrayAtom>;
   #list: number[];
   #assert: qunit.Assert;
   #last: readonly number[] | undefined = undefined;
 
   constructor(
-    invocation: RootBlock<NumberArrayOps>,
+    invocation: RootBlock<ArrayCursor, ArrayAtom>,
     list: number[],
     assert: qunit.Assert
   ) {
