@@ -43,6 +43,8 @@ export interface Operations {
    */
   atom: unknown;
 
+  defaultAtom: unknown;
+
   /**
    * A given reactive output can support more than one kind of block that appears
    * in the output. After a block is opened, a number of its "head" items can be

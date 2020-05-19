@@ -2,31 +2,36 @@ import createDocument from "@simple-dom/document";
 import type { SimpleElement } from "@simple-dom/interface";
 import HTMLSerializer from "@simple-dom/serializer";
 import voidMap from "@simple-dom/void-map";
-import type * as qunit from "qunit";
 import {
   annotate,
-  args,
+  Param,
+  call,
   caller,
   Cell,
+  CompiledProgram,
+  constant,
   Derived,
   Dict,
-  Evaluate,
   PARENT,
-  program,
-  Arg,
-  ReactiveState,
-  Var,
-  RootBlock,
+  ReactiveParameters,
   RegionAppender,
+  RootBlock,
+  Var,
+  Compiler,
+  ReactiveInputs,
+  ReactiveParameter,
+  ReactiveParametersForInputs,
 } from "everafter";
+import type * as qunit from "qunit";
 import { host, module, test } from "../../helpers";
 import {
+  attr,
   DomCursor,
   DomOps,
   element,
   SimpleDomOutput,
   text,
-  attr,
+  DOM_COMPILER,
 } from "./output";
 
 @module("values")
@@ -36,25 +41,26 @@ export class ValueTest {
   #host = host();
 
   @test "simple values"(): void {
-    const ARGS = args({ hello: Arg<string>(), world: Arg<string>() });
+    const compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+    });
 
     // corresponds to `{{@hello}} {{@world}}`
-    const template = program<DomOps>(b => {
-      b.atom(text(ARGS.get("hello")));
-      b.atom(text(ARGS.const(" ")));
-      b.atom(text(ARGS.get("world")));
+    const program = compiler.compile((b, { hello, world }) => {
+      b.atom(text(hello));
+      b.atom(text(constant(" ")));
+      b.atom(text(world));
     });
 
     // create our input state
     let world = Cell("world");
     let hello = Cell("hello");
     let derivedWorld = Derived(() => world.current.toUpperCase());
-    const state = ARGS.hydrate({
-      hello,
-      world: derivedWorld,
-    });
 
-    let result = this.render(template, state).expect("hello WORLD");
+    let result = this.render(program, { hello, world: derivedWorld }).expect(
+      "hello WORLD"
+    );
 
     // No-op rerender
     result.rerender();
@@ -71,23 +77,23 @@ export class ValueTest {
   }
 
   @test conditionals(): void {
-    const ARGS = args({
-      hello: Arg<string>(),
-      world: Arg<string>(),
-      showChild: Arg<boolean>(),
-    } as const);
+    const compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+      showChild: Param<boolean>(),
+    });
 
     const uppercase = annotate((input: Var<string>): string =>
       input.current.toUpperCase()
     );
 
-    const template = program<DomOps>(b => {
+    const program = compiler.compile((b, { showChild, hello, world }) => {
       b.ifBlock(
-        ARGS.get("showChild"),
+        showChild,
         annotate(b => {
-          b.atom(text(ARGS.get("hello")));
-          b.atom(text(ARGS.const(" ")));
-          b.atom(text(ARGS.call(uppercase, ARGS.get("world"))));
+          b.atom(text(hello));
+          b.atom(text(constant(" ")));
+          b.atom(text(call(uppercase, world)));
         }),
         annotate(() => {
           /* noop */
@@ -101,14 +107,12 @@ export class ValueTest {
     let derivedWorld = Derived(() => world.current.toUpperCase());
     let showChild = Cell(true);
 
-    let state = ARGS.hydrate({
+    // Initial
+    let result = this.render(program, {
       hello,
       world: derivedWorld,
       showChild,
-    });
-
-    // Initial
-    let result = this.render(template, state).expect("hello WORLD");
+    }).expect("hello WORLD");
 
     // No-op rerender
     result.rerender();
@@ -131,10 +135,10 @@ export class ValueTest {
   }
 
   @test ifElse(): void {
-    const ARGS = args({
-      hello: Arg<string>(),
-      world: Arg<string>(),
-      showChild: Arg<boolean>(),
+    const compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+      showChild: Param<boolean>(),
     });
 
     const uppercase = annotate((input: Var<string>): string =>
@@ -144,16 +148,16 @@ export class ValueTest {
     // the "program"
     //
     // corresponds to `{{#if @showChild}}{{@hello}} {{@world}}{{/if}}{{else}}{{@hello}}{{/if}}`
-    const template = program<DomOps>(b => {
+    const program = compiler.compile((b, { hello, world, showChild }) => {
       b.ifBlock(
-        ARGS.get("showChild"),
+        showChild,
         annotate(b => {
-          b.atom(text(ARGS.get("hello")));
-          b.atom(text(ARGS.const(" ")));
-          b.atom(text(ARGS.get("world")));
+          b.atom(text(hello));
+          b.atom(text(constant(" ")));
+          b.atom(text(world));
         }),
         annotate(b => {
-          b.atom(text(ARGS.call(uppercase, ARGS.get("hello"))));
+          b.atom(text(call(uppercase, hello)));
         })
       );
     });
@@ -164,13 +168,11 @@ export class ValueTest {
     let derivedWorld = Derived(() => uppercase.f(world));
     let showChild = Cell(true);
 
-    let state = ARGS.hydrate({
+    let result = this.render(program, {
       hello,
       world: derivedWorld,
       showChild,
-    });
-
-    let result = this.render(template, state).expect("hello WORLD");
+    }).expect("hello WORLD");
 
     // update a cell
     result.update(() => (hello.current = "goodbye"), "goodbye WORLD");
@@ -184,9 +186,20 @@ export class ValueTest {
   }
 
   @test element(): void {
-    const ARGS = args({
-      hello: Arg<string>(),
-      world: Arg<string>(),
+    // corresponds to `<p>{{@hello}} {{@world}}</p>`
+
+    const compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+    });
+
+    const program = compiler.compile((p, { hello, world }) => {
+      let el = p.open(element("p"));
+      let body = el.flush();
+      body.atom(text(hello));
+      body.atom(text(constant(" ")));
+      body.atom(text(call(uppercase, world)));
+      body.close();
     });
 
     const uppercase = annotate((input: Var<string>): string =>
@@ -195,26 +208,17 @@ export class ValueTest {
 
     // the "program"
     //
-    // corresponds to `<p>{{@hello}} {{@world}}</p>`
-    const template = program<DomOps>(p => {
-      let el = p.open(element("p"));
-      let body = el.flush();
-      body.atom(text(ARGS.get("hello")));
-      body.atom(text(ARGS.const(" ")));
-      body.atom(text(ARGS.call(uppercase, ARGS.get("world"))));
-      body.close();
-    });
+    // const template = compiler.program();
 
     // create our input state
     let hello = Cell("hello");
     let world = Cell("world");
     let derivedWorld = Derived(() => uppercase.f(world));
-    let state = ARGS.hydrate({
+
+    let result = this.render(program, {
       hello,
       world: derivedWorld,
-    });
-
-    let result = this.render(template, state).expect("<p>hello WORLD</p>");
+    }).expect("<p>hello WORLD</p>");
 
     // update a cell
     result.update(() => (hello.current = "goodbye"), "<p>goodbye WORLD</p>");
@@ -224,10 +228,10 @@ export class ValueTest {
   }
 
   @test attributes(): void {
-    const ARGS = args({
-      hello: Arg<string>(),
-      world: Arg<string>(),
-      title: Arg<string>(),
+    let compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+      title: Param<string>(),
     });
 
     const uppercase = annotate((input: Var<string>): string =>
@@ -237,14 +241,18 @@ export class ValueTest {
     // the "program"
     //
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
-    const template = program<DomOps>(b => {
-      let el = b.open(element("p"));
-      el.atom(attr(ARGS.const("title"), ARGS.get("title")));
-      let body = el.flush();
-      body.atom(text(ARGS.get("hello")));
-      body.atom(text(ARGS.const(" ")));
-      body.atom(text(ARGS.call(uppercase, ARGS.get("world"))));
-      body.close();
+    const template = compiler.compile((b, { title, hello, world }) => {
+      b.open(
+        element("p"),
+        el => {
+          el.atom(attr(constant("title"), title));
+        },
+        body => {
+          body.atom(text(hello));
+          body.atom(text(constant(" ")));
+          body.atom(text(call(uppercase, world)));
+        }
+      );
     });
 
     // create our input state
@@ -252,15 +260,12 @@ export class ValueTest {
     let world = Cell("world");
     let title = Cell("ember");
     let derivedWorld = Derived(() => uppercase.f(world));
-    let state = ARGS.hydrate({
+
+    let result = this.render(template, {
       hello,
       world: derivedWorld,
       title: title,
-    });
-
-    let result = this.render(template, state).expect(
-      `<p title="ember">hello WORLD</p>`
-    );
+    }).expect(`<p title="ember">hello WORLD</p>`);
 
     // update a cell
     result.update(
@@ -281,10 +286,10 @@ export class ValueTest {
   }
 
   @test "nested content"(): void {
-    const ARGS = args({
-      hello: Arg<string>(),
-      world: Arg<string>(),
-      title: Arg<string>(),
+    let compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+      title: Param<string>(),
     });
 
     const uppercase = annotate((input: Var<string>): string =>
@@ -294,14 +299,18 @@ export class ValueTest {
     // the "program"
     //
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
-    const template = program<DomOps>(b => {
-      let el = b.open(element("p"));
-      el.atom(attr(ARGS.const("title"), ARGS.get("title")));
-      let body = el.flush();
-      body.atom(text(ARGS.get("hello")));
-      body.atom(text(ARGS.const(" ")));
-      body.atom(text(ARGS.call(uppercase, ARGS.get("world"))));
-      body.close();
+    const template = compiler.compile((p, { title, hello, world }) => {
+      p.open(
+        element("p"),
+        el => {
+          el.atom(attr(constant("title"), title));
+        },
+        body => {
+          body.atom(text(hello));
+          body.atom(text(constant(" ")));
+          body.atom(text(call(uppercase, world)));
+        }
+      );
     });
 
     // create our input state
@@ -309,15 +318,12 @@ export class ValueTest {
     let world = Cell("world");
     let title = Cell("ember");
     let derivedWorld = Derived(() => uppercase.f(world));
-    let state = ARGS.hydrate({
+
+    let result = this.render(template, {
       hello,
       world: derivedWorld,
       title: title,
-    });
-
-    let result = this.render(template, state).expect(
-      `<p title="ember">hello WORLD</p>`
-    );
+    }).expect(`<p title="ember">hello WORLD</p>`);
 
     // update a cell
     result.update(
@@ -337,6 +343,12 @@ export class ValueTest {
     );
   }
 
+  private compiler<I extends ReactiveInputs<Dict<ReactiveParameter>>>(
+    inputs: I
+  ): Compiler<DomOps, ReactiveParametersForInputs<I>> {
+    return Compiler.for(inputs, this.#host, DOM_COMPILER);
+  }
+
   private context(): {
     parent: SimpleElement;
     output: (cursor: DomCursor) => RegionAppender<DomOps>;
@@ -350,20 +362,12 @@ export class ValueTest {
   }
 
   private render<A extends Dict<Var>>(
-    template: (state: ReactiveState) => Evaluate<DomOps>,
-    state: ReactiveState<A>
+    program: CompiledProgram<DomOps, ReactiveParameters>,
+    state: A
   ): RenderExpectation {
-    const render = template(state);
-
-    let { parent, output } = this.context();
-    let root = new RootBlock(render, output, this.#host);
-    root.render(new DomCursor(parent, null));
+    let { parent } = this.context();
+    let root = program.render(state, new DomCursor(parent, null));
     return new RenderExpectation(root, parent, this.assert);
-  }
-
-  private assertHTML(element: SimpleElement, expected: string): void {
-    let actual = new HTMLSerializer(voidMap).serializeChildren(element);
-    this.assert.equal(actual, expected);
   }
 }
 

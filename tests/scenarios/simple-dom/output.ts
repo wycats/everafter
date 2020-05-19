@@ -16,7 +16,7 @@ import {
   Evaluate,
   Operations,
   PARENT,
-  ReactiveArgument,
+  ReactiveParameter,
   ReactiveRange,
   ReactiveState,
   Region,
@@ -29,12 +29,20 @@ import {
   Var,
   CursorAdapter,
   StaticReactiveRange,
+  CompilerDelegate,
 } from "everafter";
 import { NodeUpdate, NodeValueUpdate, AttributeUpdate } from "./update";
 
-type ElementBlock = {
-  open: OpenElement;
-  head: HeadDomAttr;
+export const DOM_COMPILER: CompilerDelegate<DomOps> = {
+  appender(): AppenderForCursor<DomOps> {
+    return cursor => new SimpleDomOutput(cursor);
+  },
+
+  intoAtom<A extends RuntimeInlineKind>(
+    atom: ReactiveParameter<string>
+  ): CompilableAtom<DomOps, A> {
+    return text(atom);
+  },
 };
 
 interface OpenElement {
@@ -43,15 +51,15 @@ interface OpenElement {
 }
 
 export class CompilableAttr implements CompilableAtom<AttrOps, DomAttr> {
-  #name: ReactiveArgument<string>;
-  #value: ReactiveArgument<string>;
-  #namespace: ReactiveArgument<AttrNamespace> | null;
+  #name: ReactiveParameter<string>;
+  #value: ReactiveParameter<string>;
+  #namespace: ReactiveParameter<AttrNamespace> | null;
   #source: Source;
 
   constructor(
-    name: ReactiveArgument<string>,
-    value: ReactiveArgument<string>,
-    namespace: ReactiveArgument<AttrNamespace> | null,
+    name: ReactiveParameter<string>,
+    value: ReactiveParameter<string>,
+    namespace: ReactiveParameter<AttrNamespace> | null,
     source: Source
   ) {
     this.#name = name;
@@ -70,9 +78,9 @@ export class CompilableAttr implements CompilableAtom<AttrOps, DomAttr> {
 }
 
 export function attr(
-  name: ReactiveArgument<string>,
-  value: ReactiveArgument<string>,
-  namespace?: ReactiveArgument<AttrNamespace>
+  name: ReactiveParameter<string>,
+  value: ReactiveParameter<string>,
+  namespace?: ReactiveParameter<AttrNamespace>
 ): CompilableAttr {
   return new CompilableAttr(name, value, namespace || null, caller(PARENT));
 }
@@ -109,17 +117,21 @@ export function element(tagName: string): CursorAdapter<DomOps, AttrOps> {
   };
 }
 
-class CompilableDomAtom<T, L extends DomOps["atom"]>
-  implements CompilableAtom<DomOps, L> {
-  #value: ReactiveArgument<T>;
+class CompilableDomAtom<T, L extends DomOps["atom"]> extends CompilableAtom<
+  DomOps,
+  L
+> {
+  #value: ReactiveParameter<T>;
   #source: Source;
   #toRuntime: (value: Var<T>) => (output: Region<DomOps>) => void;
 
   constructor(
-    value: ReactiveArgument<T>,
+    value: ReactiveParameter<T>,
     source: Source,
     toRuntime: (value: Var<T>) => (output: Region<DomOps>) => void
   ) {
+    super();
+
     this.#value = value;
     this.#source = source;
     this.#toRuntime = toRuntime;
@@ -140,7 +152,7 @@ class CompilableDomAtom<T, L extends DomOps["atom"]>
 }
 
 export function text(
-  value: ReactiveArgument<string>
+  value: ReactiveParameter<string>
 ): CompilableDomAtom<string, RuntimeInlineText> {
   let source = caller(PARENT);
   return new CompilableDomAtom(value, source, value => output =>
@@ -149,7 +161,7 @@ export function text(
 }
 
 export function comment(
-  value: ReactiveArgument<string>
+  value: ReactiveParameter<string>
 ): CompilableDomAtom<string, RuntimeInlineComment> {
   let source = caller(PARENT);
   return new CompilableDomAtom(value, source, value => output =>
@@ -158,7 +170,7 @@ export function comment(
 }
 
 export function node(
-  value: ReactiveArgument<SimpleNode>
+  value: ReactiveParameter<SimpleNode>
 ): CompilableDomAtom<SimpleNode, RuntimeInlineNode> {
   let source = caller(PARENT);
   return new CompilableDomAtom(value, source, value => output =>
@@ -166,22 +178,22 @@ export function node(
   );
 }
 
-interface RuntimeInlineText {
+export interface RuntimeInlineText {
   readonly kind: "Text";
   readonly data: Var<string>;
 }
 
-interface RuntimeInlineComment {
+export interface RuntimeInlineComment {
   readonly kind: "Comment";
   readonly data: Var<string>;
 }
 
-interface RuntimeInlineNode {
+export interface RuntimeInlineNode {
   readonly kind: "Node";
   readonly node: Var<SimpleNode>;
 }
 
-type RuntimeInlineKind =
+export type RuntimeInlineKind =
   | RuntimeInlineText
   | RuntimeInlineComment
   | RuntimeInlineNode;
@@ -216,6 +228,7 @@ export interface AttrOps extends Operations {
 export interface DomOps extends Operations {
   cursor: DomCursor;
   atom: RuntimeInlineKind;
+  defaultAtom: ReactiveParameter<string>;
   block: AttrOps;
 }
 

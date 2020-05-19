@@ -5,7 +5,7 @@ The basic components of an EverAfter data structure is:
 1. `Region`: A runtime definition of your data structure, explaining how to
    insert atoms and blocks.
 2. `Compilable`: A definition-time descripion of atoms and blocks that take
-   `ReactiveArgument`s as inputs. At runtime, EverAfter hands each `Compilable`
+   `ReactiveParameter`s as inputs. At runtime, EverAfter hands each `Compilable`
    a `RuntimeState`, getting back a function that inserts the atom or block
    into a runtime `Region`.
 3. `Operation`, a function that takes a region and returns an `Updater`.
@@ -24,9 +24,9 @@ First, let's build a simple compilable for a DOM text node, and then dig a littl
 
 ```ts
 class CompilableTextNode {
-  #text: ReactiveArgument<string>;
+  #text: ReactiveParameter<string>;
 
-  constructor(text: ReactiveArgument<string>) {
+  constructor(text: ReactiveParameter<string>) {
     this.#text = text;
   }
 
@@ -36,7 +36,7 @@ class CompilableTextNode {
   }
 }
 
-function text(data: ReactiveArgument<string>): CompilableTextNode {
+function text(data: ReactiveParameter<string>): CompilableTextNode {
   return new CompilableTextNode(data);
 }
 ```
@@ -212,10 +212,10 @@ And let's turn `CompilableTextNode` into `CompilableDataNode`.
 
 ```ts
 class CompilableDataNode {
-  #text: ReactiveArgument<string>;
+  #text: ReactiveParameter<string>;
   #kind: "Text" | "Comment";
 
-  constructor(text: ReactiveArgument<string>, kind: "Text" | "Comment") {
+  constructor(text: ReactiveParameter<string>, kind: "Text" | "Comment") {
     this.#text = text;
     this.#kind = kind;
   }
@@ -226,11 +226,11 @@ class CompilableDataNode {
   }
 }
 
-function text(data: ReactiveArgument<string>): CompilableTextNode {
+function text(data: ReactiveParameter<string>): CompilableTextNode {
   return new CompilableDataNode(data, "Text");
 }
 
-function comment(data: ReactiveArgument<string>): CompilableTextNode {
+function comment(data: ReactiveParameter<string>): CompilableTextNode {
   return new CompilableDataNode(data, "Comment");
 }
 ```

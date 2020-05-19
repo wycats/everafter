@@ -1,22 +1,23 @@
-import type * as qunit from "qunit";
 import {
   annotate,
-  args,
+  Param,
+  call,
   caller,
   Cell,
+  CompiledProgram,
   Derived,
   Dict,
-  Evaluate,
   PARENT,
-  program,
-  Arg,
-  ReactiveState,
-  Var,
-  RootBlock,
+  ReactiveParameters,
   RegionAppender,
+  RootBlock,
+  Var,
+  Compiler,
 } from "everafter";
+import type * as qunit from "qunit";
 import { host, module, test } from "../../helpers";
 import { ArrayCursor, num, NumberArrayOps, NumberListOutput } from "./output";
+import { ARRAY_COMPILER } from "./compiler";
 
 @module("list of numbers")
 export class ListOfNumbersTest {
@@ -25,37 +26,39 @@ export class ListOfNumbersTest {
   #host = host();
 
   @test "simple number list"(): void {
-    const ARGS = args({
-      first: Arg<number>(),
-      second: Arg<number>(),
-      third: Arg<number>(),
-      sum: Arg<number>(),
-    });
+    const compiler = Compiler.for(
+      {
+        first: Param<number>(),
+        second: Param<number>(),
+        third: Param<number>(),
+        sum: Param<number>(),
+      },
+      this.#host,
+      ARRAY_COMPILER
+    );
 
     const sum = annotate(
       (first: Var<number>, second: Var<number>, third: Var<number>): number =>
         first.current + second.current + third.current
     );
 
-    const template = program<NumberArrayOps>(b => {
-      b.atom(num(ARGS.get("first")));
-      b.atom(num(ARGS.get("second")));
-      b.atom(num(ARGS.get("third")));
-      b.atom(num(ARGS.get("sum")));
+    const program = compiler.compile((p, { first, second, third, sum }) => {
+      p.atom(num(first));
+      p.atom(num(second));
+      p.atom(num(third));
+      p.atom(num(sum));
     });
 
     const first = Cell(10);
     const second = Cell(20);
     const third = Cell(30);
 
-    const state = ARGS.hydrate({
+    let result = this.render(program, {
       first,
       second,
       third,
       sum: Derived(() => sum.f(first, second, third)),
-    });
-
-    let result = this.render(template, state).expect([10, 20, 30, 60]);
+    }).expect([10, 20, 30, 60]);
 
     result.rerender();
 
@@ -66,18 +69,22 @@ export class ListOfNumbersTest {
   }
 
   @test blocks(): void {
-    const ARGS = args({
-      "positive.first": Arg<number>(),
-      "positive.second": Arg<number>(),
-      "positive.third": Arg<number>(),
-      "positive.sum": Arg<number>(),
-      "negative.first": Arg<number>(),
-      "negative.second": Arg<number>(),
-      "negative.third": Arg<number>(),
-      "negative.sum": Arg<number>(),
-      showPositive: Arg<boolean>(),
-      showAbs: Arg<boolean>(),
-    });
+    const compiler = Compiler.for(
+      {
+        "positive.first": Param<number>(),
+        "positive.second": Param<number>(),
+        "positive.third": Param<number>(),
+        "positive.sum": Param<number>(),
+        "negative.first": Param<number>(),
+        "negative.second": Param<number>(),
+        "negative.third": Param<number>(),
+        "negative.sum": Param<number>(),
+        showPositive: Param<boolean>(),
+        showAbs: Param<boolean>(),
+      },
+      this.#host,
+      ARRAY_COMPILER
+    );
 
     const positiveSum = annotate(
       (first: Var<number>, second: Var<number>, third: Var<number>): number =>
@@ -93,40 +100,40 @@ export class ListOfNumbersTest {
 
     const abs = annotate((num: Var<number>): number => Math.abs(num.current));
 
-    const template = program<NumberArrayOps>(b => {
+    const program = compiler.compile((b, params) => {
       b.ifBlock(
-        ARGS.get("showPositive"),
+        params.showPositive,
         annotate(b => {
           b.ifBlock(
-            ARGS.get("showAbs"),
+            params.showAbs,
             annotate(b => {
-              b.atom(num(ARGS.call(abs, ARGS.get("positive.first"))));
-              b.atom(num(ARGS.call(abs, ARGS.get("positive.second"))));
-              b.atom(num(ARGS.call(abs, ARGS.get("positive.third"))));
-              b.atom(num(ARGS.call(abs, ARGS.get("positive.sum"))));
+              b.atom(num(call(abs, params["positive.first"])));
+              b.atom(num(call(abs, params["positive.second"])));
+              b.atom(num(call(abs, params["positive.third"])));
+              b.atom(num(call(abs, params["positive.sum"])));
             }),
             annotate(b => {
-              b.atom(num(ARGS.get("positive.first")));
-              b.atom(num(ARGS.get("positive.second")));
-              b.atom(num(ARGS.get("positive.third")));
-              b.atom(num(ARGS.get("positive.sum")));
+              b.atom(num(params["positive.first"]));
+              b.atom(num(params["positive.second"]));
+              b.atom(num(params["positive.third"]));
+              b.atom(num(params["positive.sum"]));
             })
           );
         }),
         annotate(b => {
           b.ifBlock(
-            ARGS.get("showAbs"),
+            params["showAbs"],
             annotate(b => {
-              b.atom(num(ARGS.call(abs, ARGS.get("negative.first"))));
-              b.atom(num(ARGS.call(abs, ARGS.get("negative.second"))));
-              b.atom(num(ARGS.call(abs, ARGS.get("negative.third"))));
-              b.atom(num(ARGS.call(abs, ARGS.get("negative.sum"))));
+              b.atom(num(call(abs, params["negative.first"])));
+              b.atom(num(call(abs, params["negative.second"])));
+              b.atom(num(call(abs, params["negative.third"])));
+              b.atom(num(call(abs, params["negative.sum"])));
             }),
             annotate(b => {
-              b.atom(num(ARGS.get("negative.first")));
-              b.atom(num(ARGS.get("negative.second")));
-              b.atom(num(ARGS.get("negative.third")));
-              b.atom(num(ARGS.get("negative.sum")));
+              b.atom(num(params["negative.first"]));
+              b.atom(num(params["negative.second"]));
+              b.atom(num(params["negative.third"]));
+              b.atom(num(params["negative.sum"]));
             })
           );
         })
@@ -142,7 +149,7 @@ export class ListOfNumbersTest {
     const showPositive = Cell(true);
     const showAbs = Cell(false);
 
-    const state = ARGS.hydrate({
+    let result = this.render(program, {
       "positive.first": firstPos,
       "positive.second": secondPos,
       "positive.third": thirdPos,
@@ -157,9 +164,7 @@ export class ListOfNumbersTest {
       ),
       showPositive,
       showAbs,
-    });
-
-    let result = this.render(template, state).expect([10, 20, 30, 60]);
+    }).expect([10, 20, 30, 60]);
 
     result.rerender();
 
@@ -183,21 +188,18 @@ export class ListOfNumbersTest {
   } {
     let list: number[] = [];
     let output = (cursor: ArrayCursor): NumberListOutput =>
-      new NumberListOutput(list, cursor, this.#host);
+      new NumberListOutput(cursor, this.#host);
 
     return { list, output };
   }
 
   private render<A extends Dict<Var>>(
-    template: (state: ReactiveState) => Evaluate<NumberArrayOps>,
-    state: ReactiveState<A>
+    program: CompiledProgram<NumberArrayOps, ReactiveParameters>,
+    state: A
   ): RenderExpectation {
     this.assert.step("initial render");
-    const render = template(state);
-
-    let { list, output } = this.context();
-    let root = new RootBlock(render, output, this.#host);
-    root.render(ArrayCursor.from(list, this.#host), caller(PARENT));
+    let { list } = this.context();
+    let root = program.render(state, ArrayCursor.from(list, this.#host));
     return new RenderExpectation(root, list, this.assert);
   }
 }

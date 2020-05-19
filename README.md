@@ -46,7 +46,7 @@ Let's start with a whirlwind tour of the concept of a "demand" on a reactive sys
 ```ts
 // define the arguments to the reactive system
 const ARGS = args({
-  number: Arg<number>(),
+  number: Param<number>(),
 });
 
 // define the output of the reactive system
@@ -83,7 +83,7 @@ output; // [20]
 
 ```ts
 const ARGS = args({
-  number: Arg<number>(),
+  number: Param<number>(),
 });
 ```
 
@@ -173,8 +173,8 @@ For this example, we'll introduce a simple kind of structured demand on the data
 ```ts
 // define the arguments to the reactive system
 const ARGS = args({
-  first: Arg<number>(),
-  second: Arg<number>(),
+  first: Param<number>(),
+  second: Param<number>(),
 });
 
 // a function that takes two reactive variables and returns their sum
@@ -230,10 +230,10 @@ So far, all of our structured demands took input values and inserted a single va
 ```ts
 // define the arguments to the reactive system
 const ARGS = args({
-  first: Arg<number>(),
-  second: Arg<number>(),
-  third: Arg<number>(),
-  showSum: Arg<boolean>(),
+  first: Param<number>(),
+  second: Param<number>(),
+  third: Param<number>(),
+  showSum: Param<boolean>(),
 });
 
 const sum = (first, second) => first.current + second.current;
@@ -304,10 +304,10 @@ What we've said so far implies that we could use `call` to create a condition fo
 ```ts
 // define the arguments to the reactive system
 const ARGS = args({
-  first: Arg<number>(),
-  second: Arg<number>(),
-  third: Arg<number>(),
-  showSum: Arg<boolean>(),
+  first: Param<number>(),
+  second: Param<number>(),
+  third: Param<number>(),
+  showSum: Param<boolean>(),
 });
 
 const sum = (first, second, third) =>
@@ -389,9 +389,9 @@ So far, the blocks we've seen (`invoke` and `if`) did not appear at all in the o
 ```ts
 // define the arguments to the reactive system
 const ARGS = args({
-  hello: Arg<string>(),
-  world: Arg<string>(),
-  title: Arg<string>(),
+  hello: Param<string>(),
+  world: Param<string>(),
+  title: Param<string>(),
 });
 
 // define the output of the reactive system

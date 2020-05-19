@@ -12,7 +12,7 @@ import {
   AppenderForCursor,
   PARENT,
   POLL,
-  ReactiveArgument,
+  ReactiveParameter,
   RegionAppender,
   ReactiveRange,
   ReactiveState,
@@ -26,14 +26,16 @@ import {
 export interface NumberArrayOps {
   cursor: ArrayCursor;
   atom: Var<number>;
+  defaultAtom: ReactiveParameter<number>;
   block: never;
 }
 
-class CompilableDomAtom implements CompilableAtom<NumberArrayOps, Var<number>> {
-  #value: ReactiveArgument<number>;
+class CompilableDomAtom extends CompilableAtom<NumberArrayOps, Var<number>> {
+  #value: ReactiveParameter<number>;
   #source: Source;
 
-  constructor(value: ReactiveArgument<number>, source: Source) {
+  constructor(value: ReactiveParameter<number>, source: Source) {
+    super();
     this.#value = value;
     this.#source = source;
   }
@@ -56,7 +58,7 @@ class CompilableDomAtom implements CompilableAtom<NumberArrayOps, Var<number>> {
   }
 }
 
-export function num(num: ReactiveArgument<number>): CompilableDomAtom {
+export function num(num: ReactiveParameter<number>): CompilableDomAtom {
   return new CompilableDomAtom(num, caller(PARENT));
 }
 
@@ -110,6 +112,10 @@ export class ArrayCursor {
     this.#array = array;
     this.#range = range;
     this.#pos = pos;
+  }
+
+  get array(): number[] {
+    return this.#array;
   }
 
   get debugFields(): DebugFields {
@@ -324,7 +330,7 @@ function logStatus(host: Host, array: number[], range: ArrayRange): void {
 
 export class NumberListOutput implements RegionAppender<NumberArrayOps> {
   static from(array: number[], host: Host): NumberListOutput {
-    return new NumberListOutput(array, ArrayCursor.from(array, host), host);
+    return new NumberListOutput(ArrayCursor.from(array, host), host);
   }
 
   #output: number[];
@@ -332,12 +338,11 @@ export class NumberListOutput implements RegionAppender<NumberArrayOps> {
   #host: Host;
 
   constructor(
-    output: number[],
     cursor: ArrayCursor,
     host: Host,
     parent: NumberListOutput | null = null
   ) {
-    this.#output = output;
+    this.#output = cursor.array;
     this.#host = host;
 
     this.#range = new ArrayRange(
@@ -353,8 +358,7 @@ export class NumberListOutput implements RegionAppender<NumberArrayOps> {
   }
 
   getChild(): AppenderForCursor<NumberArrayOps> {
-    return cursor =>
-      new NumberListOutput(this.#output, cursor, this.#host, this);
+    return cursor => new NumberListOutput(cursor, this.#host, this);
   }
 
   getCursor(): ArrayCursor {
