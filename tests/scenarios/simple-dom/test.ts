@@ -18,7 +18,7 @@ import {
   Var,
   RootBlock,
   RegionAppender,
-} from "reactive-prototype";
+} from "everafter";
 import { host, module, test } from "../../helpers";
 import {
   DomCursor,

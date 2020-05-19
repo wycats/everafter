@@ -14,7 +14,7 @@ import {
   description,
   DebugFields,
   nullable,
-} from "reactive-prototype";
+} from "everafter";
 import HTMLSerializer from "@simple-dom/serializer";
 import voidMap from "@simple-dom/void-map";
 import type { DomAttr } from "./output";

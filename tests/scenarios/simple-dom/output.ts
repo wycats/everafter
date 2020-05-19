@@ -29,7 +29,7 @@ import {
   Var,
   CursorAdapter,
   StaticReactiveRange,
-} from "reactive-prototype";
+} from "everafter";
 import { NodeUpdate, NodeValueUpdate, AttributeUpdate } from "./update";
 
 type ElementBlock = {

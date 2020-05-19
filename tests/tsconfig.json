@@ -7,7 +7,7 @@
     "outDir": "../dist/tests",
     "baseUrl": "./",
     "paths": {
-      "reactive-prototype": ["../dist/src/index.d.ts"],
+      "everafter": ["../dist/src/index.d.ts"],
       "qunit": ["../types/qunit.d.ts"],
       "retrace": ["../types/stacktracey.ts"]
     }

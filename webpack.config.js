@@ -39,7 +39,7 @@ module.exports = {
     ],
     extensions: [".tsx", ".ts", ".js"],
     alias: {
-      "reactive-prototype": path.resolve(__dirname, "src", "index.ts"),
+      everafter: path.resolve(__dirname, "src", "index.ts"),
     },
   },
   output: {

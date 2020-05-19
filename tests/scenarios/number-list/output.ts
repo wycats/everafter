@@ -21,7 +21,7 @@ import {
   Structured,
   Updater,
   Source,
-} from "reactive-prototype";
+} from "everafter";
 
 export interface NumberArrayOps {
   cursor: ArrayCursor;
