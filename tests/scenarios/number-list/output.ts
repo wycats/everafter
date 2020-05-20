@@ -1,48 +1,39 @@
 import {
   annotate,
+  AppendingReactiveRange,
   caller,
   CompilableAtom,
+  CompileOperations,
   DEBUG,
   DebugFields,
   description,
   Evaluate,
   Host,
   LogLevel,
-  Region,
-  AppenderForCursor,
   PARENT,
   POLL,
   ReactiveParameter,
-  RegionAppender,
   ReactiveRange,
   ReactiveState,
-  Var,
+  Region,
+  Source,
   struct,
   Structured,
   Updater,
-  Source,
-  Operations,
+  Var,
 } from "everafter";
 
 export type ArrayAtom = Var<number>;
+export type DefaultArrayAtom = ReactiveParameter<number>;
 
-export class NumberArrayOps implements Operations<ArrayCursor, ArrayAtom> {
-  #host: Host;
-
-  constructor(host: Host) {
-    this.#host = host;
-  }
-
-  appender(cursor: ArrayCursor): RegionAppender<ArrayCursor, ArrayAtom> {
-    return new NumberListOutput(cursor, this.#host);
-  }
-
-  defaultAtom(atom: Var<number>): ArrayAtom {
-    return atom;
+export class CompileNumberArrayOps
+  implements CompileOperations<ArrayCursor, ArrayAtom, DefaultArrayAtom> {
+  defaultAtom(atom: DefaultArrayAtom): CompilableNumberAtom {
+    return num(atom);
   }
 }
 
-class CompilableDomAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
+class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   #value: ReactiveParameter<number>;
   #source: Source;
 
@@ -70,8 +61,8 @@ class CompilableDomAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   }
 }
 
-export function num(num: ReactiveParameter<number>): CompilableDomAtom {
-  return new CompilableDomAtom(num, caller(PARENT));
+export function num(num: ReactiveParameter<number>): CompilableNumberAtom {
+  return new CompilableNumberAtom(num, caller(PARENT));
 }
 
 export interface Block {
@@ -111,11 +102,6 @@ class ArrayElementUpdate implements Updater {
 }
 
 export class ArrayCursor {
-  static from(array: number[], host: Host, start = 0): ArrayCursor {
-    let range = ArrayRange.from(array, host, start);
-    return new ArrayCursor(array, range, 0);
-  }
-
   #array: number[];
   #range: ArrayRange;
   #pos: number;
@@ -161,226 +147,132 @@ export class ArrayCursor {
   }
 }
 
-const HEADER_STYLE = "color: #900; font-weight: bold";
-
-// TODO: Since the system manages turning Output into a parent/child stack,
-// is this actually necessary or can Output serve the same purpose.
-export class ArrayRange implements ReactiveRange<ArrayCursor> {
-  static from(array: number[], host: Host, start = 0): ArrayRange {
-    return new ArrayRange(array, null, host, start);
+export class ArrayRange
+  implements
+    ReactiveRange<ArrayCursor, ArrayAtom>,
+    AppendingReactiveRange<ArrayCursor, ArrayAtom> {
+  static from(array: number[]): ArrayRange {
+    return new ArrayRange(array, 0, array.length, null);
   }
 
-  readonly #array: number[];
-  readonly #start: number;
-  readonly #parent: ArrayRange | null = null;
-  readonly #host: Host;
-  #cleared = false;
-  #size: number;
+  #array: number[];
+  #start: number;
+  #length: number;
+  #parent: ArrayRange | null;
 
-  // start is the starting offset relative to the parent block
-  // size is the current position relative to the starting offset
   constructor(
     array: number[],
-    parent: ArrayRange | null,
-    host: Host,
-    start = 0,
-    size = 0
+    start: number,
+    length: number,
+    parent: ArrayRange | null
   ) {
     this.#array = array;
     this.#start = start;
+    this.#length = length;
     this.#parent = parent;
-    this.#size = size;
-    this.#host = host;
   }
 
-  [DEBUG](): Structured {
-    return struct(
-      "ArrayRange",
-      ["start", description(String(this.#start))],
-      ["size", description(String(this.#size))]
-    );
+  append(atom: ArrayAtom): void | Updater {
+    let cursor = this.getCursor();
+    cursor.insert(atom.current);
+    this.#increment(1);
+
+    return new ArrayElementUpdate(cursor, atom);
+  }
+
+  getCursor(): ArrayCursor {
+    return new ArrayCursor(this.#array, this, this.#length);
+  }
+
+  child(): AppendingReactiveRange<ArrayCursor, ArrayAtom> {
+    return new ArrayRange(this.#array, 0, 0, this);
+  }
+
+  finalize(): ReactiveRange<ArrayCursor, ArrayAtom> {
+    return this;
+  }
+
+  get start(): number {
+    return this.#absoluteStart();
+  }
+
+  get size(): number {
+    return this.#length;
   }
 
   get parent(): ArrayRange | null {
     return this.#parent;
   }
 
-  get debugFields(): DebugFields {
-    return new DebugFields("ArrayRange", {
-      array: this.#array,
-      start: this.#start,
-      size: this.#size,
-      parent: this.#parent,
-    });
+  [DEBUG](): Structured {
+    return description("ArrayRange");
   }
 
-  get start(): number {
+  #absoluteStart = (): number => {
     if (this.#parent) {
-      return this.#parent.start + this.#start;
+      return this.#parent.#start + this.#start;
     } else {
-      return 0;
+      return this.#start;
     }
-  }
-
-  get size(): number {
-    return this.#size;
-  }
-
-  get cursor(): ArrayCursor {
-    return new ArrayCursor(this.#array, this, this.#size);
-  }
-
-  begin(): ArrayRange {
-    return new ArrayRange(
-      this.#array,
-      this,
-      this.#host,
-      this.#start + this.#size
-    );
-  }
-
-  commit(): ArrayRange {
-    if (this.#parent === null) {
-      throw new Error(`invariant: can't pop the root range`);
-    }
-
-    return this.#parent;
-  }
-
-  #increaseSize = (size: number): void => {
-    this.#size += size;
-    this.#increaseParentSize(size);
   };
 
-  #increaseParentSize = (size: number): void => {
+  #decrement = (size: number): void => {
+    this.#length -= size;
+
     if (this.#parent) {
-      this.#parent.#increaseSize(size);
+      this.#parent.#decrement(size);
     }
   };
 
-  #decreaseSize = (size: number): void => {
-    this.#size -= size;
-    this.#decreaseParentSize(size);
-  };
+  #increment = (size: number): void => {
+    this.#length += size;
 
-  #decreaseParentSize = (size: number): void => {
     if (this.#parent) {
-      this.#parent.#decreaseSize(size);
+      this.#parent.#increment(size);
     }
   };
 
-  append(num: number): ArrayCursor {
-    let cursor = this.cursor;
-    cursor.insert(num);
-    this.#increaseSize(1);
-    return cursor;
-  }
-
-  private ensureClearable(): ArrayRange {
-    if (this.#cleared) {
-      throw new Error(`invariant: can only clear a range once`);
-    } else {
-      this.#cleared = true;
-    }
-
-    if (this.#parent === null) {
-      throw new Error(`invariant: cannot clear the root range`);
-    }
-
-    return this.#parent;
-  }
-
-  clear(): ArrayCursor {
-    let parent = this.ensureClearable();
-
-    log(this.#host, this.#array, this, () => {
-      this.#array.splice(this.start, this.#size);
-      this.#decreaseSize(this.#size);
-    });
-
-    return new ArrayCursor(this.#array, parent, this.#start);
+  clear(): ArrayRange {
+    this.#array.splice(this.#absoluteStart(), this.#length);
+    this.#decrement(this.#length);
+    return this;
   }
 }
 
-function log(
-  host: Host,
-  array: number[],
-  range: ArrayRange,
-  callback: () => void
-): void {
-  host.log(
-    LogLevel.Info,
-    `removing ${range.size} from position ${range.start}`
-  );
+// export class NumberListOutput
+//   implements RegionAppender<ArrayCursor, ArrayAtom> {
+//   static from(array: number[], host: Host): NumberListOutput {
+//     return new NumberListOutput(ArrayRange.from(array), host);
+//   }
 
-  host.indent(LogLevel.Info, () => {
-    host.log(LogLevel.Info, "TREE, BEFORE", HEADER_STYLE);
-    logStatus(host, array, range);
+//   #range: AppendingReactiveRange<ArrayCursor, ArrayAtom>;
+//   #host: Host;
 
-    callback();
+//   constructor(
+//     range: AppendingReactiveRange<ArrayCursor, ArrayAtom>,
+//     host: Host
+//   ) {
+//     this.#host = host;
+//     this.#range = range;
+//   }
 
-    host.log(LogLevel.Info, "TREE, AFTER", HEADER_STYLE);
-    logStatus(host, array, range);
-  });
-}
+//   child(): RegionAppender<ArrayCursor, ArrayAtom> {
+//     return new NumberListOutput(this.#range.child(), this.#host);
+//   }
 
-function logStatus(host: Host, array: number[], range: ArrayRange): void {
-  host.indent(LogLevel.Info, () => {
-    host.log(LogLevel.Info, `array=${JSON.stringify(array)}`);
-    host.log(LogLevel.Info, `start=${range.start} size=${range.size}`);
+//   finalize(): ReactiveRange<ArrayCursor, ArrayAtom> {
+//     return this.#range.finalize();
+//   }
 
-    if (range.parent) {
-      const parent = range.parent;
+//   getChild(): AppenderForCursor<ArrayCursor, ArrayAtom> {
+//     return cursor => new NumberListOutput(cursor, this.#host);
+//   }
 
-      host.indent(LogLevel.Info, () => {
-        host.log(LogLevel.Info, "[parent]");
-        logStatus(host, array, parent);
-      });
-    }
-  });
-}
+//   getCursor(): AppendingReactiveRange<ArrayCursor, ArrayAtom> {
+//     return this.#range;
+//   }
 
-export class NumberListOutput
-  implements RegionAppender<ArrayCursor, ArrayAtom> {
-  static from(array: number[], host: Host): NumberListOutput {
-    return new NumberListOutput(ArrayCursor.from(array, host), host);
-  }
-
-  #output: number[];
-  #range: ArrayRange;
-  #host: Host;
-
-  constructor(
-    cursor: ArrayCursor,
-    host: Host,
-    parent: NumberListOutput | null = null
-  ) {
-    this.#output = cursor.array;
-    this.#host = host;
-
-    this.#range = new ArrayRange(
-      this.#output,
-      parent ? parent.#range : null,
-      host,
-      cursor.absolutePos
-    );
-  }
-
-  finalize(): ArrayRange {
-    return this.#range;
-  }
-
-  getChild(): AppenderForCursor<ArrayCursor, ArrayAtom> {
-    return cursor => new NumberListOutput(cursor, this.#host, this);
-  }
-
-  getCursor(): ArrayCursor {
-    return this.#range.cursor;
-  }
-
-  atom(num: Var<number>): Updater {
-    let cursor = this.#range.append(num.current);
-
-    return new ArrayElementUpdate(cursor, num);
-  }
-}
+//   atom(num: Var<number>): Updater | void {
+//     return this.#range.append(num);
+//   }
+// }

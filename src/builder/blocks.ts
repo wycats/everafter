@@ -1,4 +1,4 @@
-import type { Host } from "../interfaces";
+import type { Host, CompileOperations } from "../interfaces";
 // eslint-disable-next-line import/no-cycle
 import {
   Compilable,
@@ -6,7 +6,7 @@ import {
   Evaluate,
   StaticBlockBuilder,
   Statement,
-  CursorAdapter,
+  CompileCursorAdapter,
 } from "./builder";
 import type { ReactiveParameter } from "./param";
 import { Source, annotate, AnnotatedFunction } from "../debug";
@@ -57,16 +57,17 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
   }
 }
 
-export type UserBuilderBlock<Cursor, Atom> = AnnotatedFunction<
-  (builder: StaticBlockBuilder<Cursor, Atom>) => void
+export type UserBuilderBlock<Cursor, Atom, DefaultAtom> = AnnotatedFunction<
+  (builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>) => void
 >;
 
 export class CompilableStaticBlock<Cursor, Atom>
   implements CompilableBlock<Cursor, Atom>, Compilable<Cursor, Atom> {
-  static from<Cursor, Atom>(
-    block: UserBuilderBlock<Cursor, Atom>
+  static from<Cursor, Atom, DefaultAtom>(
+    block: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    ops: CompileOperations<Cursor, Atom, DefaultAtom>
   ): CompilableBlock<Cursor, Atom> {
-    let builder = new StaticBlockBuilder<Cursor, Atom>(block.source);
+    let builder = new StaticBlockBuilder(block.source, ops);
     block.f(builder);
     return builder.done();
   }
@@ -102,19 +103,31 @@ export class CompilableStaticBlock<Cursor, Atom>
   }
 }
 
-export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom>
+export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
   implements
     CompilableBlock<ParentCursor, ParentAtom>,
     Compilable<ParentCursor, ParentAtom> {
   #head: CompilableBlock<Cursor, Atom>;
   #body: CompilableBlock<ParentCursor, ParentAtom>;
-  #adapter: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>;
+  #adapter: CompileCursorAdapter<
+    ParentCursor,
+    ParentAtom,
+    Cursor,
+    Atom,
+    DefaultAtom
+  >;
   #source: Source;
 
   constructor(
     head: CompilableBlock<Cursor, Atom>,
     body: CompilableBlock<ParentCursor, ParentAtom>,
-    adapter: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>,
+    adapter: CompileCursorAdapter<
+      ParentCursor,
+      ParentAtom,
+      Cursor,
+      Atom,
+      DefaultAtom
+    >,
     source: Source
   ) {
     this.#head = head;
@@ -137,10 +150,10 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom>
 
     let func = annotate(
       (region: Region<ParentCursor, ParentAtom>, host: Host): void => {
-        let child = region.open(this.#adapter);
+        let child = region.open(this.#adapter.runtime);
 
         invokeBlock(head, child, host);
-        let grandchild = region.flush(this.#adapter, child);
+        let grandchild = region.flush(this.#adapter.runtime, child);
         invokeBlock(body, grandchild, host);
       },
       this.#source

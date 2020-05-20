@@ -14,7 +14,6 @@ import {
   Dict,
   PARENT,
   ReactiveParameters,
-  RegionAppender,
   RootBlock,
   Var,
   Compiler,
@@ -27,11 +26,12 @@ import { host, module, test } from "../../helpers";
 import {
   attr,
   DomCursor,
-  DomOps,
   element,
-  SimpleDomOutput,
   text,
   DomAtom,
+  DefaultDomAtom,
+  CompileDomOps,
+  AppendingDomRange,
 } from "./output";
 
 @module("values")
@@ -345,28 +345,22 @@ export class ValueTest {
 
   private compiler<I extends ReactiveInputs<Dict<ReactiveParameter>>>(
     inputs: I
-  ): Compiler<DomCursor, DomAtom, ReactiveParametersForInputs<I>> {
-    return Compiler.for(inputs, this.#host, new DomOps());
-  }
-
-  private context(): {
-    parent: SimpleElement;
-    output: (cursor: DomCursor) => RegionAppender<DomCursor, DomAtom>;
-  } {
-    let doc = createDocument();
-    let parent = doc.createElement("div");
-    let output = (cursor: DomCursor): SimpleDomOutput =>
-      new SimpleDomOutput(cursor);
-
-    return { parent, output };
+  ): Compiler<
+    DomCursor,
+    DomAtom,
+    DefaultDomAtom,
+    ReactiveParametersForInputs<I>
+  > {
+    return Compiler.for(inputs, this.#host, new CompileDomOps());
   }
 
   private render<A extends Dict<Var>>(
     program: CompiledProgram<DomCursor, DomAtom, ReactiveParameters>,
     state: A
   ): RenderExpectation {
-    let { parent } = this.context();
-    let root = program.render(state, new DomCursor(parent, null));
+    let doc = createDocument();
+    let parent = doc.createElement("div");
+    let root = program.render(state, AppendingDomRange.appending(parent));
     return new RenderExpectation(root, parent, this.assert);
   }
 }

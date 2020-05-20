@@ -1,5 +1,9 @@
 import { PARENT, caller } from "../debug/index";
-import type { Host, Operations } from "../interfaces";
+import type {
+  Host,
+  CompileOperations,
+  AppendingReactiveRange,
+} from "../interfaces";
 import type { Dict } from "../utils";
 import {
   ReactiveParameter,
@@ -27,28 +31,35 @@ import { Program, ReactiveState, Evaluate, ProgramBlock } from "./builder";
 export class Compiler<
   Cursor,
   Atom,
+  DefaultAtom,
   Params extends ReactiveParameters = ReactiveParameters
 > {
-  static for<Cursor, Atom, I extends ReactiveInputs<Dict<ReactiveParameter>>>(
+  static for<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    I extends ReactiveInputs<Dict<ReactiveParameter>>
+  >(
     inputs: I,
     host: Host,
-    operations: Operations<Cursor, Atom, unknown>
-  ): Compiler<Cursor, Atom, ReactiveParametersForInputs<I>> {
+    operations: CompileOperations<Cursor, Atom, DefaultAtom>
+  ): Compiler<Cursor, Atom, DefaultAtom, ReactiveParametersForInputs<I>> {
     let reactiveParams = ReactiveParameters.for(inputs);
     return new Compiler(reactiveParams, operations, host) as Compiler<
       Cursor,
       Atom,
+      DefaultAtom,
       ReactiveParametersForInputs<I>
     >;
   }
 
   #params: Params;
-  #operations: Operations<Cursor, Atom>;
+  #operations: CompileOperations<Cursor, Atom, DefaultAtom>;
   #host: Host;
 
   constructor(
     params: Params,
-    operations: Operations<Cursor, Atom>,
+    operations: CompileOperations<Cursor, Atom, DefaultAtom>,
     host: Host
   ) {
     this.#params = params;
@@ -62,23 +73,18 @@ export class Compiler<
 
   compile(
     callback: (
-      builder: Program<Cursor, Atom>,
+      builder: Program<Cursor, Atom, DefaultAtom>,
       callbackParams: ReactiveDict<Params>
     ) => void
   ): CompiledProgram<Cursor, Atom, Params> {
     let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
       let source = caller(PARENT);
-      let builder = new Program<Cursor, Atom>(source);
+      let builder = new Program(this.#operations, source);
       callback(builder, this.#params.dict as ReactiveDict<Params>);
       return builder.compile(state);
     };
 
-    return new CompiledProgram(
-      block,
-      this.#operations,
-      this.#params,
-      this.#host
-    );
+    return new CompiledProgram(block, this.#params, this.#host);
   }
 }
 
@@ -95,28 +101,21 @@ export class Compiler<
  */
 export class CompiledProgram<Cursor, Atom, Params extends ReactiveParameters> {
   #block: ProgramBlock<Cursor, Atom>;
-  #operations: Operations<Cursor, Atom>;
   #params: Params;
   #host: Host;
 
-  constructor(
-    block: ProgramBlock<Cursor, Atom>,
-    operations: Operations<Cursor, Atom>,
-    params: Params,
-    host: Host
-  ) {
+  constructor(block: ProgramBlock<Cursor, Atom>, params: Params, host: Host) {
     this.#block = block;
-    this.#operations = operations;
     this.#params = params;
     this.#host = host;
   }
 
   render(
     dict: DynamicRuntimeValues<Params>,
-    cursor: Cursor
+    cursor: AppendingReactiveRange<Cursor, Atom>
   ): RootBlock<Cursor, Atom> {
     let evaluate = this.#block(this.#params.hydrate(dict));
-    let block = new RootBlock(evaluate, this.#operations, this.#host);
+    let block = new RootBlock(evaluate, this.#host);
     block.render(cursor);
     return block;
   }

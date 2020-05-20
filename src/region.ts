@@ -9,8 +9,8 @@ import type {
   Block,
   Host,
   ReactiveRange,
-  RegionAppender,
   UserBlock,
+  AppendingReactiveRange,
 } from "./interfaces";
 import { initialize, toUpdater, Updater } from "./update";
 import { invokeBlock } from "./block-primitives";
@@ -24,7 +24,7 @@ import type { CursorAdapter } from "./builder";
 export class Region<Cursor, Atom> {
   static render<Cursor, Atom>(
     block: UserBlock<Cursor, Atom>,
-    appender: RegionAppender<Cursor, Atom>,
+    appender: AppendingReactiveRange<Cursor, Atom>,
     host: Host
   ): Updater | void {
     let region = new Region(appender, host);
@@ -32,20 +32,20 @@ export class Region<Cursor, Atom> {
     return toUpdater(region.#updaters);
   }
 
-  #appender: RegionAppender<Cursor, Atom>;
+  #range: AppendingReactiveRange<Cursor, Atom>;
   #updaters: Updater[];
   #host: Host;
 
   constructor(
-    appender: RegionAppender<Cursor, Atom>,
+    range: AppendingReactiveRange<Cursor, Atom>,
     host: Host,
     updaters: Updater[] = []
   ) {
-    if (appender instanceof Region) {
+    if (range instanceof Region) {
       throw new Error(`assert: can't wrap TrackedOutput around TrackedOutput`);
     }
 
-    this.#appender = appender;
+    this.#range = range;
     this.#host = host;
     this.#updaters = updaters;
   }
@@ -53,7 +53,7 @@ export class Region<Cursor, Atom> {
   atom(atom: Atom, source = caller(PARENT)): void {
     this.updateWith(
       initialize(
-        annotate(() => this.#appender.atom(atom), source),
+        annotate(() => this.#range.append(atom), source),
         this.#host
       )
     );
@@ -62,7 +62,7 @@ export class Region<Cursor, Atom> {
   open<ChildCursor, ChildAtom>(
     adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>
   ): Region<ChildCursor, ChildAtom> {
-    let appender = adapter.child(this.#appender.getCursor());
+    let appender = adapter.child(this.#range.child());
     return new Region(appender, this.#host, this.#updaters);
   }
 
@@ -70,10 +70,7 @@ export class Region<Cursor, Atom> {
     adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
     child: Region<ChildCursor, ChildAtom>
   ): Region<Cursor, Atom> {
-    let appender = adapter.flush(
-      this.#appender.getCursor(),
-      child.#appender.getCursor()
-    );
+    let appender = adapter.flush(this.#range, child.#range.finalize());
 
     return new Region(appender, this.#host, this.#updaters);
   }
@@ -106,16 +103,16 @@ export class Region<Cursor, Atom> {
    */
   renderDynamic(
     block: UserBlock<Cursor, Atom>,
-    into?: ReactiveRange<Cursor>
-  ): ReactiveRange<Cursor> {
-    let cursor = into ? into.clear() : this.#appender.getCursor();
+    into?: ReactiveRange<Cursor, Atom>
+  ): ReactiveRange<Cursor, Atom> {
+    let cursor = into ? into.clear() : this.#range.child();
 
-    let appender = this.#appender.getChild()(cursor);
-    let region = new Region(appender, this.#host);
+    // let appender = this.#appender.child();
+    let region = new Region(cursor, this.#host);
 
     block.f(region, this.#host);
 
-    return region.#appender.finalize();
+    return region.#range.finalize();
   }
 
   /**
@@ -126,7 +123,7 @@ export class Region<Cursor, Atom> {
    * @internal
    */
   renderStatic(block: UserBlock<Cursor, Atom>): void {
-    let region = new Region(this.#appender, this.#host);
+    let region = new Region(this.#range, this.#host);
 
     block.f(region, this.#host);
 
@@ -137,8 +134,7 @@ export class Region<Cursor, Atom> {
    * @internal
    */
   renderBlock(block: Block<Cursor, Atom>): void {
-    let output = this.#appender.getChild()(this.#appender.getCursor());
-    let child = new Region(output, this.#host, this.#updaters);
+    let child = new Region(this.#range, this.#host, this.#updaters);
 
     invokeBlock(block, child, this.#host);
   }

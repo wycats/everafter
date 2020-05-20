@@ -70,7 +70,7 @@ export function dynamic<Cursor, Atom>(
   userBlock: UserBlock<Cursor, Atom>,
   output: Region<Cursor, Atom>
 ): DynamicBlock {
-  let range: ReactiveRange<Cursor> | undefined = undefined;
+  let range: ReactiveRange<Cursor, Atom> | undefined = undefined;
 
   return DynamicBlock.initialize(() => {
     range = output.renderDynamic(userBlock, range);

@@ -7,38 +7,34 @@ import type {
 } from "@simple-dom/interface";
 import {
   annotate,
-  AppenderForCursor,
+  AppendingReactiveRange,
   caller,
   CompilableAtom,
+  CompileCursorAdapter,
+  CompileOperations,
   DEBUG,
   DebugFields,
   description,
   Evaluate,
-  Operations,
   PARENT,
   ReactiveParameter,
   ReactiveRange,
   ReactiveState,
   Region,
-  RegionAppender,
   Source,
-  Stack,
   Structured,
   unreachable,
   Updater,
   Var,
-  CursorAdapter,
-  StaticReactiveRange,
 } from "everafter";
-import { NodeUpdate, NodeValueUpdate, AttributeUpdate } from "./update";
+import { AttributeUpdate, NodeUpdate, NodeValueUpdate } from "./update";
 
-export class DomOps implements Operations<DomCursor, DomAtom, Var<string>> {
-  appender(cursor: DomCursor): RegionAppender<DomCursor, DomAtom> {
-    return new SimpleDomOutput(cursor);
-  }
+export type DefaultDomAtom = ReactiveParameter<string>;
 
-  defaultAtom(atom: Var<string>): DomAtom {
-    return runtimeText(atom);
+export class CompileDomOps
+  implements CompileOperations<DomCursor, DomAtom, DefaultDomAtom> {
+  defaultAtom(atom: DefaultDomAtom): CompilableAtom<DomCursor, DomAtom> {
+    return text(atom);
   }
 }
 
@@ -102,19 +98,25 @@ export function runtimeElement(name: Var<string>): OpenElement {
 
 export function element(
   tagName: string
-): CursorAdapter<DomCursor, DomAtom, AttrCursor, AttrAtom> {
+): CompileCursorAdapter<DomCursor, DomAtom, AttrCursor, AttrAtom, AttrAtom> {
   return {
-    child(cursor: DomCursor): SimpleAttrOutput {
-      let element = cursor.parentNode.ownerDocument.createElement(tagName);
-      return new SimpleAttrOutput(element);
-    },
+    ops: new CompileAttrOps(),
 
-    flush(
-      parent: DomCursor,
-      child: SimpleElement
-    ): RegionAppender<DomCursor, DomAtom> {
-      parent.insert(child);
-      return new SimpleDomOutput(new DomCursor(child, null));
+    runtime: {
+      child(
+        range: AppendingReactiveRange<DomCursor, DomAtom>
+      ): AppendingReactiveRange<AttrCursor, AttrAtom> {
+        let element = range.document.createElement(tagName);
+        return new AttrRange(element);
+      },
+
+      flush(
+        parent: AppendingReactiveRange<DomCursor, DomAtom>,
+        child: ReactiveRange<AttrCursor, AttrAtom>
+      ): AppendingReactiveRange<DomCursor, DomAtom> {
+        parent.insert(child.element);
+        return new AppendingDomRange(new DomCursor(child.element, null));
+      },
     },
   };
 }
@@ -221,11 +223,9 @@ export function runtimeNode(value: Var<SimpleNode>): NodeAtom {
 export type AttrCursor = SimpleElement;
 export type AttrAtom = DomAttr;
 
-export class AttrOps implements Operations<AttrCursor, AttrAtom> {
-  appender(cursor: SimpleElement): RegionAppender<SimpleElement, DomAttr> {
-    return new SimpleAttrOutput(cursor);
-  }
-  defaultAtom(atom: AttrAtom): AttrAtom {
+export class CompileAttrOps
+  implements CompileOperations<AttrCursor, AttrAtom, never> {
+  defaultAtom(atom: never): never {
     return atom;
   }
 }
@@ -243,7 +243,7 @@ export class DomCursor {
   }
 }
 
-export class DomRange implements ReactiveRange<DomCursor> {
+export class DomRange implements ReactiveRange<DomCursor, DomAtom> {
   constructor(
     readonly parentNode: ParentNode,
     readonly start: SimpleNode,
@@ -260,7 +260,11 @@ export class DomRange implements ReactiveRange<DomCursor> {
     return description("DomRange");
   }
 
-  clear(): DomCursor {
+  append(_atom: DomAtom): void {
+    throw new Error("not implemented");
+  }
+
+  clear(): AppendingDomRange {
     let afterLast = this.end.nextSibling;
     let current: SimpleNode | null = this.start;
 
@@ -270,15 +274,48 @@ export class DomRange implements ReactiveRange<DomCursor> {
       current = next;
     }
 
-    return new DomCursor(this.parentNode, afterLast);
+    return new AppendingDomRange(new DomCursor(this.parentNode, afterLast));
   }
 }
 
-export class AppendingRange {
+export class AppendingDomRange
+  implements AppendingReactiveRange<DomCursor, DomAtom> {
+  static appending(parentNode: ParentNode): AppendingDomRange {
+    return new AppendingDomRange(new DomCursor(parentNode, null));
+  }
+
+  static splicing(
+    parentNode: ParentNode,
+    nextSibling: SimpleNode
+  ): AppendingDomRange {
+    return new AppendingDomRange(new DomCursor(parentNode, nextSibling));
+  }
+
   #start: SimpleNode | null = null;
   #end: SimpleNode | null = null;
+  #cursor: DomCursor;
+  #document: SimpleDocument;
 
-  appended(node: SimpleNode): void {
+  constructor(cursor: DomCursor) {
+    this.#cursor = cursor;
+    this.#document = cursor.parentNode.ownerDocument;
+  }
+
+  get document(): SimpleDocument {
+    return this.#document;
+  }
+
+  getCursor(): DomCursor {
+    return this.#cursor;
+  }
+
+  [DEBUG](): Structured {
+    return description("AppendingRange");
+  }
+
+  insert(node: SimpleNode): void {
+    this.#cursor.insert(node);
+
     this.#end = node;
 
     if (this.#start === null) {
@@ -286,91 +323,7 @@ export class AppendingRange {
     }
   }
 
-  finalize(cursor: DomCursor): DomRange {
-    let doc = cursor.parentNode.ownerDocument;
-
-    if (this.#start === null || this.#end === null) {
-      let comment = doc.createComment("");
-      cursor.insert(comment);
-      this.appended(comment);
-
-      return new DomRange(cursor.parentNode, comment, comment);
-    } else {
-      return new DomRange(cursor.parentNode, this.#start, this.#end);
-    }
-  }
-}
-
-export class SimpleAttrOutput implements RegionAppender<AttrCursor, AttrAtom> {
-  #current: SimpleElement;
-
-  constructor(current: SimpleElement) {
-    this.#current = current;
-  }
-
-  getChild(): AppenderForCursor<AttrCursor, AttrAtom> {
-    throw new Error("Method not implemented.");
-  }
-
-  finalize(): ReactiveRange<AttrCursor> {
-    // nothing to do
-    return new StaticReactiveRange(this.getCursor());
-  }
-
-  getCursor(): SimpleElement {
-    return this.#current;
-  }
-
-  atom(atom: DomAttr): void | Updater {
-    if (atom.ns) {
-      this.#current.setAttributeNS(
-        atom.ns.current,
-        atom.name.current,
-        atom.value.current
-      );
-    } else {
-      this.#current.setAttribute(atom.name.current, atom.value.current);
-    }
-
-    return new AttributeUpdate(this.#current, atom);
-  }
-}
-
-export class SimpleDomOutput implements RegionAppender<DomCursor, DomAtom> {
-  #document: SimpleDocument;
-  #stack: Stack<ParentNode>;
-  #range = new AppendingRange();
-
-  constructor(
-    cursor: DomCursor,
-    stack: Stack<SimpleElement | SimpleDocumentFragment> = new Stack(
-      cursor.parentNode
-    )
-  ) {
-    this.#document = cursor.parentNode.ownerDocument;
-    this.#stack = stack;
-  }
-
-  getCursor(): DomCursor {
-    // in principle, working through a current cursor should make this code
-    // more amenable to rehydration as a future extension.
-    return new DomCursor(this.#stack.current, null);
-  }
-
-  finalize(): ReactiveRange<DomCursor> {
-    return this.#range.finalize(this.getCursor());
-  }
-
-  private insert(node: SimpleNode): void {
-    this.getCursor().insert(node);
-    this.#range.appended(node);
-  }
-
-  getChild(): AppenderForCursor<DomCursor, DomAtom> {
-    return (cursor: DomCursor) => new SimpleDomOutput(cursor, this.#stack);
-  }
-
-  atom(inline: DomAtom): Updater {
+  append(inline: DomAtom): Updater {
     switch (inline.kind) {
       case "Text": {
         let current = inline.data.compute();
@@ -383,14 +336,13 @@ export class SimpleDomOutput implements RegionAppender<DomCursor, DomAtom> {
       case "Comment": {
         let node = this.#document.createComment(inline.data.current);
         this.insert(node);
-        this.getCursor().insert(node);
 
         return new NodeValueUpdate(node, inline.data);
       }
 
       case "Node": {
         let node = inline.node.current;
-        this.getCursor().insert(node);
+        this.insert(node);
 
         return new NodeUpdate(node, inline.node);
       }
@@ -398,5 +350,73 @@ export class SimpleDomOutput implements RegionAppender<DomCursor, DomAtom> {
       default:
         unreachable(inline);
     }
+  }
+
+  child(): AppendingReactiveRange<DomCursor, DomAtom> {
+    return new AppendingDomRange(this.#cursor);
+  }
+
+  finalize(): ReactiveRange<DomCursor, DomAtom> {
+    let doc = this.#document;
+    let cursor = this.#cursor;
+
+    if (this.#start === null || this.#end === null) {
+      let comment = doc.createComment("");
+      this.insert(comment);
+
+      return new DomRange(cursor.parentNode, comment, comment);
+    } else {
+      return new DomRange(cursor.parentNode, this.#start, this.#end);
+    }
+  }
+}
+
+class AttrRange
+  implements
+    AppendingReactiveRange<AttrCursor, AttrAtom>,
+    ReactiveRange<AttrCursor, AttrAtom> {
+  #current: SimpleElement;
+
+  constructor(current: SimpleElement) {
+    this.#current = current;
+  }
+
+  get element(): SimpleElement {
+    return this.#current;
+  }
+
+  append(atom: DomAttr): void | Updater {
+    if (atom.ns) {
+      this.#current.setAttributeNS(
+        atom.ns.current,
+        atom.name.current,
+        atom.value.current
+      );
+    } else {
+      this.#current.setAttribute(atom.name.current, atom.value.current);
+    }
+
+    return new AttributeUpdate(this.#current, atom);
+  }
+
+  getCursor(): SimpleElement {
+    return this.#current;
+  }
+
+  child(): AppendingReactiveRange<AttrCursor, AttrAtom> {
+    // TODO: think about this more
+    return this;
+  }
+
+  finalize(): ReactiveRange<SimpleElement, DomAttr> {
+    return this;
+  }
+  [DEBUG](): Structured {
+    return description("AttrRange");
+  }
+  clear(): AppendingReactiveRange<SimpleElement, DomAttr> {
+    throw new Error(
+      "Method not implemented. Is it a problem that clearing attributes doesn't make sense? Does it teach us something?"
+    );
   }
 }

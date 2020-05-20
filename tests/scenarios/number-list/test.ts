@@ -1,27 +1,26 @@
 import {
   annotate,
-  Param,
   call,
   caller,
   Cell,
   CompiledProgram,
+  Compiler,
   Derived,
   Dict,
+  Param,
   PARENT,
   ReactiveParameters,
-  RegionAppender,
   RootBlock,
   Var,
-  Compiler,
 } from "everafter";
 import type * as qunit from "qunit";
 import { host, module, test } from "../../helpers";
 import {
-  ArrayCursor,
-  num,
-  NumberArrayOps,
-  NumberListOutput,
   ArrayAtom,
+  ArrayCursor,
+  ArrayRange,
+  CompileNumberArrayOps,
+  num,
 } from "./output";
 
 @module("list of numbers")
@@ -39,7 +38,7 @@ export class ListOfNumbersTest {
         sum: Param<number>(),
       },
       this.#host,
-      new NumberArrayOps(this.#host)
+      new CompileNumberArrayOps()
     );
 
     const sum = annotate(
@@ -88,7 +87,7 @@ export class ListOfNumbersTest {
         showAbs: Param<boolean>(),
       },
       this.#host,
-      new NumberArrayOps(this.#host)
+      new CompileNumberArrayOps()
     );
 
     const positiveSum = annotate(
@@ -187,24 +186,13 @@ export class ListOfNumbersTest {
     }, [10, 20, 30, 60]);
   }
 
-  private context(): {
-    list: number[];
-    output: (cursor: ArrayCursor) => RegionAppender<ArrayCursor, ArrayAtom>;
-  } {
-    let list: number[] = [];
-    let output = (cursor: ArrayCursor): NumberListOutput =>
-      new NumberListOutput(cursor, this.#host);
-
-    return { list, output };
-  }
-
   private render<A extends Dict<Var>>(
     program: CompiledProgram<ArrayCursor, ArrayAtom, ReactiveParameters>,
     state: A
   ): RenderExpectation {
     this.assert.step("initial render");
-    let { list } = this.context();
-    let root = program.render(state, ArrayCursor.from(list, this.#host));
+    let list: number[] = [];
+    let root = program.render(state, ArrayRange.from(list));
     return new RenderExpectation(root, list, this.assert);
   }
 }

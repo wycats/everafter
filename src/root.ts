@@ -8,7 +8,7 @@ import {
   PARENT,
   Structured,
 } from "./debug/index";
-import type { Host, UserBlock, Operations } from "./interfaces";
+import type { Host, UserBlock, AppendingReactiveRange } from "./interfaces";
 import { Region } from "./region";
 import { poll } from "./unsafe";
 import type { Updater } from "./update";
@@ -20,24 +20,17 @@ import type { Updater } from "./update";
  */
 export class RootBlock<Cursor, Atom> {
   #program: UserBlock<Cursor, Atom>;
-  #operations: Operations<Cursor, Atom>;
   #host: Host;
   #update: Updater | void = undefined;
 
-  constructor(
-    program: Evaluate<Cursor, Atom>,
-    operations: Operations<Cursor, Atom>,
-    host: Host
-  ) {
+  constructor(program: Evaluate<Cursor, Atom>, host: Host) {
     this.#program = program;
-    this.#operations = operations;
     this.#host = host;
   }
 
   get debugFields(): DebugFields {
     return new DebugFields("Invocation", {
       program: this.#program,
-      operations: this.#operations,
       host: this.#host,
       update: this.#update,
     });
@@ -48,16 +41,12 @@ export class RootBlock<Cursor, Atom> {
   }
 
   render(
-    cursor: Cursor,
+    cursor: AppendingReactiveRange<Cursor, Atom>,
     source = caller(PARENT, "initial render")
   ): Updater | void {
     this.#host.context(LogLevel.Info, source, () => {
       this.#update = this.#host.indent(LogLevel.Info, () =>
-        Region.render(
-          this.#program,
-          this.#operations.appender(cursor),
-          this.#host
-        )
+        Region.render(this.#program, cursor, this.#host)
       );
     });
   }

@@ -11,20 +11,18 @@ import {
   printStructured,
   IntoStructured,
   intoStructured,
-  Structured,
-  DebugFields,
-  DEBUG,
-  description,
 } from "./debug/index";
+import type { CompilableAtom } from "./builder";
 
-export interface Operations<
-  Cursor = unknown,
-  Atom = unknown,
-  DefaultAtom = Atom
-> {
-  appender(cursor: Cursor): RegionAppender<Cursor, Atom>;
-  defaultAtom(atom: DefaultAtom): Atom;
+export interface CompileOperations<Cursor, Atom, DefaultAtom> {
+  defaultAtom(atom: DefaultAtom): CompilableAtom<Cursor, Atom>;
 }
+
+// export interface Operations<Cursor = unknown, Atom = unknown> {
+//   appender(
+//     cursor: AppendingReactiveRange<Cursor, Atom>
+//   ): RegionAppender<Cursor, Atom>;
+// }
 
 /**
  * A {@link ReactiveRange} is the main way that Reactive Prototype manages dynamic
@@ -39,36 +37,19 @@ export interface Operations<
  *
  * @see {RegionAppender::range}
  */
-export interface ReactiveRange<Cursor> extends Debuggable {
+export interface ReactiveRange<Cursor, Atom> extends Debuggable {
   /**
    * When a reactive range is cleared, all of its contents are removed from
    * the output, and a new cursor is created for new content.
    */
-  clear(): Cursor;
+  clear(): AppendingReactiveRange<Cursor, Atom>;
 }
 
-/**
- * A special case of `ReactiveRange` that can't be cleared.
- *
- * TODO: This is fishy and should be revisited once everything else is in place
- */
-export class StaticReactiveRange<Cursor> implements ReactiveRange<Cursor> {
-  #cursor: Cursor;
-
-  constructor(cursor: Cursor) {
-    this.#cursor = cursor;
-  }
-
-  clear(): Cursor {
-    return this.#cursor;
-  }
-  get debugFields(): DebugFields {
-    return new DebugFields("StaticRange", { cursor: this.#cursor });
-  }
-
-  [DEBUG](): Structured {
-    return description("StaticRange");
-  }
+export interface AppendingReactiveRange<Cursor, Atom> extends Debuggable {
+  append(atom: Atom): Updater | void;
+  getCursor(): Cursor;
+  child(): AppendingReactiveRange<Cursor, Atom>;
+  finalize(): ReactiveRange<Cursor, Atom>;
 }
 
 /**
@@ -76,7 +57,7 @@ export class StaticReactiveRange<Cursor> implements ReactiveRange<Cursor> {
  * and gives back a reactive output.
  */
 export type AppenderForCursor<Cursor, Atom> = (
-  cursor: Cursor
+  cursor: AppendingReactiveRange<Cursor, Atom>
 ) => RegionAppender<Cursor, Atom>;
 
 /**
@@ -110,7 +91,7 @@ export interface RegionAppender<Cursor, Atom> {
    * output region have finished. The {@link ReactiveRange} that is returned
    * will be cleared if necessary.
    */
-  finalize(): ReactiveRange<Cursor>;
+  finalize(): ReactiveRange<Cursor, Atom>;
 
   /**
    * Provide a cursor that corresponds to the current location in the output.
@@ -118,8 +99,9 @@ export interface RegionAppender<Cursor, Atom> {
    * A cursor is transient. Reactive Prototype will not hold onto it, so
    * a {@link RegionAppender} doesn't need to do any bookkeeping related to it.
    */
-  getCursor(): Cursor;
+  getCursor(): AppendingReactiveRange<Cursor, Atom>;
 
+  child(): AppendingReactiveRange<Cursor, Atom>;
   /**
    * Insert an atom at the current cursor, returning a possible `Updater`.
    */

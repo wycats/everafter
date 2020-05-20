@@ -6,7 +6,12 @@ import {
   PARENT,
   Source,
 } from "../debug/index";
-import type { Host, RegionAppender } from "../interfaces";
+import type {
+  Host,
+  CompileOperations,
+  AppendingReactiveRange,
+  ReactiveRange,
+} from "../interfaces";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
@@ -34,91 +39,74 @@ export type Evaluate<Cursor, Atom, Out = void> = AnnotatedFunction<
   (region: Region<Cursor, Atom>, host: Host) => Out
 >;
 
-export interface CursorAdapter<Cursor1, Atom1, Cursor2, Atom2> {
-  child(cursor: Cursor1): RegionAppender<Cursor2, Atom2>;
-  // TODO: child should be a range
-  flush(parent: Cursor1, child: Cursor2): RegionAppender<Cursor1, Atom1>;
+export interface CompileCursorAdapter<
+  ParentCursor,
+  ParentAtom,
+  Cursor,
+  Atom,
+  DefaultAtom
+> {
+  ops: CompileOperations<Cursor, Atom, DefaultAtom>;
+  runtime: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>;
 }
 
-export interface Builder<Cursor, Atom> {
-  atom(atom: CompilableAtom<Cursor, Atom>): void;
+export interface CursorAdapter<Cursor1, Atom1, Cursor2, Atom2> {
+  child(
+    cursor: AppendingReactiveRange<Cursor1, Atom1>
+  ): AppendingReactiveRange<Cursor2, Atom2>;
+  // TODO: child should be a range
+  flush(
+    parent: AppendingReactiveRange<Cursor1, Atom1>,
+    child: ReactiveRange<Cursor2, Atom2>
+  ): AppendingReactiveRange<Cursor1, Atom1>;
+}
+
+export interface Builder<Cursor, Atom, DefaultAtom> {
+  atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void;
 
   ifBlock<A extends ReactiveParameter<boolean>>(
     condition: A,
-    then: UserBuilderBlock<Cursor, Atom>,
-    otherwise: UserBuilderBlock<Cursor, Atom>,
+    then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source?: Source
   ): void;
 
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
-    parent?: Builder<Cursor, Atom>,
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >,
+    parent?: Builder<Cursor, Atom, DefaultAtom>,
     source?: Source
-  ): ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom>;
+  ): ForeignBlockBuilder<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    ChildCursor,
+    ChildAtom,
+    ChildDefaultAtom
+  >;
 
   close(block: CompilableBlock<Cursor, Atom>): void;
 }
 
 export type Statement<Cursor, Atom> = Compilable<Cursor, Atom>;
 
-// export class StatementsBuilder<Ops extends Operations> implements Builder<Ops> {
-//   #statements: Statement<Ops>[] = [];
-//   #compiler: Compiler<Ops>;
-
-//   constructor(compiler: Compiler<Ops>) {
-//     this.#compiler = compiler;
-//   }
-
-//   done(): readonly Statement<Ops>[] {
-//     return this.#statements;
-//   }
-
-//   atom(atom: IntoCompilableAtom<Ops>): void {
-//     if (atom instanceof CompilableAtom) {
-//       this.#statements.push(atom);
-//     } else {
-//       this.#statements.push(this.#compiler.intoAtom(atom));
-//     }
-//   }
-
-//   /**
-//    * @param condition a reactive boolean
-//    * @param then a user block
-//    * @param otherwise a user block
-//    */
-//   ifBlock(
-//     condition: ReactiveParameter<boolean>,
-//     then: UserBuilderBlock<Ops>,
-//     otherwise: UserBuilderBlock<Ops>,
-//     source: Source
-//   ): void {
-//     let thenBlock = CompilableStaticBlock.from(then);
-//     let otherwiseBlock = CompilableStaticBlock.from(otherwise);
-
-//     this.#statements.push(
-//       new Conditional(condition, thenBlock, otherwiseBlock, source)
-//     );
-//   }
-
-//   open<ChildOps extends Operations>(
-//     adapter: CursorAdapter<Ops, ChildOps>,
-//     parent: Builder<Ops>,
-//     source: Source
-//   ): ForeignBlockBuilder<Ops, ChildOps> {
-//     return new ForeignBlockBuilder(parent, adapter, source);
-//   }
-
-//   close(block: CompilableStaticBlock<Ops>): void {
-//     this.#statements.push(block);
-//   }
-// }
-
-export class StaticBlockBuilder<Cursor, Atom> implements Builder<Cursor, Atom> {
+export class StaticBlockBuilder<Cursor, Atom, DefaultAtom>
+  implements Builder<Cursor, Atom, DefaultAtom> {
   #statements: Statement<Cursor, Atom>[] = [];
   #source: Source;
+  #ops: CompileOperations<Cursor, Atom, DefaultAtom>;
 
-  constructor(source: Source) {
+  constructor(
+    source: Source,
+    ops: CompileOperations<Cursor, Atom, DefaultAtom>
+  ) {
     this.#source = source;
+    this.#ops = ops;
   }
 
   done(): CompilableStaticBlock<Cursor, Atom> {
@@ -139,32 +127,49 @@ export class StaticBlockBuilder<Cursor, Atom> implements Builder<Cursor, Atom> {
     });
   }
 
-  atom(atom: CompilableAtom<Cursor, Atom>): void {
-    this.#statements.push(atom);
+  atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void {
+    if (atom instanceof CompilableAtom) {
+      this.#statements.push(atom);
+    } else {
+      this.#statements.push(this.#ops.defaultAtom(atom));
+    }
   }
 
   ifBlock(
     condition: ReactiveParameter<boolean>,
-    then: UserBuilderBlock<Cursor, Atom>,
-    otherwise: UserBuilderBlock<Cursor, Atom>,
+    then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source: Source = caller(PARENT)
   ): void {
     let cond = new Conditional(
       condition,
-      CompilableStaticBlock.from(then),
-      CompilableStaticBlock.from(otherwise),
+      CompilableStaticBlock.from(then, this.#ops),
+      CompilableStaticBlock.from(otherwise, this.#ops),
       source
     );
 
     this.#statements.push(cond);
   }
 
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
-    parent: Builder<Cursor, Atom>,
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >,
+    parent: Builder<Cursor, Atom, DefaultAtom>,
     source: Source
-  ): ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom> {
-    return new ForeignBlockBuilder(parent, adapter, source);
+  ): ForeignBlockBuilder<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    ChildCursor,
+    ChildAtom,
+    ChildDefaultAtom
+  > {
+    return new ForeignBlockBuilder(parent, adapter, this.#ops, source);
   }
 
   close(block: CompilableStaticBlock<Cursor, Atom>): void {
@@ -172,42 +177,76 @@ export class StaticBlockBuilder<Cursor, Atom> implements Builder<Cursor, Atom> {
   }
 }
 
-class ForeignBlockBuilder<ParentCursor, ParentAtom, Cursor, Atom>
-  implements Builder<Cursor, Atom> {
-  #parent: Builder<ParentCursor, ParentAtom>;
-  #builder: StaticBlockBuilder<Cursor, Atom>;
-  #adapter: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>;
+class ForeignBlockBuilder<
+  ParentCursor,
+  ParentAtom,
+  ParentDefaultAtom,
+  Cursor,
+  Atom,
+  DefaultAtom
+> implements Builder<Cursor, Atom, DefaultAtom> {
+  #parent: Builder<ParentCursor, ParentAtom, ParentDefaultAtom>;
+  #adapter: CompileCursorAdapter<
+    ParentCursor,
+    ParentAtom,
+    Cursor,
+    Atom,
+    DefaultAtom
+  >;
+  #ops: CompileOperations<ParentCursor, ParentAtom, ParentDefaultAtom>;
+  #builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>;
   #source: Source;
 
   constructor(
-    parent: Builder<ParentCursor, ParentAtom>,
-    adapter: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>,
+    parent: Builder<ParentCursor, ParentAtom, ParentDefaultAtom>,
+    adapter: CompileCursorAdapter<
+      ParentCursor,
+      ParentAtom,
+      Cursor,
+      Atom,
+      DefaultAtom
+    >,
+    ops: CompileOperations<ParentCursor, ParentAtom, ParentDefaultAtom>,
     source: Source
   ) {
     this.#parent = parent;
     this.#adapter = adapter;
-    this.#builder = new StaticBlockBuilder(source);
+    this.#ops = ops;
+    this.#builder = new StaticBlockBuilder(source, adapter.ops);
     this.#source = source;
   }
 
-  atom(atom: CompilableAtom<Cursor, Atom>): void {
+  atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void {
     this.#builder.atom(atom);
   }
 
   ifBlock(
     condition: ReactiveParameter<boolean>,
-    then: UserBuilderBlock<Cursor, Atom>,
-    otherwise: UserBuilderBlock<Cursor, Atom>,
+    then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source: Source
   ): void {
     this.#builder.ifBlock(condition, then, otherwise, source);
   }
 
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
-    parent: Builder<Cursor, Atom>,
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >,
+    parent: Builder<Cursor, Atom, DefaultAtom>,
     source: Source
-  ): ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom> {
+  ): ForeignBlockBuilder<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    ChildCursor,
+    ChildAtom,
+    ChildDefaultAtom
+  > {
     return this.#builder.open(adapter, parent, source);
   }
 
@@ -215,34 +254,61 @@ class ForeignBlockBuilder<ParentCursor, ParentAtom, Cursor, Atom>
     this.#builder.close(block);
   }
 
-  flush(): BlockBodyBuilder<ParentCursor, ParentAtom, Cursor, Atom> {
+  flush(): BlockBodyBuilder<
+    ParentCursor,
+    ParentAtom,
+    ParentDefaultAtom,
+    Cursor,
+    Atom,
+    DefaultAtom
+  > {
     return new BlockBodyBuilder(
       this.#parent,
       this.#builder.done(),
       this.#adapter,
+      this.#ops,
       this.#source
     );
   }
 }
 
-class BlockBodyBuilder<Cursor, Atom, HeadCursor, HeadAtom>
-  implements Builder<Cursor, Atom> {
-  #parent: Builder<Cursor, Atom>;
+class BlockBodyBuilder<
+  Cursor,
+  Atom,
+  DefaultAtom,
+  HeadCursor,
+  HeadAtom,
+  HeadDefaultAtom
+> implements Builder<Cursor, Atom, DefaultAtom> {
+  #parent: Builder<Cursor, Atom, DefaultAtom>;
   #head: CompilableBlock<HeadCursor, HeadAtom>;
-  #adapter: CursorAdapter<Cursor, Atom, HeadCursor, HeadAtom>;
-  #builder: StaticBlockBuilder<Cursor, Atom>;
+  #adapter: CompileCursorAdapter<
+    Cursor,
+    Atom,
+    HeadCursor,
+    HeadAtom,
+    HeadDefaultAtom
+  >;
+  #builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>;
   #source: Source;
 
   constructor(
-    parent: Builder<Cursor, Atom>,
+    parent: Builder<Cursor, Atom, DefaultAtom>,
     head: CompilableBlock<HeadCursor, HeadAtom>,
-    adapter: CursorAdapter<Cursor, Atom, HeadCursor, HeadAtom>,
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      HeadCursor,
+      HeadAtom,
+      HeadDefaultAtom
+    >,
+    ops: CompileOperations<Cursor, Atom, DefaultAtom>,
     source: Source
   ) {
     this.#parent = parent;
     this.#head = head;
     this.#adapter = adapter;
-    this.#builder = new StaticBlockBuilder(source);
+    this.#builder = new StaticBlockBuilder(source, ops);
     this.#source = source;
   }
 
@@ -257,73 +323,149 @@ class BlockBodyBuilder<Cursor, Atom, HeadCursor, HeadAtom>
     this.#parent.close(block);
   }
 
-  atom(atom: CompilableAtom<Cursor, Atom>): void {
+  atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void {
     this.#builder.atom(atom);
   }
 
   ifBlock<A extends ReactiveParameter<boolean>>(
     condition: A,
-    then: UserBuilderBlock<Cursor, Atom>,
-    otherwise: UserBuilderBlock<Cursor, Atom>,
+    then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source: Source
   ): void {
     this.#builder.ifBlock(condition, then, otherwise, source);
   }
 
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
-    parent: Builder<Cursor, Atom>,
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >,
+    parent: Builder<Cursor, Atom, DefaultAtom>,
     source: Source
-  ): ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom> {
+  ): ForeignBlockBuilder<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    ChildCursor,
+    ChildAtom,
+    ChildDefaultAtom
+  > {
     return this.#builder.open(adapter, parent, source);
   }
 }
 
-export class Program<Cursor, Atom>
-  implements Builder<Cursor, Atom>, Compilable<Cursor, Atom> {
-  #statements: StaticBlockBuilder<Cursor, Atom>;
+export class Program<Cursor, Atom, DefaultAtom>
+  implements Builder<Cursor, Atom, DefaultAtom>, Compilable<Cursor, Atom> {
+  #statements: StaticBlockBuilder<Cursor, Atom, DefaultAtom>;
 
-  constructor(source: Source) {
-    this.#statements = new StaticBlockBuilder<Cursor, Atom>(source);
+  constructor(
+    ops: CompileOperations<Cursor, Atom, DefaultAtom>,
+    source: Source
+  ) {
+    this.#statements = new StaticBlockBuilder(source, ops);
   }
 
   compile(state: ReactiveState): Evaluate<Cursor, Atom> {
     return this.#statements.done().compile(state);
   }
 
-  atom(atom: CompilableAtom<Cursor, Atom>): void {
+  atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void {
     this.#statements.atom(atom);
   }
 
   ifBlock<A extends ReactiveParameter<boolean>>(
     condition: A,
-    then: UserBuilderBlock<Cursor, Atom>,
-    otherwise: UserBuilderBlock<Cursor, Atom>,
+    then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source = caller(PARENT)
   ): void {
     this.#statements.ifBlock(condition, then, otherwise, source);
   }
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>
-  ): ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom>;
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >
+  ): ForeignBlockBuilder<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    ChildCursor,
+    ChildAtom,
+    ChildDefaultAtom
+  >;
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >,
     head: (
-      builder: ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom>
+      builder: ForeignBlockBuilder<
+        Cursor,
+        Atom,
+        DefaultAtom,
+        ChildCursor,
+        ChildAtom,
+        ChildDefaultAtom
+      >
     ) => void,
     body: (
-      builder: BlockBodyBuilder<Cursor, Atom, ChildCursor, ChildAtom>
+      builder: BlockBodyBuilder<
+        Cursor,
+        Atom,
+        DefaultAtom,
+        ChildCursor,
+        ChildAtom,
+        ChildDefaultAtom
+      >
     ) => void
   ): void;
-  open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
+  open<ChildCursor, ChildAtom, ChildDefaultAtom>(
+    adapter: CompileCursorAdapter<
+      Cursor,
+      Atom,
+      ChildCursor,
+      ChildAtom,
+      ChildDefaultAtom
+    >,
     head?: (
-      builder: ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom>
+      builder: ForeignBlockBuilder<
+        Cursor,
+        Atom,
+        DefaultAtom,
+        ChildCursor,
+        ChildAtom,
+        ChildDefaultAtom
+      >
     ) => void,
     body?: (
-      builder: BlockBodyBuilder<Cursor, Atom, ChildCursor, ChildAtom>
+      builder: BlockBodyBuilder<
+        Cursor,
+        Atom,
+        DefaultAtom,
+        ChildCursor,
+        ChildAtom,
+        ChildDefaultAtom
+      >
     ) => void
-  ): ForeignBlockBuilder<Cursor, Atom, ChildCursor, ChildAtom> | void {
+  ): ForeignBlockBuilder<
+    Cursor,
+    Atom,
+    DefaultAtom,
+    ChildCursor,
+    ChildAtom,
+    ChildDefaultAtom
+  > | void {
     if (head && body) {
       let open = this.#statements.open(adapter, this, caller(PARENT));
       head(open);
