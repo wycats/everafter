@@ -1,5 +1,6 @@
 dependencies:
   '@babel/core': 7.9.6
+  '@babel/generator': 7.9.6
   '@babel/plugin-proposal-class-properties': 7.8.3
   '@babel/plugin-proposal-decorators': 7.8.3
   '@babel/plugin-proposal-private-methods': 7.8.3
@@ -9,8 +10,12 @@ dependencies:
   '@babel/preset-typescript': 7.9.0
   '@glimmer/babel-plugin-glimmer-env': 2.0.0-beta.7
   '@glimmer/bundle-compiler': 0.51.1
+  '@glimmer/component': 1.0.0
   '@glimmer/core': 2.0.0-beta.7
   '@glimmer/interfaces': 0.51.1
+  '@glimmer/reference': 0.51.1
+  '@glimmer/tracking': 1.0.0
+  '@glimmer/util': 0.51.1
   '@glimmer/validator': 0.51.1
   '@glimmerx/babel-plugin-component-templates': 0.2.3
   '@glimmerx/component': 0.2.3
@@ -41,7 +46,7 @@ dependencies:
   stacktracey: 1.2.127
   ts-loader: 7.0.4
   tsconfig-paths-webpack-plugin: 3.2.0
-  typescript: 4.0.0-dev.20200506
+  typescript: 4.0.0-dev.20200520
   webpack: 4.43.0
   webpack-cli: 3.3.11
   webpack-dev-server: 3.11.0
@@ -1727,6 +1732,26 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Z+Kon7apLazd4y9AQzFs3O/JtbEg9Xo4lYB7njzosUUxc644Ix6tz14hPwu89MJ2hF16rJQpvLAvD+6Jq6ZKSw==
+  /@glimmer/component/1.0.0:
+    dependencies:
+      '@glimmer/di': 0.1.11
+      '@glimmer/env': 0.1.7
+      '@glimmer/util': 0.44.0
+      broccoli-file-creator: 2.1.1
+      broccoli-merge-trees: 3.0.2
+      ember-cli-babel: 7.20.0
+      ember-cli-get-component-path-option: 1.0.0
+      ember-cli-is-package-missing: 1.0.0
+      ember-cli-normalize-entity-name: 1.0.0
+      ember-cli-path-utils: 1.0.0
+      ember-cli-string-utils: 1.1.0
+      ember-cli-typescript: 3.0.0
+      ember-compatibility-helpers: 1.2.1
+    dev: false
+    engines:
+      node: 6.* || 8.* || >= 10.*
+    resolution:
+      integrity: sha512-1ERZYNLZRuC8RYbcfkJeAWn3Ly7W2VdoHLQIHCmhQH/m7ubkNOdLQcTnUzje7OnRUs9EJ6DjfoN57XRX9Ux4rA==
   /@glimmer/component/2.0.0-beta.7:
     dependencies:
       '@glimmer/core': 2.0.0-beta.7
@@ -1758,6 +1783,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-5hdXekJ5UTMqm/EcRe/1x19ncpHGUcG1+nX7CwuHpHyR36YEjxEAyIEfh0ZJJPuP8pCmJ+osTjMa6ztKFCv17g==
+  /@glimmer/di/0.1.11:
+    dev: false
+    resolution:
+      integrity: sha1-poeMB6E6LCx2/N5ZilyXY3v8QoA=
   /@glimmer/encoder/0.51.1:
     dependencies:
       '@glimmer/interfaces': 0.51.1
@@ -1854,6 +1883,13 @@ packages:
     dev: false
     resolution:
       integrity: sha512-z5XSbLgMKGU8tgSm9Ju4mimSAJ6/SZrY2Xw2znEAmUJOIPte+tmkdpggpgj7lAjD5u2YVBVHDbz6RaZDhYASsw==
+  /@glimmer/tracking/1.0.0:
+    dependencies:
+      '@glimmer/env': 0.1.7
+      '@glimmer/validator': 0.44.0
+    dev: false
+    resolution:
+      integrity: sha512-OuF04ihYD/Rjvf++Rf7MzJVnawMSax/SZXEj4rlsQoMRwtQafgtkWjlFBcbBNQkJ3rev1zzfNN+3mdD2BFIaNg==
   /@glimmer/tracking/2.0.0-beta.7:
     dependencies:
       '@glimmer/env': 0.1.7
@@ -1861,6 +1897,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-YmYUSypcJmL43jgcOC0bgMaGTnZmRwzxQ1DY66sl1agLKkk4xO98/U8lMLsoD5VbhIJHTZELQPTXm1wYnJxcew==
+  /@glimmer/util/0.44.0:
+    dev: false
+    resolution:
+      integrity: sha512-duAsm30uVK9jSysElCbLyU6QQYO2X9iLDLBIBUcCqck9qN1o3tK2qWiHbGK5d6g8E2AJ4H88UrfElkyaJlGrwg==
   /@glimmer/util/0.50.4:
     dependencies:
       '@glimmer/env': 0.1.7
@@ -1877,6 +1917,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-MCwUvV3z4pqLpeXcv5Mbchdgw0GeEPH8jUEkUTG837b5XlC2M/NO893E5A8AZbGNSP7CDsYibDExz7mjaLqq/A==
+  /@glimmer/validator/0.44.0:
+    dev: false
+    resolution:
+      integrity: sha512-i01plR0EgFVz69GDrEuFgq1NheIjZcyTy3c7q+w7d096ddPVeVcRzU3LKaqCfovvLJ+6lJx40j45ecycASUUyw==
   /@glimmer/validator/0.51.1:
     dependencies:
       '@glimmer/env': 0.1.7
@@ -7988,6 +8032,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-eH1FsgFdVMGD3fkwlkmcbLTf6a2pQRgaiZEW9652U7PnRhJnhynhdgjV90yiATd/stAcUPPCeXiNc87fobxI0A==
+  /typescript/4.0.0-dev.20200520:
+    dev: false
+    engines:
+      node: '>=4.2.0'
+    hasBin: true
+    resolution:
+      integrity: sha512-a+E+3oVsrVGuPrcu8yUi3RMyWkLfDSiRglsjVE1C2GBrFdB2IK82PpqIU6I21Lyrros5zzy23A0zH5tGdNUVXA==
   /uglify-js/3.9.3:
     dependencies:
       commander: 2.20.3
@@ -8579,6 +8630,7 @@ packages:
   'file:projects/everafter.tgz':
     dependencies:
       '@babel/core': 7.9.6
+      '@babel/generator': 7.9.6
       '@babel/plugin-proposal-class-properties': /@babel/plugin-proposal-class-properties/7.8.3/@babel!core@7.9.6
       '@babel/plugin-proposal-decorators': /@babel/plugin-proposal-decorators/7.8.3/@babel!core@7.9.6
       '@babel/plugin-proposal-private-methods': /@babel/plugin-proposal-private-methods/7.8.3/@babel!core@7.9.6
@@ -8588,8 +8640,12 @@ packages:
       '@babel/preset-typescript': /@babel/preset-typescript/7.9.0/@babel!core@7.9.6
       '@glimmer/babel-plugin-glimmer-env': 2.0.0-beta.7
       '@glimmer/bundle-compiler': 0.51.1
+      '@glimmer/component': 1.0.0
       '@glimmer/core': 2.0.0-beta.7
       '@glimmer/interfaces': 0.51.1
+      '@glimmer/reference': 0.51.1
+      '@glimmer/tracking': 1.0.0
+      '@glimmer/util': 0.51.1
       '@glimmer/validator': 0.51.1
       '@glimmerx/babel-plugin-component-templates': 0.2.3
       '@glimmerx/component': 0.2.3
@@ -8626,7 +8682,7 @@ packages:
     dev: false
     name: '@rush-temp/everafter'
     resolution:
-      integrity: sha512-bOz1XfBJTPjGTfKC3V1yEcp+RfbS9S4gb5XdqFsQVHHvoJaL014Up1cbRmD8l89FRNMkGugyqn/08x34dL/TOg==
+      integrity: sha512-0k4F4sPBX7jjkYZCsghCwkabfngsjSWywwLvFlVUig+8/W0a5ukIgEUdtSNuZoKYA701S5zqhPKXsrKXw1dkfw==
       tarball: 'file:projects/everafter.tgz'
     version: 0.0.0
 registry: 'https://registry.npmjs.org/'
@@ -8634,6 +8690,7 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@babel/core': ^7.9.0
+  '@babel/generator': ^7.9.6
   '@babel/plugin-proposal-class-properties': ^7.8.3
   '@babel/plugin-proposal-decorators': ^7.8.3
   '@babel/plugin-proposal-private-methods': ^7.8.3
@@ -8643,15 +8700,19 @@ specifiers:
   '@babel/preset-typescript': ^7.9.0
   '@glimmer/babel-plugin-glimmer-env': ^2.0.0-beta.7
   '@glimmer/bundle-compiler': ^0.51.1
+  '@glimmer/component': ^1.0.0
   '@glimmer/core': ^2.0.0-beta.7
   '@glimmer/interfaces': ^0.51.1
+  '@glimmer/reference': ^0.51.1
+  '@glimmer/tracking': 1.0.0
+  '@glimmer/util': ^0.51.1
   '@glimmer/validator': ^0.51.1
   '@glimmerx/babel-plugin-component-templates': ^0.2.1
-  '@glimmerx/component': ^0.2.1
-  '@glimmerx/core': ^0.2.1
-  '@glimmerx/eslint-plugin': ^0.2.1
-  '@glimmerx/modifier': ^0.2.1
-  '@glimmerx/service': ^0.2.1
+  '@glimmerx/component': ^0.2.3
+  '@glimmerx/core': ^0.2.3
+  '@glimmerx/eslint-plugin': ^0.2.3
+  '@glimmerx/modifier': ^0.2.3
+  '@glimmerx/service': ^0.2.3
   '@rush-temp/everafter': 'file:./projects/everafter.tgz'
   '@simple-dom/document': ^1.4.0
   '@simple-dom/interface': ^1.4.0
@@ -8675,7 +8736,7 @@ specifiers:
   stacktracey: ^1.2.127
   ts-loader: ^7.0.4
   tsconfig-paths-webpack-plugin: ^3.2.0
-  typescript: 4.0.0-dev.20200506
+  typescript: next
   webpack: ^4.43.0
   webpack-cli: ^3.3.11
   webpack-dev-server: ^3.10.3
