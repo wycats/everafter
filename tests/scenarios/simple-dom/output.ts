@@ -98,22 +98,23 @@ export function runtimeElement(name: Var<string>): OpenElement {
 
 export function element(
   tagName: string
-): CompileCursorAdapter<DomCursor, DomAtom, AttrCursor, AttrAtom, AttrAtom> {
+): CompileCursorAdapter<
+  DomCursor,
+  DomAtom,
+  AttrCursor,
+  AppendingDomRange,
+  AttrRange
+> {
   return {
     ops: new CompileAttrOps(),
 
     runtime: {
-      child(
-        range: AppendingReactiveRange<DomCursor, DomAtom>
-      ): AppendingReactiveRange<AttrCursor, AttrAtom> {
+      child(range: AppendingDomRange): AttrRange {
         let element = range.document.createElement(tagName);
         return new AttrRange(element);
       },
 
-      flush(
-        parent: AppendingReactiveRange<DomCursor, DomAtom>,
-        child: ReactiveRange<AttrCursor, AttrAtom>
-      ): AppendingReactiveRange<DomCursor, DomAtom> {
+      flush(parent: AppendingDomRange, child: AttrRange): AppendingDomRange {
         parent.insert(child.element);
         return new AppendingDomRange(new DomCursor(child.element, null));
       },
@@ -290,6 +291,8 @@ export class AppendingDomRange
   ): AppendingDomRange {
     return new AppendingDomRange(new DomCursor(parentNode, nextSibling));
   }
+
+  declare atom: SimpleNode;
 
   #start: SimpleNode | null = null;
   #end: SimpleNode | null = null;

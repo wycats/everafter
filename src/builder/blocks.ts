@@ -109,25 +109,13 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
     Compilable<ParentCursor, ParentAtom> {
   #head: CompilableBlock<Cursor, Atom>;
   #body: CompilableBlock<ParentCursor, ParentAtom>;
-  #adapter: CompileCursorAdapter<
-    ParentCursor,
-    ParentAtom,
-    Cursor,
-    Atom,
-    DefaultAtom
-  >;
+  #adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>;
   #source: Source;
 
   constructor(
     head: CompilableBlock<Cursor, Atom>,
     body: CompilableBlock<ParentCursor, ParentAtom>,
-    adapter: CompileCursorAdapter<
-      ParentCursor,
-      ParentAtom,
-      Cursor,
-      Atom,
-      DefaultAtom
-    >,
+    adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>,
     source: Source
   ) {
     this.#head = head;

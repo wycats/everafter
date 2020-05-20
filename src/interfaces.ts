@@ -18,12 +18,6 @@ export interface CompileOperations<Cursor, Atom, DefaultAtom> {
   defaultAtom(atom: DefaultAtom): CompilableAtom<Cursor, Atom>;
 }
 
-// export interface Operations<Cursor = unknown, Atom = unknown> {
-//   appender(
-//     cursor: AppendingReactiveRange<Cursor, Atom>
-//   ): RegionAppender<Cursor, Atom>;
-// }
-
 /**
  * A {@link ReactiveRange} is the main way that Reactive Prototype manages dynamic
  * areas of the output that might need to be removed later.
@@ -37,81 +31,20 @@ export interface CompileOperations<Cursor, Atom, DefaultAtom> {
  *
  * @see {RegionAppender::range}
  */
-export interface ReactiveRange<Cursor, Atom> extends Debuggable {
+export interface ReactiveRange<Cursor, ReactiveAtom> extends Debuggable {
   /**
    * When a reactive range is cleared, all of its contents are removed from
    * the output, and a new cursor is created for new content.
    */
-  clear(): AppendingReactiveRange<Cursor, Atom>;
+  clear(): AppendingReactiveRange<Cursor, ReactiveAtom>;
 }
 
-export interface AppendingReactiveRange<Cursor, Atom> extends Debuggable {
-  append(atom: Atom): Updater | void;
+export interface AppendingReactiveRange<Cursor, ReactiveAtom>
+  extends Debuggable {
+  append(atom: ReactiveAtom): Updater | void;
   getCursor(): Cursor;
-  child(): AppendingReactiveRange<Cursor, Atom>;
-  finalize(): ReactiveRange<Cursor, Atom>;
-}
-
-/**
- * An {@link OutputFactory} for a given set of reactive operations takes a cursor
- * and gives back a reactive output.
- */
-export type AppenderForCursor<Cursor, Atom> = (
-  cursor: AppendingReactiveRange<Cursor, Atom>
-) => RegionAppender<Cursor, Atom>;
-
-/**
- * A {@link RegionAppender} is the core engine that reflects fresh input values
- * into the output.
- *
- * Reactive Prototype creates an instance of {@link RegionAppender} for each
- * area of the output that might need to be re-created from scratch.
- *
- * For example, consider {@link Builder::ifBlock}. When the output is first
- * created, one of the two branches of the conditional will execute, and the
- * operations will insert content into the output. But if the condition
- * changes, the region of the output that was created the first time will be
- * cleared (producing a cursor), and the other branch of the conditional will
- * execute, inserting new content at the cursor.
- */
-export interface RegionAppender<Cursor, Atom> {
-  /**
-   * The {@link getChild} method returns a function that takes a cursor and
-   * produces a new instance of a reactive output, parameterized over the
-   * operations.
-   *
-   * It's called {@link getChild} because of an invariant: the returned
-   * function will be called with a cursor that is logically inside of the
-   * current reactive output.
-   */
-  getChild(): AppenderForCursor<Cursor, Atom>;
-
-  /**
-   * The {@link finalize} method is called once all operations for the current
-   * output region have finished. The {@link ReactiveRange} that is returned
-   * will be cleared if necessary.
-   */
-  finalize(): ReactiveRange<Cursor, Atom>;
-
-  /**
-   * Provide a cursor that corresponds to the current location in the output.
-   *
-   * A cursor is transient. Reactive Prototype will not hold onto it, so
-   * a {@link RegionAppender} doesn't need to do any bookkeeping related to it.
-   */
-  getCursor(): AppendingReactiveRange<Cursor, Atom>;
-
-  child(): AppendingReactiveRange<Cursor, Atom>;
-  /**
-   * Insert an atom at the current cursor, returning a possible `Updater`.
-   */
-  atom(atom: Atom): Updater | void;
-
-  /**
-   * Open a block at the current cursor, returning an appropriate block
-   * buffer for the kind of block being created.
-   */
-  // open<O extends Ops["block"]>(open: O): Region<O>;
+  child(): AppendingReactiveRange<Cursor, ReactiveAtom>;
+  finalize(): ReactiveRange<Cursor, ReactiveAtom>;
 }
 
 export type UserBlockFunction<Cursor, Atom> = (

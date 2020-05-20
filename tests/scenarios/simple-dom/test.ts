@@ -206,10 +206,6 @@ export class ValueTest {
       input.current.toUpperCase()
     );
 
-    // the "program"
-    //
-    // const template = compiler.program();
-
     // create our input state
     let hello = Cell("hello");
     let world = Cell("world");

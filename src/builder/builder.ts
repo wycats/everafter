@@ -10,7 +10,6 @@ import type {
   Host,
   CompileOperations,
   AppendingReactiveRange,
-  ReactiveRange,
 } from "../interfaces";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
@@ -40,25 +39,35 @@ export type Evaluate<Cursor, Atom, Out = void> = AnnotatedFunction<
 >;
 
 export interface CompileCursorAdapter<
-  ParentCursor,
-  ParentAtom,
   Cursor,
   Atom,
-  DefaultAtom
+  DefaultAtom,
+  Left extends AppendingReactiveRange<Cursor, Atom> = AppendingReactiveRange<
+    Cursor,
+    Atom
+  >,
+  Right extends AppendingReactiveRange<
+    unknown,
+    unknown
+  > = AppendingReactiveRange<unknown, unknown>
 > {
   ops: CompileOperations<Cursor, Atom, DefaultAtom>;
-  runtime: CursorAdapter<ParentCursor, ParentAtom, Cursor, Atom>;
+  runtime: CursorAdapter<Left, Right>;
 }
 
-export interface CursorAdapter<Cursor1, Atom1, Cursor2, Atom2> {
-  child(
-    cursor: AppendingReactiveRange<Cursor1, Atom1>
-  ): AppendingReactiveRange<Cursor2, Atom2>;
-  // TODO: child should be a range
-  flush(
-    parent: AppendingReactiveRange<Cursor1, Atom1>,
-    child: ReactiveRange<Cursor2, Atom2>
-  ): AppendingReactiveRange<Cursor1, Atom1>;
+export interface CursorAdapter<
+  Left extends AppendingReactiveRange<
+    unknown,
+    unknown
+  > = AppendingReactiveRange<unknown, unknown>,
+  Right extends AppendingReactiveRange<
+    unknown,
+    unknown
+  > = AppendingReactiveRange<unknown, unknown>
+> {
+  child(left: Left): Right;
+
+  flush(parent: Left, child: ReturnType<Right["finalize"]>): Left;
 }
 
 export interface Builder<Cursor, Atom, DefaultAtom> {
@@ -72,13 +81,7 @@ export interface Builder<Cursor, Atom, DefaultAtom> {
   ): void;
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>,
     parent?: Builder<Cursor, Atom, DefaultAtom>,
     source?: Source
   ): ForeignBlockBuilder<
@@ -152,13 +155,7 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom>
   }
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>,
     parent: Builder<Cursor, Atom, DefaultAtom>,
     source: Source
   ): ForeignBlockBuilder<
@@ -186,26 +183,14 @@ class ForeignBlockBuilder<
   DefaultAtom
 > implements Builder<Cursor, Atom, DefaultAtom> {
   #parent: Builder<ParentCursor, ParentAtom, ParentDefaultAtom>;
-  #adapter: CompileCursorAdapter<
-    ParentCursor,
-    ParentAtom,
-    Cursor,
-    Atom,
-    DefaultAtom
-  >;
+  #adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>;
   #ops: CompileOperations<ParentCursor, ParentAtom, ParentDefaultAtom>;
   #builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>;
   #source: Source;
 
   constructor(
     parent: Builder<ParentCursor, ParentAtom, ParentDefaultAtom>,
-    adapter: CompileCursorAdapter<
-      ParentCursor,
-      ParentAtom,
-      Cursor,
-      Atom,
-      DefaultAtom
-    >,
+    adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>,
     ops: CompileOperations<ParentCursor, ParentAtom, ParentDefaultAtom>,
     source: Source
   ) {
@@ -230,13 +215,7 @@ class ForeignBlockBuilder<
   }
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>,
     parent: Builder<Cursor, Atom, DefaultAtom>,
     source: Source
   ): ForeignBlockBuilder<
@@ -282,26 +261,14 @@ class BlockBodyBuilder<
 > implements Builder<Cursor, Atom, DefaultAtom> {
   #parent: Builder<Cursor, Atom, DefaultAtom>;
   #head: CompilableBlock<HeadCursor, HeadAtom>;
-  #adapter: CompileCursorAdapter<
-    Cursor,
-    Atom,
-    HeadCursor,
-    HeadAtom,
-    HeadDefaultAtom
-  >;
+  #adapter: CompileCursorAdapter<HeadCursor, HeadAtom, HeadDefaultAtom>;
   #builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>;
   #source: Source;
 
   constructor(
     parent: Builder<Cursor, Atom, DefaultAtom>,
     head: CompilableBlock<HeadCursor, HeadAtom>,
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      HeadCursor,
-      HeadAtom,
-      HeadDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<HeadCursor, HeadAtom, HeadDefaultAtom>,
     ops: CompileOperations<Cursor, Atom, DefaultAtom>,
     source: Source
   ) {
@@ -337,13 +304,7 @@ class BlockBodyBuilder<
   }
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>,
     parent: Builder<Cursor, Atom, DefaultAtom>,
     source: Source
   ): ForeignBlockBuilder<
@@ -386,13 +347,7 @@ export class Program<Cursor, Atom, DefaultAtom>
     this.#statements.ifBlock(condition, then, otherwise, source);
   }
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>
   ): ForeignBlockBuilder<
     Cursor,
     Atom,
@@ -402,13 +357,7 @@ export class Program<Cursor, Atom, DefaultAtom>
     ChildDefaultAtom
   >;
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>,
     head: (
       builder: ForeignBlockBuilder<
         Cursor,
@@ -431,13 +380,7 @@ export class Program<Cursor, Atom, DefaultAtom>
     ) => void
   ): void;
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
-    adapter: CompileCursorAdapter<
-      Cursor,
-      Atom,
-      ChildCursor,
-      ChildAtom,
-      ChildDefaultAtom
-    >,
+    adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>,
     head?: (
       builder: ForeignBlockBuilder<
         Cursor,

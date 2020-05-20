@@ -50,24 +50,30 @@ export class Region<Cursor, Atom> {
     this.#updaters = updaters;
   }
 
-  atom(atom: Atom, source = caller(PARENT)): void {
+  atom(reactiveAtom: Atom, source = caller(PARENT)): void {
     this.updateWith(
       initialize(
-        annotate(() => this.#range.append(atom), source),
+        annotate(() => this.#range.append(reactiveAtom), source),
         this.#host
       )
     );
   }
 
   open<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>
+    adapter: CursorAdapter<
+      AppendingReactiveRange<Cursor, Atom>,
+      AppendingReactiveRange<ChildCursor, ChildAtom>
+    >
   ): Region<ChildCursor, ChildAtom> {
     let appender = adapter.child(this.#range.child());
     return new Region(appender, this.#host, this.#updaters);
   }
 
   flush<ChildCursor, ChildAtom>(
-    adapter: CursorAdapter<Cursor, Atom, ChildCursor, ChildAtom>,
+    adapter: CursorAdapter<
+      AppendingReactiveRange<Cursor, Atom>,
+      AppendingReactiveRange<ChildCursor, ChildAtom>
+    >,
     child: Region<ChildCursor, ChildAtom>
   ): Region<Cursor, Atom> {
     let appender = adapter.flush(this.#range, child.#range.finalize());
@@ -107,7 +113,6 @@ export class Region<Cursor, Atom> {
   ): ReactiveRange<Cursor, Atom> {
     let cursor = into ? into.clear() : this.#range.child();
 
-    // let appender = this.#appender.child();
     let region = new Region(cursor, this.#host);
 
     block.f(region, this.#host);
