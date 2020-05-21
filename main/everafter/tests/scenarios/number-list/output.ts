@@ -19,6 +19,8 @@ import {
   Structured,
   Updater,
   Var,
+  effect,
+  initializeEffect,
 } from "everafter";
 
 export type ArrayAtom = Var<number>;
@@ -59,36 +61,6 @@ export function num(num: ReactiveParameter<number>): CompilableNumberAtom {
 export interface Block {
   open: void;
   head: never;
-}
-
-class ArrayElementUpdate implements Updater {
-  #cursor: ArrayCursor;
-  #value: Var<number>;
-
-  constructor(cursor: ArrayCursor, value: Var<number>) {
-    this.#cursor = cursor;
-    this.#value = value;
-  }
-
-  [DEBUG](): Structured {
-    return struct("ArrayElementUpdate", {
-      pos: description(String(this.#cursor.absolutePos)),
-    });
-  }
-
-  poll(host: Host): "const" | "dynamic" {
-    let next = this.#value.compute();
-    let current = this.#cursor.current();
-
-    if (next.value === current) {
-      host.logResult(LogLevel.Info, "nothing to do");
-    } else {
-      host.logResult(LogLevel.Info, `replacing ${current} with ${next.value}`);
-      this.#cursor.replace(next.value, host);
-    }
-
-    return "dynamic";
-  }
 }
 
 export class ArrayCursor {
@@ -133,33 +105,51 @@ export class ArrayRange
   implements
     ReactiveRange<ArrayCursor, ArrayAtom>,
     AppendingReactiveRange<ArrayCursor, ArrayAtom> {
-  static from(array: number[]): ArrayRange {
-    return new ArrayRange(array, 0, array.length, null);
+  static from(array: number[], host: Host): ArrayRange {
+    return new ArrayRange(array, 0, array.length, null, host);
   }
 
   #array: number[];
   #start: number;
   #length: number;
   #parent: ArrayRange | null;
+  #host: Host;
 
   constructor(
     array: number[],
     start: number,
     length: number,
-    parent: ArrayRange | null
+    parent: ArrayRange | null,
+    host: Host
   ) {
     this.#array = array;
     this.#start = start;
     this.#length = length;
     this.#parent = parent;
+    this.#host = host;
   }
 
   append(atom: ArrayAtom): Updater {
-    let cursor = this.getCursor();
-    cursor.insert(atom.current);
-    this.#increment(1);
+    let cursor: ArrayCursor | undefined = undefined;
+    let host = this.#host;
 
-    return new ArrayElementUpdate(cursor, atom);
+    return initializeEffect(() => {
+      if (cursor === undefined) {
+        cursor = this.getCursor();
+        cursor.insert(atom.current);
+        this.#increment(1);
+      } else {
+        let next = atom.current;
+        let current = cursor.current();
+
+        if (next === current) {
+          host.logResult(LogLevel.Info, "nothing to do");
+        } else {
+          host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
+          cursor.replace(next, host);
+        }
+      }
+    });
   }
 
   getCursor(): ArrayCursor {
@@ -167,7 +157,7 @@ export class ArrayRange
   }
 
   child(): AppendingReactiveRange<ArrayCursor, ArrayAtom> {
-    return new ArrayRange(this.#array, 0, 0, this);
+    return new ArrayRange(this.#array, 0, 0, this, this.#host);
   }
 
   finalize(): ReactiveRange<ArrayCursor, ArrayAtom> {

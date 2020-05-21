@@ -94,7 +94,7 @@ class DerivedImpl<T> implements Derived<T> {
   #source: Source;
 
   constructor(callback: () => T, source: Source) {
-    this.#cache = createCache(callback);
+    this.#cache = createCache(callback, source);
     this.#source = source;
   }
 

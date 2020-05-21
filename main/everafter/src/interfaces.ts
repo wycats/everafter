@@ -11,6 +11,7 @@ import {
   printStructured,
   IntoStructured,
   intoStructured,
+  Source,
 } from "./debug/index";
 import type { CompilableAtom } from "./builder";
 
@@ -41,7 +42,7 @@ export interface ReactiveRange<Cursor, ReactiveAtom> extends Debuggable {
 
 export interface AppendingReactiveRange<Cursor, ReactiveAtom>
   extends Debuggable {
-  append(atom: ReactiveAtom): Updater;
+  append(atom: ReactiveAtom, source: Source): Updater;
   getCursor(): Cursor;
   child(): AppendingReactiveRange<Cursor, ReactiveAtom>;
   finalize(): ReactiveRange<Cursor, ReactiveAtom>;

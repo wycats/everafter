@@ -7,3 +7,4 @@ export type { Updater } from "./update";
 export * from "./utils";
 export * from "./value";
 export * from "./builder";
+export * from "./effect";

@@ -1,23 +1,44 @@
-import { memoizeTracked, isConstMemo } from "@glimmer/validator";
+import { isConstMemo, memoizeTracked } from "@glimmer/validator";
+import {
+  annotate,
+  AnnotatedFunction,
+  DEBUG,
+  Debuggable,
+  getSource,
+  Source,
+  Structured,
+} from "./debug";
 import { unwrap } from "./utils";
 
 const NULL = Symbol("NULL");
 
 const CACHE = new WeakMap<
   TrackedCache<unknown>,
-  { value: unknown; memo: () => unknown }
+  { value: unknown; memo: AnnotatedFunction<() => unknown> }
 >();
 
-export class TrackedCache<T> {
-  constructor(memo: () => T) {
+const TRACKED = Symbol("TRACKED");
+type TRACKED = typeof TRACKED;
+
+export class TrackedCache<T> implements Debuggable {
+  declare tracked: TRACKED;
+
+  constructor(memo: AnnotatedFunction<() => T>) {
     CACHE.set(this, { value: NULL, memo });
     Object.freeze(this);
   }
+
+  [DEBUG](): Structured {
+    return getSource(unwrap(CACHE.get(this)).memo)[DEBUG]();
+  }
 }
 
-export function createCache<T>(callback: () => T): TrackedCache<T> {
+export function createCache<T>(
+  callback: () => T,
+  source: Source
+): TrackedCache<T> {
   let memo = memoizeTracked(callback);
-  return new TrackedCache(memo);
+  return new TrackedCache(annotate(memo, source));
 }
 
 export function getValue<T>(cache: TrackedCache<T>): T {

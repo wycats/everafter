@@ -5,6 +5,7 @@ import {
   printStructured,
   PARENT,
   Source,
+  getSource,
 } from "./debug/index";
 import type {
   Block,
@@ -13,10 +14,10 @@ import type {
   AppendingReactiveRange,
   BlockFunction,
 } from "./interfaces";
-import { Updater, Updaters } from "./update";
+import { Updater, updaters } from "./update";
 import { invokeBlock } from "./block-primitives";
 import type { CursorAdapter } from "./builder";
-import { effect } from "./effect";
+import { effect, initializeEffect } from "./effect";
 
 /**
  * A {@link Region} is created for each area of the output. The {@link Region}
@@ -31,17 +32,22 @@ export class Region<Cursor, Atom> {
   ): Updater | void {
     let region = new Region(appender, host);
     region.renderStatic(block);
-    return region.#updaters;
+
+    if (region.#updaters.length === 0) {
+      return;
+    } else {
+      return updaters(region.#updaters, host, getSource(block));
+    }
   }
 
   #range: AppendingReactiveRange<Cursor, Atom>;
-  #updaters: Updaters;
+  #updaters: Updater[];
   #host: Host;
 
   constructor(
     range: AppendingReactiveRange<Cursor, Atom>,
     host: Host,
-    updaters: Updaters = new Updaters()
+    updaters: Updater[] = []
   ) {
     if (range instanceof Region) {
       throw new Error(`assert: can't wrap TrackedOutput around TrackedOutput`);
@@ -53,9 +59,7 @@ export class Region<Cursor, Atom> {
   }
 
   atom(reactiveAtom: Atom, source = caller(PARENT)): void {
-    this.updateWith(
-      effect(() => this.#range.append(reactiveAtom), source, this.#host)
-    );
+    this.updateWith(this.#range.append(reactiveAtom, source));
   }
 
   open<ChildCursor, ChildAtom>(
@@ -94,7 +98,7 @@ export class Region<Cursor, Atom> {
         `${printStructured(update, true)}`,
         "color: green"
       );
-      this.#updaters.add(update);
+      this.#updaters.push(update);
     }
   }
 
@@ -126,12 +130,12 @@ export class Region<Cursor, Atom> {
    *
    * @internal
    */
-  renderStatic(block: BlockFunction<Cursor, Atom>): void {
+  renderStatic(block: Block<Cursor, Atom>): void {
     let region = new Region(this.#range, this.#host);
 
     block(region, this.#host);
 
-    this.updateWith(region.#updaters);
+    this.updateWith(updaters(region.#updaters, this.#host, getSource(block)));
   }
 
   /**

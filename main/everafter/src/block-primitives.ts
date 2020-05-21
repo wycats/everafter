@@ -1,19 +1,7 @@
-import {
-  block,
-  DEBUG,
-  description,
-  LogLevel,
-  newtype,
-  struct,
-  Structured,
-  Source,
-  getSource,
-  annotate,
-} from "./debug/index";
-import type { Host, ReactiveRange, Block, BlockFunction } from "./interfaces";
+import { annotate, LogLevel, Source } from "./debug/index";
+import { initializeEffect } from "./effect";
+import type { Block, BlockFunction, Host, ReactiveRange } from "./interfaces";
 import type { Region } from "./region";
-import { createCache, getValue, isConst, TrackedCache } from "./polyfill";
-import type { Updater } from "./update";
 import type { Var } from "./value";
 
 export function conditionBlock<Cursor, Atom>(
@@ -25,42 +13,17 @@ export function conditionBlock<Cursor, Atom>(
   return annotate((output: Region<Cursor, Atom>, host: Host): void => {
     let range: ReactiveRange<Cursor, Atom> | undefined = undefined;
 
-    let cache = createCache(() => {
+    let updater = initializeEffect(() => {
       range = output.renderDynamic((region: Region<Cursor, Atom>) => {
         let isTrue = condition.current;
 
         let next = isTrue ? then : otherwise;
         invokeBlock(next, region, host);
       }, range);
-    });
+    }, source);
 
-    getValue(cache);
-    let dyn = new DynamicBlock(cache);
-
-    output.updateWith(dyn);
+    output.updateWith(updater);
   }, source);
-}
-
-class DynamicBlock implements Updater {
-  #cache: TrackedCache<void>;
-
-  constructor(cache: TrackedCache<void>) {
-    this.#cache = cache;
-  }
-
-  poll(): "const" | "dynamic" {
-    getValue(this.#cache);
-
-    if (isConst(this.#cache)) {
-      return "const";
-    } else {
-      return "dynamic";
-    }
-  }
-
-  [DEBUG](): Structured {
-    return description("DynamicBlock");
-  }
 }
 
 export function staticBlock<Cursor, Atom>(
@@ -68,7 +31,7 @@ export function staticBlock<Cursor, Atom>(
   source: Source
 ): Block<Cursor, Atom> {
   return annotate((region: Region<Cursor, Atom>): void => {
-    region.renderStatic(block);
+    region.renderStatic(annotate(block, source));
   }, source);
 }
 

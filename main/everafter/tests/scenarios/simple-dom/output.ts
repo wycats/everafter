@@ -4,6 +4,8 @@ import type {
   SimpleDocumentFragment,
   SimpleElement,
   SimpleNode,
+  SimpleText,
+  SimpleComment,
 } from "@simple-dom/interface";
 import {
   annotate,
@@ -25,8 +27,8 @@ import {
   unreachable,
   Updater,
   Var,
+  initializeEffect,
 } from "everafter";
-import { AttributeUpdate, NodeUpdate, NodeValueUpdate } from "./update";
 
 export type DefaultDomAtom = ReactiveParameter<string>;
 
@@ -151,9 +153,9 @@ export function text(
   value: ReactiveParameter<string>
 ): CompilableDomAtom<string, TextAtom> {
   let source = caller(PARENT);
-  return new CompilableDomAtom(value, source, value => output =>
-    output.atom(runtimeText(value), source)
-  );
+  return new CompilableDomAtom(value, source, value => output => {
+    output.atom(runtimeText(value), source);
+  });
 }
 
 export function comment(
@@ -317,28 +319,60 @@ export class AppendingDomRange
     }
   }
 
-  append(inline: DomAtom): Updater {
+  append(inline: DomAtom, source: Source): Updater {
     switch (inline.kind) {
       case "Text": {
-        let current = inline.data.compute();
-        let node = this.#document.createTextNode(current.value);
-        this.insert(node);
+        let node: SimpleText | undefined = undefined;
+        let doc = this.#document;
 
-        return new NodeValueUpdate(node, inline.data);
+        return initializeEffect(() => {
+          if (node === undefined) {
+            node = doc.createTextNode(inline.data.current);
+            this.insert(node);
+          } else {
+            node.nodeValue = inline.data.current;
+          }
+        }, source);
       }
 
       case "Comment": {
-        let node = this.#document.createComment(inline.data.current);
-        this.insert(node);
+        let node: SimpleComment | undefined = undefined;
+        let doc = this.#document;
 
-        return new NodeValueUpdate(node, inline.data);
+        return initializeEffect(() => {
+          if (node === undefined) {
+            node = doc.createComment(inline.data.current);
+            this.insert(node);
+          } else {
+            node.nodeValue = inline.data.current;
+          }
+        }, source);
       }
 
       case "Node": {
-        let node = inline.node.current;
-        this.insert(node);
+        let node: SimpleNode | undefined = undefined;
 
-        return new NodeUpdate(node, inline.node);
+        return initializeEffect(() => {
+          if (node === undefined) {
+            node = inline.node.current;
+            this.insert(node);
+          } else {
+            let newNode = inline.node.current;
+
+            let parent = node.parentNode;
+
+            if (parent === null) {
+              throw new Error(
+                `invariant: attempted to replace a detached node`
+              );
+            }
+
+            let nextSibling = node.nextSibling;
+            parent.removeChild(node);
+
+            parent.insertBefore(newNode, nextSibling);
+          }
+        }, source);
       }
 
       default:
@@ -380,17 +414,19 @@ class AttrRange
   }
 
   append(atom: DomAttr): Updater {
-    if (atom.ns) {
-      this.#current.setAttributeNS(
-        atom.ns.current,
-        atom.name.current,
-        atom.value.current
-      );
-    } else {
-      this.#current.setAttribute(atom.name.current, atom.value.current);
-    }
+    let element = this.#current;
 
-    return new AttributeUpdate(this.#current, atom);
+    return initializeEffect(() => {
+      if (atom.ns) {
+        element.setAttributeNS(
+          atom.ns.current,
+          atom.name.current,
+          atom.value.current
+        );
+      } else {
+        element.setAttribute(atom.name.current, atom.value.current);
+      }
+    });
   }
 
   getCursor(): SimpleElement {

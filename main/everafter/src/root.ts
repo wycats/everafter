@@ -45,9 +45,9 @@ export class RootBlock<Cursor, Atom> {
   rerender(source = caller(PARENT, "re-rendering")): void {
     this.#host.context(LogLevel.Info, source, () => {
       if (this.#update) {
-        poll(this.#update, this.#host).ifConst(
-          () => (this.#update = undefined)
-        );
+        if (!poll(this.#update, this.#host)) {
+          this.#update = undefined;
+        }
       } else {
         this.#host.logResult(LogLevel.Info, "nothing to do, no updaters");
       }

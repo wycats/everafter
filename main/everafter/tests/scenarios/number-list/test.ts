@@ -188,7 +188,7 @@ export class ListOfNumbersTest {
   ): RenderExpectation {
     this.assert.step("initial render");
     let list: number[] = [];
-    let root = program.render(state, ArrayRange.from(list));
+    let root = program.render(state, ArrayRange.from(list, this.#host));
     return new RenderExpectation(root, list, this.assert);
   }
 }
