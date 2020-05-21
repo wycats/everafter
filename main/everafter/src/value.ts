@@ -17,7 +17,7 @@ export type ReactiveResult<T> =
       value: T;
     }
   | {
-      type: "mutable";
+      type: "dynamic";
       value: T;
     };
 
@@ -77,7 +77,7 @@ class CellImpl<T> implements Cell<T> {
   }
 
   compute(): ReactiveResult<T> {
-    return { type: "mutable", value: this.current };
+    return { type: "dynamic", value: this.current };
   }
 }
 
@@ -112,7 +112,7 @@ class DerivedImpl<T> implements Derived<T> {
     if (isConst(this.#cache)) {
       return { type: "const", value: result };
     } else {
-      return { type: "mutable", value: getValue(this.#cache) };
+      return { type: "dynamic", value: getValue(this.#cache) };
     }
   }
 }

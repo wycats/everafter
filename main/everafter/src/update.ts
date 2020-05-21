@@ -1,5 +1,5 @@
 // eslint-disable-next-line import/no-cycle
-import { IsDirty } from "./unsafe";
+import { Effect } from "./effect";
 import {
   DEBUG,
   Debuggable,
@@ -7,11 +7,52 @@ import {
   AnnotatedFunction,
   Structured,
   struct,
+  description,
 } from "./debug/index";
-import type { Host, UserBlock } from "./interfaces";
+import type { Host, Block } from "./interfaces";
 
-export function poll(updater: Updater, host: Host): Updater | void {
-  return host.context(LogLevel.Info, updater, () => updater.poll(host));
+export class Poll {
+  #updater: Updater | void;
+
+  constructor(updater: Updater | void) {
+    this.#updater = updater;
+  }
+
+  get kind(): "dynamic" | "const" {
+    if (this.#updater) {
+      return "dynamic";
+    } else {
+      return "const";
+    }
+  }
+
+  ifConst(callback: () => void): void {
+    if (this.#updater === undefined) {
+      callback();
+    }
+  }
+
+  ifDynamic(callback: (updater: Updater) => void): void {
+    if (this.#updater !== undefined) {
+      callback(this.#updater);
+    }
+  }
+
+  get updater(): Updater | void {
+    return this.#updater;
+  }
+}
+
+export function poll(updater: Updater, host: Host): Poll {
+  return host.context(LogLevel.Info, updater, () => {
+    let result = updater.poll(host);
+
+    if (result === "const") {
+      return new Poll(undefined);
+    } else {
+      return new Poll(updater);
+    }
+  });
 }
 
 /**
@@ -28,92 +69,46 @@ export function poll(updater: Updater, host: Host): Updater | void {
 export interface Updater extends Debuggable {
   // poll returns an Updater if the possibility for change still exists,
   // and void if it doesn't.
-  poll(host: Host): Updater | void;
+  poll(host: Host): "const" | "dynamic";
 }
 
 export interface ReactiveRegion<Cursor, Atom> {
-  initialize(cursor: Cursor, callback: UserBlock<Cursor, Atom>): Updater;
+  initialize(cursor: Cursor, callback: Block<Cursor, Atom>): Updater;
 }
 
-/**
- * This function takes a callback.
- *
- * When the callback is executed, it performs trackable work and returns
- * an `Updater`.
- *
- * If the operation was const, the `Updater` is ignored. Otherwise, it's
- * wrapped in an `UpdatingOperation`, which implements `Updater` for the
- * operation.
- */
-export function initialize(
-  operation: AnnotatedFunction<() => Updater | void>,
-  host: Host
-): Updater | void {
-  return IsDirty.initialize(operation, host);
-}
+export class Updaters implements Updater {
+  #updaters: Updater[] = [];
 
-export type PresentUpdaters = readonly [Updater, ...Updater[]];
-
-export function toPresentUpdaters(
-  updaters: Updater[] | void
-): PresentUpdaters | void {
-  if (updaters === undefined) {
-    return;
+  add(updater: Updater): void {
+    this.#updaters.push(updater);
   }
 
-  if (updaters.length > 0) {
-    return (updaters as unknown) as PresentUpdaters;
-  }
-}
-
-export function pollUpdaters(
-  oldUpdaters: PresentUpdaters,
-  host: Host
-): Updater | void {
-  // Rebuild the updating array.
-  let newUpdaters: Updater[] = [];
-
-  // Poll each `Updater`. If `poll` produced a new `Updater`, insert
-  // it into the new updating array.
-  for (let updater of oldUpdaters) {
-    let result = host.indent(LogLevel.Info, () => poll(updater, host));
-
-    if (result !== undefined) {
-      newUpdaters.push(result);
+  *[Symbol.iterator]() {
+    for (let updater of this.#updaters) {
+      yield updater;
     }
   }
 
-  return toUpdater(newUpdaters);
-}
-
-export function toUpdater(updaters: Updater[] | void): Updater | void {
-  let present = toPresentUpdaters(updaters);
-  if (present === undefined) {
-    return;
-  } else if (present.length === 1) {
-    return present[0];
-  } else {
-    return new Updaters(present);
-  }
-}
-
-/**
- * Take a bunch of updaters and turn them into a single updater.
- */
-export class Updaters implements Updater {
-  // The updaters that should be polled when this result is polled and
-  // `#freshness` is not stale.
-  #updaters: readonly [Updater, ...Updater[]];
-
-  constructor(updaters: PresentUpdaters) {
-    this.#updaters = updaters;
-  }
-
   [DEBUG](): Structured {
-    return struct("StaticBlockResult", { updater: this.#updaters });
+    return description("Updaters");
   }
 
-  poll(host: Host): Updater | void {
-    return pollUpdaters(this.#updaters, host);
+  poll(host: Host): "const" | "dynamic" {
+    let newUpdaters: Updater[] = [];
+
+    // Poll each `Updater`. If `poll` produced a new `Updater`, insert
+    // it into the new updating array.
+    for (let updater of this.#updaters) {
+      let result = host.indent(LogLevel.Info, () => poll(updater, host));
+
+      result.ifDynamic(updater => newUpdaters.push(updater));
+    }
+
+    if (newUpdaters.length === 0) {
+      return "const";
+    } else {
+      this.#updaters = newUpdaters;
+      return "dynamic";
+    }
   }
 }

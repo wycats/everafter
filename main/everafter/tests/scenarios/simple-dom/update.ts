@@ -1,22 +1,20 @@
 import type {
-  SimpleText,
   SimpleComment,
-  SimpleNode,
   SimpleElement,
+  SimpleNode,
+  SimpleText,
 } from "@simple-dom/interface";
-import {
-  Var,
-  Updater,
-  DEBUG,
-  POLL,
-  Structured,
-  struct,
-  description,
-  DebugFields,
-  nullable,
-} from "everafter";
 import HTMLSerializer from "@simple-dom/serializer";
 import voidMap from "@simple-dom/void-map";
+import {
+  DEBUG,
+  description,
+  nullable,
+  struct,
+  Structured,
+  Updater,
+  Var,
+} from "everafter";
 import type { DomAttr } from "./output";
 
 export class AttributeUpdate implements Updater {
@@ -28,30 +26,18 @@ export class AttributeUpdate implements Updater {
     this.#attr = attr;
   }
 
-  get debugFields(): DebugFields {
-    return new DebugFields("AttributeUpdate", {
-      element: this.#element,
-      attr: this.#attr,
+  [DEBUG](): Structured {
+    return struct("AttributeUpdate", {
+      element: description(this.#element.tagName.toLowerCase()),
+      attr: struct("Attr", {
+        name: this.#attr.name,
+        value: this.#attr.value,
+        namespace: nullable(this.#attr.ns),
+      }),
     });
   }
 
-  [DEBUG](): Structured {
-    return struct(
-      "AttributeUpdate",
-      ["element", description(this.#element.tagName.toLowerCase())],
-      [
-        "attr",
-        struct(
-          "Attr",
-          ["name", this.#attr.name],
-          ["value", this.#attr.value],
-          ["namespace", nullable(this.#attr.ns)]
-        ),
-      ]
-    );
-  }
-
-  [POLL](): void | Updater {
+  poll(): "const" | "dynamic" {
     if (this.#attr.ns) {
       this.#element.setAttributeNS(
         this.#attr.ns.current,
@@ -65,7 +51,7 @@ export class AttributeUpdate implements Updater {
       );
     }
 
-    return this;
+    return "dynamic";
   }
 }
 
@@ -79,19 +65,16 @@ export class NodeValueUpdate implements Updater {
   }
 
   [DEBUG](): Structured {
-    return struct("NodeValueUpdate", [
-      "value",
-      description(this.#node.nodeValue),
-    ]);
+    return struct("NodeValueUpdate", {
+      value: description(this.#node.nodeValue),
+    });
   }
 
-  [POLL](): Updater | void {
+  poll(): "const" | "dynamic" {
     let current = this.#value.compute();
     this.#node.nodeValue = current.value;
 
-    if (current.type === "mutable") {
-      return this;
-    }
+    return current.type;
   }
 }
 
@@ -105,13 +88,12 @@ export class NodeUpdate implements Updater {
   }
 
   [DEBUG](): Structured {
-    return struct("NodeUpdate", [
-      "node",
-      description(new HTMLSerializer(voidMap).serialize(this.#node)),
-    ]);
+    return struct("NodeUpdate", {
+      node: description(new HTMLSerializer(voidMap).serialize(this.#node)),
+    });
   }
 
-  [POLL](): Updater | void {
+  poll(): "const" | "dynamic" {
     let newNode = this.#value.compute();
     let node = this.#node;
 
@@ -126,8 +108,6 @@ export class NodeUpdate implements Updater {
 
     parent.insertBefore(newNode.value, nextSibling);
 
-    if (newNode.type === "mutable") {
-      return this;
-    }
+    return newNode.type;
   }
 }

@@ -1,4 +1,4 @@
-import type { Host, CompileOperations } from "../interfaces";
+import type { Host, CompileOperations, Block } from "../interfaces";
 // eslint-disable-next-line import/no-cycle
 import {
   Compilable,
@@ -10,13 +10,13 @@ import {
 } from "./builder";
 import type { ReactiveParameter } from "./param";
 import { Source, annotate, AnnotatedFunction, getSource } from "../debug";
-import { StaticBlock, ConditionBlock, invokeBlock } from "../block-primitives";
+import { invokeBlock, conditionBlock, staticBlock } from "../block-primitives";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
 
 export interface CompilableBlock<Cursor, Atom> {
-  intoBlock(state: ReactiveState): StaticBlock<Cursor, Atom>;
+  intoBlock(state: ReactiveState): Block<Cursor, Atom>;
 }
 
 export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
@@ -43,7 +43,7 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
     let otherwise = this.#else.intoBlock(state);
 
     let func = (output: Region<Cursor, Atom>): void => {
-      let cond = new ConditionBlock<Cursor, Atom>(
+      let cond = conditionBlock<Cursor, Atom>(
         condition,
         then,
         otherwise,
@@ -90,16 +90,14 @@ export class CompilableStaticBlock<Cursor, Atom>
     }, this.#source);
   }
 
-  intoBlock(state: ReactiveState): StaticBlock<Cursor, Atom> {
+  intoBlock(state: ReactiveState): Block<Cursor, Atom> {
     let statements = this.#statements.map(s => s.compile(state));
 
-    let func = annotate((output: Region<Cursor, Atom>, host: Host): void => {
+    return staticBlock((output: Region<Cursor, Atom>, host: Host): void => {
       for (let statement of statements) {
         statement(output, host);
       }
     }, this.#source);
-
-    return new StaticBlock(func);
   }
 }
 
@@ -132,11 +130,11 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
     }, this.#source);
   }
 
-  intoBlock(state: ReactiveState): StaticBlock<ParentCursor, ParentAtom> {
+  intoBlock(state: ReactiveState): Block<ParentCursor, ParentAtom> {
     let head = this.#head.intoBlock(state);
     let body = this.#body.intoBlock(state);
 
-    let func = annotate(
+    return staticBlock(
       (region: Region<ParentCursor, ParentAtom>, host: Host): void => {
         let child = region.open(this.#adapter.runtime);
 
@@ -146,7 +144,5 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
       },
       this.#source
     );
-
-    return new StaticBlock(func);
   }
 }

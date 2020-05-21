@@ -8,7 +8,7 @@ import {
   Structured,
   getSource,
 } from "./debug/index";
-import type { Host, UserBlock, AppendingReactiveRange } from "./interfaces";
+import type { Host, Block, AppendingReactiveRange } from "./interfaces";
 import { Region } from "./region";
 import { Updater, poll } from "./update";
 
@@ -18,7 +18,7 @@ import { Updater, poll } from "./update";
  * output.
  */
 export class RootBlock<Cursor, Atom> {
-  #program: UserBlock<Cursor, Atom>;
+  #program: Block<Cursor, Atom>;
   #host: Host;
   #update: Updater | void = undefined;
 
@@ -45,7 +45,9 @@ export class RootBlock<Cursor, Atom> {
   rerender(source = caller(PARENT, "re-rendering")): void {
     this.#host.context(LogLevel.Info, source, () => {
       if (this.#update) {
-        this.#update = poll(this.#update, this.#host);
+        poll(this.#update, this.#host).ifConst(
+          () => (this.#update = undefined)
+        );
       } else {
         this.#host.logResult(LogLevel.Info, "nothing to do, no updaters");
       }

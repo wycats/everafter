@@ -1,5 +1,6 @@
 import { isDebuggable, DEBUG, Debuggable } from "./debuggable";
 import type { Dict } from "../utils";
+import { AnnotatedFunction, isAnnotated, getSource } from "./callers";
 
 /**
  * Make this a class so we get a nominal type (so it can be compared
@@ -83,6 +84,7 @@ export class List extends Structured {
 export type IntoStructured =
   | Structured
   | Debuggable
+  | AnnotatedFunction<Function>
   | readonly IntoStructured[];
 
 function isArray<T>(input: unknown | T[]): input is readonly T[] {
@@ -96,6 +98,8 @@ export function intoStructured(input: IntoStructured): Structured {
 
   if (input instanceof Structured) {
     return input;
+  } else if (isAnnotated(input)) {
+    return getSource(input)[DEBUG]();
   } else {
     return input[DEBUG]();
   }

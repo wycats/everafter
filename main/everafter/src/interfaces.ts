@@ -41,33 +41,22 @@ export interface ReactiveRange<Cursor, ReactiveAtom> extends Debuggable {
 
 export interface AppendingReactiveRange<Cursor, ReactiveAtom>
   extends Debuggable {
-  append(atom: ReactiveAtom): Updater | void;
+  append(atom: ReactiveAtom): Updater;
   getCursor(): Cursor;
   child(): AppendingReactiveRange<Cursor, ReactiveAtom>;
   finalize(): ReactiveRange<Cursor, ReactiveAtom>;
 }
 
-export type UserBlockFunction<Cursor, Atom> = (
+export type BlockFunction<Cursor, Atom> = (
   output: Region<Cursor, Atom>,
   host: Host
 ) => void;
 
-export type UserBlock<Cursor, Atom> = AnnotatedFunction<
-  UserBlockFunction<Cursor, Atom>
+export type Block<Cursor, Atom> = AnnotatedFunction<
+  BlockFunction<Cursor, Atom>
 >;
 
 export const RENDER = Symbol("RENDER");
-
-/**
- * A `Block` represents a collection of operations that correspond to an
- * exclusive part of the output.
- *
- * When a `Block` is first rendered, it produces an `Updater` that can be
- * polled to attempt to update it.
- */
-export interface Block<Cursor, Atom> extends Debuggable {
-  render(output: Region<Cursor, Atom>, host: Host): void;
-}
 
 export interface Host {
   logger: Logger;

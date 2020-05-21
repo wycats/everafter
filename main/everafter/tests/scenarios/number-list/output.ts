@@ -5,13 +5,11 @@ import {
   CompilableAtom,
   CompileOperations,
   DEBUG,
-  DebugFields,
   description,
   Evaluate,
   Host,
   LogLevel,
   PARENT,
-  POLL,
   ReactiveParameter,
   ReactiveRange,
   ReactiveState,
@@ -41,13 +39,6 @@ class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
     super();
     this.#value = value;
     this.#source = source;
-  }
-
-  get debugFields(): DebugFields {
-    return new DebugFields("CompilableDomAtom", {
-      value: this.#value,
-      caller: this.#source,
-    });
   }
 
   compile(state: ReactiveState): Evaluate<ArrayCursor, ArrayAtom> {
@@ -80,13 +71,12 @@ class ArrayElementUpdate implements Updater {
   }
 
   [DEBUG](): Structured {
-    return struct("ArrayElementUpdate", [
-      "pos",
-      description(String(this.#cursor.absolutePos)),
-    ]);
+    return struct("ArrayElementUpdate", {
+      pos: description(String(this.#cursor.absolutePos)),
+    });
   }
 
-  [POLL](host: Host): Updater {
+  poll(host: Host): "const" | "dynamic" {
     let next = this.#value.compute();
     let current = this.#cursor.current();
 
@@ -97,7 +87,7 @@ class ArrayElementUpdate implements Updater {
       this.#cursor.replace(next.value, host);
     }
 
-    return this;
+    return "dynamic";
   }
 }
 
@@ -114,14 +104,6 @@ export class ArrayCursor {
 
   get array(): number[] {
     return this.#array;
-  }
-
-  get debugFields(): DebugFields {
-    return new DebugFields("ArrayCursor", {
-      array: this.#array,
-      range: this.#range,
-      pos: this.#pos,
-    });
   }
 
   get absolutePos(): number {
@@ -172,7 +154,7 @@ export class ArrayRange
     this.#parent = parent;
   }
 
-  append(atom: ArrayAtom): void | Updater {
+  append(atom: ArrayAtom): Updater {
     let cursor = this.getCursor();
     cursor.insert(atom.current);
     this.#increment(1);

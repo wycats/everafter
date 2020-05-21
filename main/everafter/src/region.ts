@@ -4,17 +4,19 @@ import {
   LogLevel,
   printStructured,
   PARENT,
+  Source,
 } from "./debug/index";
 import type {
   Block,
   Host,
   ReactiveRange,
-  UserBlock,
   AppendingReactiveRange,
+  BlockFunction,
 } from "./interfaces";
-import { initialize, toUpdater, Updater } from "./update";
+import { Updater, Updaters } from "./update";
 import { invokeBlock } from "./block-primitives";
 import type { CursorAdapter } from "./builder";
+import { effect } from "./effect";
 
 /**
  * A {@link Region} is created for each area of the output. The {@link Region}
@@ -23,23 +25,23 @@ import type { CursorAdapter } from "./builder";
  */
 export class Region<Cursor, Atom> {
   static render<Cursor, Atom>(
-    block: UserBlock<Cursor, Atom>,
+    block: Block<Cursor, Atom>,
     appender: AppendingReactiveRange<Cursor, Atom>,
     host: Host
   ): Updater | void {
     let region = new Region(appender, host);
     region.renderStatic(block);
-    return toUpdater(region.#updaters);
+    return region.#updaters;
   }
 
   #range: AppendingReactiveRange<Cursor, Atom>;
-  #updaters: Updater[];
+  #updaters: Updaters;
   #host: Host;
 
   constructor(
     range: AppendingReactiveRange<Cursor, Atom>,
     host: Host,
-    updaters: Updater[] = []
+    updaters: Updaters = new Updaters()
   ) {
     if (range instanceof Region) {
       throw new Error(`assert: can't wrap TrackedOutput around TrackedOutput`);
@@ -52,10 +54,7 @@ export class Region<Cursor, Atom> {
 
   atom(reactiveAtom: Atom, source = caller(PARENT)): void {
     this.updateWith(
-      initialize(
-        annotate(() => this.#range.append(reactiveAtom), source),
-        this.#host
-      )
+      effect(() => this.#range.append(reactiveAtom), source, this.#host)
     );
   }
 
@@ -95,7 +94,7 @@ export class Region<Cursor, Atom> {
         `${printStructured(update, true)}`,
         "color: green"
       );
-      this.#updaters.push(update);
+      this.#updaters.add(update);
     }
   }
 
@@ -108,7 +107,7 @@ export class Region<Cursor, Atom> {
    * @internal
    */
   renderDynamic(
-    block: UserBlock<Cursor, Atom>,
+    block: BlockFunction<Cursor, Atom>,
     into?: ReactiveRange<Cursor, Atom>
   ): ReactiveRange<Cursor, Atom> {
     let cursor = into ? into.clear() : this.#range.child();
@@ -127,12 +126,12 @@ export class Region<Cursor, Atom> {
    *
    * @internal
    */
-  renderStatic(block: UserBlock<Cursor, Atom>): void {
+  renderStatic(block: BlockFunction<Cursor, Atom>): void {
     let region = new Region(this.#range, this.#host);
 
     block(region, this.#host);
 
-    this.updateWith(toUpdater(region.#updaters));
+    this.updateWith(region.#updaters);
   }
 
   /**

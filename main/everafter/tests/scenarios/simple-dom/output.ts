@@ -13,7 +13,6 @@ import {
   CompileCursorAdapter,
   CompileOperations,
   DEBUG,
-  DebugFields,
   description,
   Evaluate,
   PARENT,
@@ -140,14 +139,6 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
     this.#value = value;
     this.#source = source;
     this.#toRuntime = toRuntime;
-  }
-
-  get debugFields(): DebugFields {
-    return new DebugFields("CompilableDomAtom", {
-      value: this.#value,
-      caller: this.#source,
-      toRuntime: this.#toRuntime,
-    });
   }
 
   compile(state: ReactiveState): Evaluate<DomCursor, DomAttr> {
@@ -388,7 +379,7 @@ class AttrRange
     return this.#current;
   }
 
-  append(atom: DomAttr): void | Updater {
+  append(atom: DomAttr): Updater {
     if (atom.ns) {
       this.#current.setAttributeNS(
         atom.ns.current,

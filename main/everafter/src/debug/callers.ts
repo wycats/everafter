@@ -1,5 +1,5 @@
 import StackTracey, { StackTraceyFrame } from "stacktracey";
-import type { UserBlock, UserBlockFunction } from "../interfaces";
+import type { BlockFunction, Block } from "../interfaces";
 import { Debuggable, DEBUG } from "./debuggable";
 import { Structured, description } from "./structured";
 import { unwrap } from "../utils";
@@ -57,10 +57,14 @@ export function caller(depth: number, desc?: string): Source {
 }
 
 const ANNOTATIONS = new WeakMap<Function, Source>();
-const FAKE = Symbol("FAKE");
-type FAKE = typeof FAKE;
+const ANNOTATION = Symbol("ANNOTATION");
+type ANNOTATION = typeof ANNOTATION;
 
-export type AnnotatedFunction<F extends Function> = F & { [FAKE]: true };
+export type AnnotatedFunction<F extends Function> = F & { [ANNOTATION]: true };
+
+export function isAnnotated(v: unknown): v is AnnotatedFunction<Function> {
+  return typeof v === "function" && ANNOTATIONS.has(v);
+}
 
 export function getSource(func: AnnotatedFunction<Function>): Source {
   return unwrap(ANNOTATIONS.get(func));
@@ -93,8 +97,8 @@ export function annotate<F extends Function>(
  * Otherwise, it's fine to use {@link annotate}.
  */
 export function block<Cursor, Atom>(
-  invoke: UserBlockFunction<Cursor, Atom>,
+  invoke: BlockFunction<Cursor, Atom>,
   frame = caller(PARENT)
-): UserBlock<Cursor, Atom> {
+): Block<Cursor, Atom> {
   return annotate(invoke, frame);
 }
