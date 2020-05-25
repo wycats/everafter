@@ -75,13 +75,16 @@ export class Compiler<
     callback: (
       builder: Program<Cursor, Atom, DefaultAtom>,
       callbackParams: ReactiveDict<Params>
-    ) => void
+    ) => void,
+    source = caller(PARENT)
   ): CompiledProgram<Cursor, Atom, Params> {
     let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
-      let source = caller(PARENT);
-      let builder = new Program(this.#operations, source);
+      let builder = new Program(
+        this.#operations,
+        source.withDefaultDescription("program")
+      );
       callback(builder, this.#params.dict as ReactiveDict<Params>);
-      return builder.compile(state);
+      return builder.compile(state, this.#host);
     };
 
     return new CompiledProgram(block, this.#params, this.#host);
@@ -112,11 +115,12 @@ export class CompiledProgram<Cursor, Atom, Params extends ReactiveParameters> {
 
   render(
     dict: DynamicRuntimeValues<Params>,
-    cursor: AppendingReactiveRange<Cursor, Atom>
+    cursor: AppendingReactiveRange<Cursor, Atom>,
+    source = caller(PARENT)
   ): RootBlock<Cursor, Atom> {
     let evaluate = this.#block(this.#params.hydrate(dict));
     let block = new RootBlock(evaluate, this.#host);
-    block.render(cursor);
+    block.render(cursor, source);
     return block;
   }
 }

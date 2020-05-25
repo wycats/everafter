@@ -12,6 +12,8 @@ import {
   ReactiveParameters,
   RootBlock,
   Var,
+  named,
+  f,
 } from "everafter";
 import type * as qunit from "qunit";
 import { host, module, test } from "../../helpers";
@@ -41,16 +43,17 @@ export class ListOfNumbersTest {
       new CompileNumberArrayOps()
     );
 
-    const sum = annotate(
+    const sum = named(
       (first: Var<number>, second: Var<number>, third: Var<number>): number =>
-        first.current + second.current + third.current
+        first.current + second.current + third.current,
+      "sum"
     );
 
     const program = compiler.compile((p, { first, second, third, sum }) => {
-      p.atom(num(first));
-      p.atom(num(second));
-      p.atom(num(third));
-      p.atom(num(sum));
+      p.atom(first);
+      p.atom(second);
+      p.atom(third);
+      p.atom(sum);
     });
 
     const first = Cell(10);
@@ -90,54 +93,59 @@ export class ListOfNumbersTest {
       new CompileNumberArrayOps()
     );
 
-    const positiveSum = annotate(
+    const positiveSum = named(
       (first: Var<number>, second: Var<number>, third: Var<number>): number =>
-        first.current + second.current + third.current
+        first.current + second.current + third.current,
+      "positiveSum"
     );
 
-    const negativeSum = annotate(
+    const negativeSum = named(
       (first: Var<number>, second: Var<number>, third: Var<number>): number =>
         Math.abs(first.current) +
         Math.abs(second.current) +
-        Math.abs(third.current)
+        Math.abs(third.current),
+      "negativeSum"
     );
 
-    const abs = annotate((num: Var<number>): number => Math.abs(num.current));
+    const abs = named(
+      (num: Var<number>): number => Math.abs(num.current),
+      "abs"
+    );
 
     const program = compiler.compile((b, params) => {
       b.ifBlock(
         params.showPositive,
-        annotate(b => {
+        f(b => {
           b.ifBlock(
             params.showAbs,
-            annotate(b => {
-              b.atom(num(call(abs, params["positive.first"])));
-              b.atom(num(call(abs, params["positive.second"])));
-              b.atom(num(call(abs, params["positive.third"])));
-              b.atom(num(call(abs, params["positive.sum"])));
+            f(b => {
+              b.atom(call(abs, params["positive.first"]));
+              b.atom(call(abs, params["positive.second"]));
+              b.atom(call(abs, params["positive.third"]));
+              b.atom(call(abs, params["positive.sum"]));
             }),
-            annotate(b => {
-              b.atom(num(params["positive.first"]));
-              b.atom(num(params["positive.second"]));
-              b.atom(num(params["positive.third"]));
-              b.atom(num(params["positive.sum"]));
+            f(b => {
+              b.atom(params["positive.first"]);
+              b.atom(params["positive.second"]);
+              b.atom(params["positive.third"]);
+              b.atom(params["positive.sum"]);
             })
           );
         }),
-        annotate(b => {
+        f(b => {
           b.ifBlock(
             params["showAbs"],
-            annotate(b => {
-              b.atom(num(call(abs, params["negative.first"])));
-              b.atom(num(call(abs, params["negative.second"])));
-              b.atom(num(call(abs, params["negative.third"])));
-              b.atom(num(call(abs, params["negative.sum"])));
+            f(b => {
+              b.atom(call(abs, params["negative.first"]));
+              b.atom(call(abs, params["negative.second"]));
+              b.atom(call(abs, params["negative.third"]));
+              b.atom(call(abs, params["negative.sum"]));
             }),
-            annotate(b => {
-              b.atom(num(params["negative.first"]));
-              b.atom(num(params["negative.second"]));
-              b.atom(num(params["negative.third"]));
-              b.atom(num(params["negative.sum"]));
+            f(b => {
+              b.atom(params["negative.first"]);
+              b.atom(params["negative.second"]);
+              b.atom(params["negative.third"]);
+              b.atom(params["negative.sum"]);
             })
           );
         })

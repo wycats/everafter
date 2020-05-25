@@ -50,10 +50,11 @@ interface Dict<T = unknown> {
   [key: string]: T;
 }
 
-export function host(): Host {
+export function host(messages: string[] = []): Host {
   return defaultHost({
     showStackTraces: qunit.config.stacktraces,
     filter: filter(),
+    messages,
   });
 }
 

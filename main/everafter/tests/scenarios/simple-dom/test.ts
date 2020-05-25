@@ -20,6 +20,9 @@ import {
   ReactiveInputs,
   ReactiveParameter,
   ReactiveParametersForInputs,
+  LogLevel,
+  named,
+  f,
 } from "everafter";
 import type * as qunit from "qunit";
 import { host, module, test } from "../../helpers";
@@ -27,18 +30,19 @@ import {
   attr,
   DomCursor,
   element,
-  text,
   DomAtom,
   DefaultDomAtom,
   CompileDomOps,
   AppendingDomRange,
+  effect,
 } from "./output";
 
 @module("values")
 export class ValueTest {
   declare assert: qunit.Assert;
 
-  #host = host();
+  #testMessages: string[] = [];
+  #host = host(this.#testMessages);
 
   @test "simple values"(): void {
     const compiler = this.compiler({
@@ -48,9 +52,9 @@ export class ValueTest {
 
     // corresponds to `{{@hello}} {{@world}}`
     const program = compiler.compile((b, { hello, world }) => {
-      b.atom(text(hello));
-      b.atom(text(constant(" ")));
-      b.atom(text(world));
+      b.atom(hello);
+      b.atom(constant(" "));
+      b.atom(world);
     });
 
     // create our input state
@@ -62,18 +66,17 @@ export class ValueTest {
       "hello WORLD"
     );
 
-    // No-op rerender
-    result.rerender();
-
     // Updater
-    result.update(() => (hello.current = "goodbye"), "goodbye WORLD");
-    result.update(() => (world.current = "planet"), "goodbye PLANET");
+    result.update(() => (hello.current = "goodbye")).expect("goodbye WORLD");
+    result.update(() => (world.current = "planet")).expect("goodbye PLANET");
 
     // Reset
-    result.update(() => {
-      hello.current = "hello";
-      world.current = "world";
-    }, "hello WORLD");
+    result
+      .update(() => {
+        hello.current = "hello";
+        world.current = "world";
+      })
+      .expect("hello WORLD");
   }
 
   @test conditionals(): void {
@@ -83,19 +86,20 @@ export class ValueTest {
       showChild: Param<boolean>(),
     });
 
-    const uppercase = annotate((input: Var<string>): string =>
-      input.current.toUpperCase()
+    const uppercase = named(
+      (input: Var<string>): string => input.current.toUpperCase(),
+      "uppercase"
     );
 
     const program = compiler.compile((b, { showChild, hello, world }) => {
       b.ifBlock(
         showChild,
-        annotate(b => {
-          b.atom(text(hello));
-          b.atom(text(constant(" ")));
-          b.atom(text(call(uppercase, world)));
+        f(b => {
+          b.atom(hello);
+          b.atom(constant(" "));
+          b.atom(call(uppercase, world));
         }),
-        annotate(() => {
+        f(() => {
           /* noop */
         })
       );
@@ -114,24 +118,23 @@ export class ValueTest {
       showChild,
     }).expect("hello WORLD");
 
-    // No-op rerender
-    result.rerender();
-
     // update a cell
-    result.update(() => (hello.current = "goodbye"), "goodbye WORLD");
+    result.update(() => (hello.current = "goodbye")).expect("goodbye WORLD");
 
     // update derived
-    result.update(() => (world.current = "planet"), "goodbye PLANET");
+    result.update(() => (world.current = "planet")).expect("goodbye PLANET");
 
     // update conditional input
-    result.update(() => (showChild.current = false), "<!---->");
+    result.update(() => (showChild.current = false)).expect("<!---->");
 
     // reset
-    result.update(() => {
-      hello.current = "hello";
-      world.current = "world";
-      showChild.current = true;
-    }, "hello WORLD");
+    result
+      .update(() => {
+        hello.current = "hello";
+        world.current = "world";
+        showChild.current = true;
+      })
+      .expect("hello WORLD");
   }
 
   @test ifElse(): void {
@@ -141,8 +144,9 @@ export class ValueTest {
       showChild: Param<boolean>(),
     });
 
-    const uppercase = annotate((input: Var<string>): string =>
-      input.current.toUpperCase()
+    const uppercase = named(
+      (input: Var<string>): string => input.current.toUpperCase(),
+      "uppercase"
     );
 
     // the "program"
@@ -151,13 +155,13 @@ export class ValueTest {
     const program = compiler.compile((b, { hello, world, showChild }) => {
       b.ifBlock(
         showChild,
-        annotate(b => {
-          b.atom(text(hello));
-          b.atom(text(constant(" ")));
-          b.atom(text(world));
+        f(b => {
+          b.atom(hello);
+          b.atom(constant(" "));
+          b.atom(world);
         }),
-        annotate(b => {
-          b.atom(text(call(uppercase, hello)));
+        f(b => {
+          b.atom(call(uppercase, hello));
         })
       );
     });
@@ -175,14 +179,14 @@ export class ValueTest {
     }).expect("hello WORLD");
 
     // update a cell
-    result.update(() => (hello.current = "goodbye"), "goodbye WORLD");
+    result.update(() => (hello.current = "goodbye")).expect("goodbye WORLD");
 
     // update the input to a derived reactive value
-    result.update(() => (world.current = "planet"), "goodbye PLANET");
+    result.update(() => (world.current = "planet")).expect("goodbye PLANET");
 
-    result.update(() => (showChild.current = false), "GOODBYE");
+    result.update(() => (showChild.current = false)).expect("GOODBYE");
 
-    result.update(() => (hello.current = "hello"), "HELLO");
+    result.update(() => (hello.current = "hello")).expect("HELLO");
   }
 
   @test element(): void {
@@ -194,16 +198,17 @@ export class ValueTest {
     });
 
     const program = compiler.compile((p, { hello, world }) => {
-      let el = p.open(element("p"));
+      let el = p.open(element("p", this.#host));
       let body = el.flush();
-      body.atom(text(hello));
-      body.atom(text(constant(" ")));
-      body.atom(text(call(uppercase, world)));
+      body.atom(hello);
+      body.atom(constant(" "));
+      body.atom(call(uppercase, world));
       body.close();
     });
 
-    const uppercase = annotate((input: Var<string>): string =>
-      input.current.toUpperCase()
+    const uppercase = named(
+      (input: Var<string>): string => input.current.toUpperCase(),
+      "uppercase"
     );
 
     // create our input state
@@ -217,10 +222,14 @@ export class ValueTest {
     }).expect("<p>hello WORLD</p>");
 
     // update a cell
-    result.update(() => (hello.current = "goodbye"), "<p>goodbye WORLD</p>");
+    result
+      .update(() => (hello.current = "goodbye"))
+      .expect("<p>goodbye WORLD</p>");
 
     // update the input to a derived reactive value
-    result.update(() => (world.current = "planet"), "<p>goodbye PLANET</p>");
+    result
+      .update(() => (world.current = "planet"))
+      .expect("<p>goodbye PLANET</p>");
   }
 
   @test attributes(): void {
@@ -230,8 +239,9 @@ export class ValueTest {
       title: Param<string>(),
     });
 
-    const uppercase = annotate((input: Var<string>): string =>
-      input.current.toUpperCase()
+    const uppercase = named(
+      (input: Var<string>): string => input.current.toUpperCase(),
+      "uppercase"
     );
 
     // the "program"
@@ -239,14 +249,14 @@ export class ValueTest {
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
     const template = compiler.compile((b, { title, hello, world }) => {
       b.open(
-        element("p"),
+        element("p", this.#host),
         el => {
           el.atom(attr(constant("title"), title));
         },
         body => {
-          body.atom(text(hello));
-          body.atom(text(constant(" ")));
-          body.atom(text(call(uppercase, world)));
+          body.atom(hello);
+          body.atom(constant(" "));
+          body.atom(call(uppercase, world));
         }
       );
     });
@@ -264,21 +274,18 @@ export class ValueTest {
     }).expect(`<p title="ember">hello WORLD</p>`);
 
     // update a cell
-    result.update(
-      () => (hello.current = "goodbye"),
-      `<p title="ember">goodbye WORLD</p>`
-    );
+    result
+      .update(() => (hello.current = "goodbye"))
+      .expect(`<p title="ember">goodbye WORLD</p>`);
 
     // update the input to a derived reactive value
-    result.update(
-      () => (world.current = "planet"),
-      `<p title="ember">goodbye PLANET</p>`
-    );
+    result
+      .update(() => (world.current = "planet"))
+      .expect(`<p title="ember">goodbye PLANET</p>`);
 
-    result.update(
-      () => (title.current = "ember-octane"),
-      `<p title="ember-octane">goodbye PLANET</p>`
-    );
+    result
+      .update(() => (title.current = "ember-octane"))
+      .expect(`<p title="ember-octane">goodbye PLANET</p>`);
   }
 
   @test "nested content"(): void {
@@ -288,8 +295,9 @@ export class ValueTest {
       title: Param<string>(),
     });
 
-    const uppercase = annotate((input: Var<string>): string =>
-      input.current.toUpperCase()
+    const uppercase = named(
+      (input: Var<string>): string => input.current.toUpperCase(),
+      "uppercase"
     );
 
     // the "program"
@@ -297,14 +305,14 @@ export class ValueTest {
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
     const template = compiler.compile((p, { title, hello, world }) => {
       p.open(
-        element("p"),
+        element("p", this.#host),
         el => {
           el.atom(attr(constant("title"), title));
         },
         body => {
-          body.atom(text(hello));
-          body.atom(text(constant(" ")));
-          body.atom(text(call(uppercase, world)));
+          body.atom(hello);
+          body.atom(constant(" "));
+          body.atom(call(uppercase, world));
         }
       );
     });
@@ -322,21 +330,99 @@ export class ValueTest {
     }).expect(`<p title="ember">hello WORLD</p>`);
 
     // update a cell
-    result.update(
-      () => (hello.current = "goodbye"),
-      `<p title="ember">goodbye WORLD</p>`
-    );
+    result
+      .update(() => (hello.current = "goodbye"))
+      .expect(`<p title="ember">goodbye WORLD</p>`);
 
     // update the input to a derived reactive value
-    result.update(
-      () => (world.current = "planet"),
-      `<p title="ember">goodbye PLANET</p>`
+    result
+      .update(() => (world.current = "planet"))
+      .expect(`<p title="ember">goodbye PLANET</p>`);
+
+    result
+      .update(() => (title.current = "ember-octane"))
+      .expect(`<p title="ember-octane">goodbye PLANET</p>`);
+  }
+
+  @test destroyable() {
+    const compiler = this.compiler({
+      hello: Param<string>(),
+      world: Param<string>(),
+      showChild: Param<boolean>(),
+    });
+
+    const uppercase = named(
+      (input: Var<string>): string => input.current.toUpperCase(),
+      "uppercase"
     );
 
-    result.update(
-      () => (title.current = "ember-octane"),
-      `<p title="ember-octane">goodbye PLANET</p>`
-    );
+    const program = compiler.compile((b, { hello, world, showChild }) => {
+      b.ifBlock(
+        showChild,
+        f(b => {
+          b.atom(hello);
+          b.atom(constant(" "));
+          b.atom(world);
+          b.atom(
+            effect(
+              {
+                initialize: f(() =>
+                  this.#host.log(LogLevel.Testing, "initializing")
+                ),
+                update: f(() => this.#host.log(LogLevel.Testing, "updating")),
+                destroy: f(() =>
+                  this.#host.log(LogLevel.Testing, "destroying")
+                ),
+              },
+              this.#host
+            )
+          );
+        }),
+        f(b => {
+          b.atom(call(uppercase, hello));
+        })
+      );
+    });
+
+    // create our input state
+    let hello = Cell("hello");
+    let world = Cell("world");
+    let derivedWorld = Derived(() => uppercase(world));
+    let showChild = Cell(true);
+
+    let result = this.render(program, {
+      hello,
+      world: derivedWorld,
+      showChild,
+    })
+      .expect("hello WORLD")
+      .messages("initializing");
+
+    // update a cell, but don't change the block itself
+    result
+      .update(() => (hello.current = "goodbye"))
+      .expect("goodbye WORLD")
+      .messages("updating");
+
+    // update the input to a derived reactive value, but don't change
+    // the block itself
+    result
+      .update(() => (world.current = "planet"))
+      .expect("goodbye PLANET")
+      .messages("updating");
+
+    // update the condition to blow away the block; the child block
+    // doesn't have the effect inside, so we shouldn't see a new
+    // `initializing` message
+    result
+      .update(() => (showChild.current = false))
+      .expect("GOODBYE")
+      .messages("destroying");
+
+    result
+      .update(() => (hello.current = "hello"))
+      .expect("HELLO")
+      .messages();
   }
 
   private compiler<I extends ReactiveInputs<Dict<ReactiveParameter>>>(
@@ -356,8 +442,18 @@ export class ValueTest {
   ): RenderExpectation {
     let doc = createDocument();
     let parent = doc.createElement("div");
-    let root = program.render(state, AppendingDomRange.appending(parent));
-    return new RenderExpectation(root, parent, this.assert);
+    let root = program.render(
+      state,
+      AppendingDomRange.appending(parent, this.#host),
+      caller(PARENT)
+    );
+    let expectation = new RenderExpectation(
+      root,
+      parent,
+      this.#testMessages,
+      this.assert
+    );
+    return expectation;
   }
 }
 
@@ -365,43 +461,82 @@ class RenderExpectation {
   #invocation: RootBlock<DomCursor, DomAtom>;
   #element: SimpleElement;
   #assert: qunit.Assert;
-  #last: string | undefined = undefined;
+  #messages: string[];
 
   constructor(
     invocation: RootBlock<DomCursor, DomAtom>,
     element: SimpleElement,
+    messages: string[],
     assert: qunit.Assert
   ) {
     this.#invocation = invocation;
     this.#element = element;
+    this.#messages = messages;
     this.#assert = assert;
   }
 
-  expect(expected: string): this {
-    this.#last = expected;
-    this.assertHTML(this.#element, expected);
+  expect(expected: string, source = caller(PARENT)): this {
+    assertHTML(this.#assert, this.#element, expected);
+
+    this.rerender(expected, source);
+
     return this;
   }
 
-  rerender(): void {
-    this.#invocation.rerender(caller(PARENT));
+  private rerender(expected: string, source = caller(PARENT)): void {
+    this.#invocation.rerender(source);
 
-    if (this.#last === undefined) {
-      throw new Error(`must render before rerendering`);
-    }
-
-    this.assertHTML(this.#element, this.#last);
+    assertHTML(this.#assert, this.#element, expected, "no-op rerender");
   }
 
-  update(callback: () => void, expected: string): void {
+  messages(...expected: string[]): this {
+    this.#assert.deepEqual(this.#messages, expected);
+    this.#messages.length = 0;
+    return this;
+  }
+
+  update(callback: () => void): UpdateExpectation {
     callback();
     this.#invocation.rerender(caller(PARENT));
-    this.#last = expected;
-    this.assertHTML(this.#element, expected);
+    return new UpdateExpectation(this.#assert, this.#messages, this.#element);
+    // assertHTML(this.#assert, this.#element, expected);
+  }
+}
+
+class UpdateExpectation {
+  #assert: qunit.Assert;
+  #messages: string[];
+  #element: SimpleElement;
+
+  constructor(
+    assert: qunit.Assert,
+    messages: string[],
+    element: SimpleElement
+  ) {
+    this.#assert = assert;
+    this.#messages = messages;
+    this.#element = element;
   }
 
-  private assertHTML(element: SimpleElement, expected: string): void {
-    let actual = new HTMLSerializer(voidMap).serializeChildren(element);
-    this.#assert.equal(actual, expected, `HTML: ${expected}`);
+  expect(expected: string): this {
+    assertHTML(this.#assert, this.#element, expected);
+
+    return this;
   }
+
+  messages(...expected: string[]): this {
+    this.#assert.deepEqual(this.#messages, expected);
+    this.#messages.length = 0;
+    return this;
+  }
+}
+
+function assertHTML(
+  assert: qunit.Assert,
+  element: SimpleElement,
+  expected: string,
+  message: string = `HTML: ${expected}`
+): void {
+  let actual = new HTMLSerializer(voidMap).serializeChildren(element);
+  assert.equal(actual, expected, message);
 }

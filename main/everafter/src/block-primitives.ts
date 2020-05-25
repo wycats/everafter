@@ -1,8 +1,10 @@
-import { annotate, LogLevel, Source } from "./debug/index";
+import { annotate, LogLevel, Source, printStructured } from "./debug/index";
 import { initializeEffect } from "./effect";
-import type { Block, BlockFunction, Host, ReactiveRange } from "./interfaces";
+import type { Block, BlockFunction, Host, RenderResult } from "./interfaces";
 import type { Region } from "./region";
 import type { Var } from "./value";
+import { createCache, getValue } from "./polyfill";
+import { poll } from "./update";
 
 export function conditionBlock<Cursor, Atom>(
   condition: Var<boolean>,
@@ -10,19 +12,40 @@ export function conditionBlock<Cursor, Atom>(
   otherwise: Block<Cursor, Atom>,
   source: Source
 ): Block<Cursor, Atom> {
-  return annotate((output: Region<Cursor, Atom>, host: Host): void => {
-    let range: ReactiveRange<Cursor, Atom> | undefined = undefined;
+  return annotate((region: Region<Cursor, Atom>): void => {
+    let currentResult: RenderResult<Cursor, Atom> | undefined = undefined;
+    let currentBlock: Block<Cursor, Atom> | undefined = undefined;
+    let host = region.host;
 
-    let updater = initializeEffect(() => {
-      range = output.renderDynamic((region: Region<Cursor, Atom>) => {
+    let render = createCache(() => {
+      host.context(LogLevel.Info, source.withDefaultDescription(`if`), () => {
         let isTrue = condition.current;
+        let nextBlock = isTrue ? then : otherwise;
 
-        let next = isTrue ? then : otherwise;
-        invokeBlock(next, region, host);
-      }, range);
+        if (currentResult) {
+          if (currentBlock === nextBlock) {
+            host.logResult(LogLevel.Info, `stable block, updating contents`);
+            currentResult.rerender();
+          } else {
+            host.logResult(LogLevel.Info, `unstable block, re-rendering`);
+            currentResult = currentResult.replace(nextBlock);
+          }
+        } else {
+          currentResult = region.renderDynamic(nextBlock, source);
+          host.logResult(LogLevel.Info, printStructured(currentResult, true));
+        }
+
+        currentBlock = nextBlock;
+      });
     }, source);
 
-    output.updateWith(updater);
+    let updater = initializeEffect(
+      annotate(() => getValue(render), source),
+      host,
+      source
+    );
+
+    region.updateWith(updater);
   }, source);
 }
 
@@ -31,16 +54,15 @@ export function staticBlock<Cursor, Atom>(
   source: Source
 ): Block<Cursor, Atom> {
   return annotate((region: Region<Cursor, Atom>): void => {
-    region.renderStatic(annotate(block, source));
+    block(region);
   }, source);
 }
 
 export function invokeBlock<Cursor, Atom>(
   block: Block<Cursor, Atom>,
-  output: Region<Cursor, Atom>,
-  host: Host
+  region: Region<Cursor, Atom>
 ): void {
   let level = LogLevel.Info;
 
-  host.context(level, block, () => block(output, host));
+  region.host.context(level, block, () => block(region));
 }

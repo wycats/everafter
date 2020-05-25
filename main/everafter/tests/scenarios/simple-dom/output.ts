@@ -1,11 +1,11 @@
 import type {
   AttrNamespace,
+  SimpleComment,
   SimpleDocument,
   SimpleDocumentFragment,
   SimpleElement,
   SimpleNode,
   SimpleText,
-  SimpleComment,
 } from "@simple-dom/interface";
 import {
   annotate,
@@ -17,6 +17,10 @@ import {
   DEBUG,
   description,
   Evaluate,
+  Host,
+  initializeEffect,
+  IntoEffect,
+  intoEffect,
   PARENT,
   ReactiveParameter,
   ReactiveRange,
@@ -26,16 +30,49 @@ import {
   Structured,
   unreachable,
   Updater,
+  UserEffect,
   Var,
-  initializeEffect,
 } from "everafter";
+
+export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
+  #source: Source;
+  #effect: UserEffect<unknown>;
+  #host: Host;
+
+  constructor(source: Source, effect: UserEffect<unknown>, host: Host) {
+    super();
+    this.#source = source.withDefaultDescription("effect");
+    this.#effect = effect;
+    this.#host = host;
+  }
+
+  compile(_state: ReactiveState): Evaluate<DomCursor, DomAtom> {
+    return annotate(region => {
+      region.updateWith(
+        initializeEffect(this.#effect, this.#host, this.#source)
+      );
+    }, this.#source);
+  }
+}
+
+export function effect(
+  into: IntoEffect<unknown>,
+  host: Host,
+  source = caller(PARENT)
+): CompilableEffect {
+  source = source.withDefaultDescription("effect");
+  return new CompilableEffect(source, intoEffect(into), host);
+}
 
 export type DefaultDomAtom = ReactiveParameter<string>;
 
 export class CompileDomOps
   implements CompileOperations<DomCursor, DomAtom, DefaultDomAtom> {
-  defaultAtom(atom: DefaultDomAtom): CompilableAtom<DomCursor, DomAtom> {
-    return text(atom);
+  defaultAtom(
+    atom: DefaultDomAtom,
+    source: Source
+  ): CompilableAtom<DomCursor, DomAtom> {
+    return text(atom, source);
   }
 }
 
@@ -44,7 +81,7 @@ interface OpenElement {
   readonly value: Var<string>;
 }
 
-export class CompilableAttr implements CompilableAtom<AttrCursor, AttrAtom> {
+export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
   #name: ReactiveParameter<string>;
   #value: ReactiveParameter<string>;
   #namespace: ReactiveParameter<AttrNamespace> | null;
@@ -56,10 +93,11 @@ export class CompilableAttr implements CompilableAtom<AttrCursor, AttrAtom> {
     namespace: ReactiveParameter<AttrNamespace> | null,
     source: Source
   ) {
+    super();
     this.#name = name;
     this.#value = value;
     this.#namespace = namespace;
-    this.#source = source;
+    this.#source = source.withDefaultDescription("attr");
   }
 
   compile(state: ReactiveState): Evaluate<AttrCursor, AttrAtom> {
@@ -98,7 +136,8 @@ export function runtimeElement(name: Var<string>): OpenElement {
 }
 
 export function element(
-  tagName: string
+  tagName: string,
+  host: Host
 ): CompileCursorAdapter<
   DomCursor,
   DomAtom,
@@ -112,12 +151,12 @@ export function element(
     runtime: {
       child(range: AppendingDomRange): AttrRange {
         let element = range.document.createElement(tagName);
-        return new AttrRange(element);
+        return new AttrRange(element, host);
       },
 
       flush(parent: AppendingDomRange, child: AttrRange): AppendingDomRange {
         parent.insert(child.element);
-        return new AppendingDomRange(new DomCursor(child.element, null));
+        return new AppendingDomRange(new DomCursor(child.element, null), host);
       },
     },
   };
@@ -150,27 +189,32 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
 }
 
 export function text(
-  value: ReactiveParameter<string>
+  value: ReactiveParameter<string>,
+  source = caller(PARENT)
 ): CompilableDomAtom<string, TextAtom> {
-  let source = caller(PARENT);
+  source = source.withDefaultDescription("text");
   return new CompilableDomAtom(value, source, value => output => {
     output.atom(runtimeText(value), source);
   });
 }
 
 export function comment(
-  value: ReactiveParameter<string>
+  value: ReactiveParameter<string>,
+  source = caller(PARENT)
 ): CompilableDomAtom<string, CommentAtom> {
-  let source = caller(PARENT);
-  return new CompilableDomAtom(value, source, value => output =>
-    output.atom(runtimeComment(value), source)
+  source = source.withDefaultDescription("comment");
+  return new CompilableDomAtom(
+    value,
+    source.withDefaultDescription("text"),
+    value => output => output.atom(runtimeComment(value), source)
   );
 }
 
 export function node(
-  value: ReactiveParameter<SimpleNode>
+  value: ReactiveParameter<SimpleNode>,
+  source = caller(PARENT)
 ): CompilableDomAtom<SimpleNode, NodeAtom> {
-  let source = caller(PARENT);
+  source = source.withDefaultDescription("node");
   return new CompilableDomAtom(value, source, value => output =>
     output.atom(runtimeNode(value), source)
   );
@@ -238,11 +282,15 @@ export class DomCursor {
 }
 
 export class DomRange implements ReactiveRange<DomCursor, DomAtom> {
+  #host: Host;
+
   constructor(
     readonly parentNode: ParentNode,
     readonly start: SimpleNode,
-    readonly end: SimpleNode
+    readonly end: SimpleNode,
+    host: Host
   ) {
+    this.#host = host;
     if (start.parentNode !== end.parentNode) {
       throw new Error(
         `assert: a DomRange's start and end must have the same cursor`
@@ -258,7 +306,7 @@ export class DomRange implements ReactiveRange<DomCursor, DomAtom> {
     throw new Error("not implemented");
   }
 
-  clear(): AppendingDomRange {
+  clears(): AppendingDomRange {
     let afterLast = this.end.nextSibling;
     let current: SimpleNode | null = this.start;
 
@@ -268,21 +316,25 @@ export class DomRange implements ReactiveRange<DomCursor, DomAtom> {
       current = next;
     }
 
-    return new AppendingDomRange(new DomCursor(this.parentNode, afterLast));
+    return new AppendingDomRange(
+      new DomCursor(this.parentNode, afterLast),
+      this.#host
+    );
   }
 }
 
 export class AppendingDomRange
   implements AppendingReactiveRange<DomCursor, DomAtom> {
-  static appending(parentNode: ParentNode): AppendingDomRange {
-    return new AppendingDomRange(new DomCursor(parentNode, null));
+  static appending(parentNode: ParentNode, host: Host): AppendingDomRange {
+    return new AppendingDomRange(new DomCursor(parentNode, null), host);
   }
 
   static splicing(
     parentNode: ParentNode,
-    nextSibling: SimpleNode
+    nextSibling: SimpleNode,
+    host: Host
   ): AppendingDomRange {
-    return new AppendingDomRange(new DomCursor(parentNode, nextSibling));
+    return new AppendingDomRange(new DomCursor(parentNode, nextSibling), host);
   }
 
   declare atom: SimpleNode;
@@ -290,11 +342,13 @@ export class AppendingDomRange
   #start: SimpleNode | null = null;
   #end: SimpleNode | null = null;
   #cursor: DomCursor;
-  #document: SimpleDocument;
+  #host: Host;
+  readonly #document: SimpleDocument;
 
-  constructor(cursor: DomCursor) {
+  constructor(cursor: DomCursor, host: Host) {
     this.#cursor = cursor;
     this.#document = cursor.parentNode.ownerDocument;
+    this.#host = host;
   }
 
   get document(): SimpleDocument {
@@ -319,69 +373,85 @@ export class AppendingDomRange
     }
   }
 
-  append(inline: DomAtom, source: Source): Updater {
-    switch (inline.kind) {
+  append(atom: DomAtom, source: Source): Updater {
+    switch (atom.kind) {
       case "Text": {
-        let node: SimpleText | undefined = undefined;
         let doc = this.#document;
 
-        return initializeEffect(() => {
-          if (node === undefined) {
-            node = doc.createTextNode(inline.data.current);
-            this.insert(node);
-          } else {
-            node.nodeValue = inline.data.current;
-          }
-        }, source);
+        return initializeEffect(
+          {
+            initialize: annotate(() => {
+              let node = doc.createTextNode(atom.data.current);
+              this.insert(node);
+              return node;
+            }, source),
+            update: annotate((node: SimpleText) => {
+              node.nodeValue = atom.data.current;
+            }, source),
+          },
+          this.#host,
+          source
+        );
       }
 
       case "Comment": {
-        let node: SimpleComment | undefined = undefined;
         let doc = this.#document;
 
-        return initializeEffect(() => {
-          if (node === undefined) {
-            node = doc.createComment(inline.data.current);
-            this.insert(node);
-          } else {
-            node.nodeValue = inline.data.current;
-          }
-        }, source);
+        return initializeEffect(
+          {
+            initialize: annotate(() => {
+              let node = doc.createComment(atom.data.current);
+              this.insert(node);
+              return node;
+            }, source),
+            update: annotate((node: SimpleComment) => {
+              node.nodeValue = atom.data.current;
+            }, source),
+          },
+          this.#host,
+          source
+        );
       }
 
       case "Node": {
         let node: SimpleNode | undefined = undefined;
 
-        return initializeEffect(() => {
-          if (node === undefined) {
-            node = inline.node.current;
-            this.insert(node);
-          } else {
-            let newNode = inline.node.current;
+        return initializeEffect(
+          {
+            initialize: annotate(() => {
+              node = atom.node.current;
+              this.insert(node);
+              return node;
+            }, source),
+            update: annotate((node: SimpleNode) => {
+              let newNode = atom.node.current;
 
-            let parent = node.parentNode;
+              let parent = node.parentNode;
 
-            if (parent === null) {
-              throw new Error(
-                `invariant: attempted to replace a detached node`
-              );
-            }
+              if (parent === null) {
+                throw new Error(
+                  `invariant: attempted to replace a detached node`
+                );
+              }
 
-            let nextSibling = node.nextSibling;
-            parent.removeChild(node);
+              let nextSibling = node.nextSibling;
+              parent.removeChild(node);
 
-            parent.insertBefore(newNode, nextSibling);
-          }
-        }, source);
+              parent.insertBefore(newNode, nextSibling);
+            }, source),
+          },
+          this.#host,
+          source
+        );
       }
 
       default:
-        unreachable(inline);
+        unreachable(atom);
     }
   }
 
   child(): AppendingReactiveRange<DomCursor, DomAtom> {
-    return new AppendingDomRange(this.#cursor);
+    return new AppendingDomRange(this.#cursor, this.#host);
   }
 
   finalize(): ReactiveRange<DomCursor, DomAtom> {
@@ -392,9 +462,14 @@ export class AppendingDomRange
       let comment = doc.createComment("");
       this.insert(comment);
 
-      return new DomRange(cursor.parentNode, comment, comment);
+      return new DomRange(cursor.parentNode, comment, comment, this.#host);
     } else {
-      return new DomRange(cursor.parentNode, this.#start, this.#end);
+      return new DomRange(
+        cursor.parentNode,
+        this.#start,
+        this.#end,
+        this.#host
+      );
     }
   }
 }
@@ -404,29 +479,35 @@ class AttrRange
     AppendingReactiveRange<AttrCursor, AttrAtom>,
     ReactiveRange<AttrCursor, AttrAtom> {
   #current: SimpleElement;
+  #host: Host;
 
-  constructor(current: SimpleElement) {
+  constructor(current: SimpleElement, host: Host) {
     this.#current = current;
+    this.#host = host;
   }
 
   get element(): SimpleElement {
     return this.#current;
   }
 
-  append(atom: DomAttr): Updater {
+  append(atom: DomAttr, source: Source): Updater {
     let element = this.#current;
 
-    return initializeEffect(() => {
-      if (atom.ns) {
-        element.setAttributeNS(
-          atom.ns.current,
-          atom.name.current,
-          atom.value.current
-        );
-      } else {
-        element.setAttribute(atom.name.current, atom.value.current);
-      }
-    });
+    return initializeEffect(
+      annotate(() => {
+        if (atom.ns) {
+          element.setAttributeNS(
+            atom.ns.current,
+            atom.name.current,
+            atom.value.current
+          );
+        } else {
+          element.setAttribute(atom.name.current, atom.value.current);
+        }
+      }, source),
+      this.#host,
+      source
+    );
   }
 
   getCursor(): SimpleElement {
@@ -444,7 +525,7 @@ class AttrRange
   [DEBUG](): Structured {
     return description("AttrRange");
   }
-  clear(): AppendingReactiveRange<SimpleElement, DomAttr> {
+  clears(): AppendingReactiveRange<SimpleElement, DomAttr> {
     throw new Error(
       "Method not implemented. Is it a problem that clearing attributes doesn't make sense? Does it teach us something?"
     );

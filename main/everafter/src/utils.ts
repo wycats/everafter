@@ -13,3 +13,6 @@ export function unwrap<T>(value: T | null | undefined): T {
 
   return value;
 }
+
+export const UNDEFINED = Symbol("UNDEFINED");
+export type UNDEFINED = typeof UNDEFINED;

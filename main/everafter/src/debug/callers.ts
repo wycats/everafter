@@ -13,11 +13,23 @@ export class Source implements Debuggable {
     this.#desc = desc || null;
   }
 
+  get desc(): string | null {
+    return this.#desc;
+  }
+
   [DEBUG](): Structured {
     if (this.#desc) {
       return description(`${this.#desc} at ${this.description}`);
     } else {
       return description(this.description);
+    }
+  }
+
+  withDefaultDescription(description: string): Source {
+    if (this.#desc) {
+      return this;
+    } else {
+      return this.describe(description);
     }
   }
 
@@ -78,27 +90,52 @@ export function copyAnnotation<F extends Function>(
   return target as AnnotatedFunction<F>;
 }
 
+export function withDefaultDescription<F extends Function>(
+  f: AnnotatedFunction<F>,
+  desc: string
+): AnnotatedFunction<F> {
+  let source = getSource(f).withDefaultDescription(desc);
+  return annotate(f, source);
+}
+
 /**
  * A general-purpose function annotater. It attaches an annotation about the
  * caller's source location to the function.
  */
 export function annotate<F extends Function>(
   f: F,
-  source = caller(PARENT)
+  desc: Source
 ): AnnotatedFunction<F> {
+  let source = desc instanceof Source ? desc : caller(PARENT, desc);
+
   ANNOTATIONS.set(f, source);
   return f as AnnotatedFunction<F>;
 }
 
 /**
- * Annotate a {@link UserBlockFunction}. The main reason this function exists
- * is to get better type feedback if you pass the wrong kind of function in.
- *
- * Otherwise, it's fine to use {@link annotate}.
+ * A general-purpose function annotater. It attaches an annotation about the
+ * caller's source location to the function.
  */
-export function block<Cursor, Atom>(
-  invoke: BlockFunction<Cursor, Atom>,
-  frame = caller(PARENT)
-): Block<Cursor, Atom> {
-  return annotate(invoke, frame);
+export function f<F extends Function>(
+  f: F,
+  desc: Source = caller(PARENT)
+): AnnotatedFunction<F> {
+  let source = desc instanceof Source ? desc : caller(PARENT, desc);
+
+  ANNOTATIONS.set(f, source);
+  return f as AnnotatedFunction<F>;
+}
+
+/**
+ * A general-purpose function annotater. It attaches an annotation about the
+ * caller's source location to the function.
+ */
+export function named<F extends Function>(
+  f: F,
+  desc: string | Source
+): AnnotatedFunction<F> {
+  let source = desc instanceof Source ? desc : caller(PARENT, desc);
+
+  ANNOTATIONS.set(f, source);
+  return f as AnnotatedFunction<F>;
 }

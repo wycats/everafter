@@ -4,29 +4,34 @@ export interface LogFilter {
   info: boolean;
   internals: boolean;
   warnings: boolean;
+  testing: boolean;
 }
 
 export const ALL_LOGS = {
   info: true,
   internals: true,
   warnings: true,
+  testing: true,
 };
 
 export const INFO_LOGS = {
   info: true,
   internals: false,
   warnings: true,
+  testing: true,
 };
 
 export const WARNING_LOGS = {
   info: false,
   internals: false,
   warnings: true,
+  testing: true,
 };
 
 export const enum LogLevel {
   Info = "Info",
   Internals = "Internals",
+  Testing = "Testing",
 }
 
 export interface Logger {
@@ -53,15 +58,19 @@ export function shouldShow(filter: LogFilter, level: LogLevel): boolean {
       return filter.info;
     case LogLevel.Internals:
       return filter.internals;
+    case LogLevel.Testing:
+      return filter.testing;
   }
 }
 
 export class ConsoleLogger implements Logger {
   #showStackTrace: boolean;
   #indent = 0;
+  #testMessages: string[];
 
-  constructor(showStackTrace: boolean) {
+  constructor(showStackTrace: boolean, messages: string[]) {
     this.#showStackTrace = showStackTrace;
+    this.#testMessages = messages;
   }
 
   indent<T>(level: LogLevel, filter: LogFilter, callback: () => T): T {
@@ -86,19 +95,26 @@ export class ConsoleLogger implements Logger {
     this.#indent--;
   }
 
-  private logMethod(level: LogLevel): "debug" | "info" {
+  private logMethod(level: LogLevel): (arg: string, ...args: string[]) => void {
     switch (level) {
+      case LogLevel.Testing:
+        return (arg: string, ...args: string[]) =>
+          this.#testMessages.push(arg, ...args);
       case LogLevel.Info:
-        return "info";
+        return (arg: string, ...args: string[]) => {
+          this.logWithStackTrace(console.info, arg, ...args);
+        };
       case LogLevel.Internals:
-        return "debug";
+        return (arg: string, ...args: string[]) => {
+          this.logWithStackTrace(console.debug, arg, ...args);
+        };
       default:
         unreachable(level);
     }
   }
 
   private logWithStackTrace(
-    method: "debug" | "info",
+    method: (...args: string[]) => void,
     message: string,
     ...args: string[]
   ): void {
@@ -109,7 +125,7 @@ export class ConsoleLogger implements Logger {
       console.trace();
       console.groupEnd();
     } else {
-      console[method](indented, ...args);
+      method(indented, ...args);
     }
   }
 
@@ -123,11 +139,7 @@ export class ConsoleLogger implements Logger {
       return;
     }
 
-    let args: [string, ...string[]] = style.length
-      ? [`${"  ".repeat(this.#indent)}%c${message}`, ...style]
-      : [`${"  ".repeat(this.#indent)}${message}`];
-
-    this.logWithStackTrace(this.logMethod(level), ...args);
+    this.logMethod(level)(message, ...style);
   }
 
   begin(level: LogLevel, filter: LogFilter, string: string): void {
@@ -135,7 +147,22 @@ export class ConsoleLogger implements Logger {
       return;
     }
 
-    this.logWithStackTrace(this.logMethod(level), `-> ${string}`);
+    this.logMethod(level)(`-> ${string}`);
+  }
+
+  status(
+    level: LogLevel,
+    filter: LogFilter,
+    string: string,
+    ...style: string[]
+  ): void {
+    if (!shouldShow(filter, level)) {
+      return;
+    }
+
+    let message = style.length ? `! %c${string}` : `! ${string}`;
+
+    this.logMethod(level)(message, ...style);
   }
 
   result(
@@ -148,9 +175,9 @@ export class ConsoleLogger implements Logger {
       return;
     }
 
-    let message = style.length ? `[RESULT] %c${string}` : `[RESULT] ${string}`;
+    let message = style.length ? `= %c${string}` : `= ${string}`;
 
-    this.logWithStackTrace(this.logMethod(level), message, ...style);
+    this.logMethod(level)(message, ...style);
   }
 
   end(level: LogLevel, filter: LogFilter, string: string): void {
@@ -159,6 +186,6 @@ export class ConsoleLogger implements Logger {
     }
     let message = `<- %c${string}`;
 
-    this.logWithStackTrace("debug", message, "color: #999");
+    this.logWithStackTrace(console.debug, message, "color: #999");
   }
 }

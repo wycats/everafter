@@ -6,18 +6,22 @@ import {
   PARENT,
   Source,
   getSource,
+  DEBUG,
 } from "./debug/index";
-import type {
+import {
   Block,
   Host,
   ReactiveRange,
   AppendingReactiveRange,
   BlockFunction,
+  clearRange,
+  RenderResult,
 } from "./interfaces";
-import { Updater, updaters } from "./update";
+import { Updater, updaters, poll } from "./update";
 import { invokeBlock } from "./block-primitives";
 import type { CursorAdapter } from "./builder";
-import { effect, initializeEffect } from "./effect";
+import { associateDestructor } from "@glimmer/util";
+import { linkResource, associateDestroyableChild } from "./polyfill";
 
 /**
  * A {@link Region} is created for each area of the output. The {@link Region}
@@ -31,7 +35,7 @@ export class Region<Cursor, Atom> {
     host: Host
   ): Updater | void {
     let region = new Region(appender, host);
-    region.renderStatic(block);
+    block(region);
 
     if (region.#updaters.length === 0) {
       return;
@@ -42,6 +46,7 @@ export class Region<Cursor, Atom> {
 
   #range: AppendingReactiveRange<Cursor, Atom>;
   #updaters: Updater[];
+  #destroyers: object = Object.freeze(Object.create(null));
   #host: Host;
 
   constructor(
@@ -56,6 +61,10 @@ export class Region<Cursor, Atom> {
     this.#range = range;
     this.#host = host;
     this.#updaters = updaters;
+  }
+
+  get host(): Host {
+    return this.#host;
   }
 
   atom(reactiveAtom: Atom, source = caller(PARENT)): void {
@@ -79,7 +88,10 @@ export class Region<Cursor, Atom> {
     >,
     child: Region<ChildCursor, ChildAtom>
   ): Region<Cursor, Atom> {
-    let appender = adapter.flush(this.#range, child.#range.finalize());
+    let appender = adapter.flush(
+      this.#range,
+      finalizeRange(child.#range, child.#destroyers)
+    );
 
     return new Region(appender, this.#host, this.#updaters);
   }
@@ -98,9 +110,28 @@ export class Region<Cursor, Atom> {
         `${printStructured(update, true)}`,
         "color: green"
       );
+      linkResource(this.#destroyers, update);
       this.#updaters.push(update);
     }
   }
+
+  child(): AppendingReactiveRange<Cursor, Atom> {
+    return this.#range.child();
+  }
+
+  // /**
+  //  * A dynamic block is rendered once every time the inputs into the block
+  //  * change. Whenever the block is rendered again, the {@link ReactiveRange}
+  //  * returned from {@link renderDynamic} is cleared, and the block is rendered
+  //  * into the cursor produced by clearing the range.
+  //  *
+  //  * @internal
+  //  */
+  // renderDynamicInto(
+  //   block: BlockFunction<Cursor, Atom>,
+  //   cursor: AppendingReactiveRange<Cursor, Atom>,
+  //   source: Source
+  // ): RenderResult<Cursor, Atom> {}
 
   /**
    * A dynamic block is rendered once every time the inputs into the block
@@ -112,30 +143,29 @@ export class Region<Cursor, Atom> {
    */
   renderDynamic(
     block: BlockFunction<Cursor, Atom>,
-    into?: ReactiveRange<Cursor, Atom>
-  ): ReactiveRange<Cursor, Atom> {
-    let cursor = into ? into.clear() : this.#range.child();
-
+    source: Source,
+    cursor = this.#range.child()
+  ): RenderResult<Cursor, Atom> {
     let region = new Region(cursor, this.#host);
 
-    block(region, this.#host);
+    block(region);
 
-    return region.#range.finalize();
-  }
+    let range = finalizeRange(region.#range, region.#destroyers);
+    let update = updaters(region.#updaters, this.#host, source);
 
-  /**
-   * A static block is only rendered one time, which means that any static
-   * parts of the output will never change. Dynamic atoms or blocks *inside*
-   * the block may still change, but the block itself will not.
-   *
-   * @internal
-   */
-  renderStatic(block: Block<Cursor, Atom>): void {
-    let region = new Region(this.#range, this.#host);
+    return {
+      [DEBUG]: () => {
+        return source[DEBUG]();
+      },
 
-    block(region, this.#host);
+      rerender: () => {
+        poll(update, this.#host);
+      },
 
-    this.updateWith(updaters(region.#updaters, this.#host, getSource(block)));
+      replace: (newBlock: Block<Cursor, Atom>) => {
+        return region.renderDynamic(newBlock, source, clearRange(range));
+      },
+    };
   }
 
   /**
@@ -144,6 +174,15 @@ export class Region<Cursor, Atom> {
   renderBlock(block: Block<Cursor, Atom>): void {
     let child = new Region(this.#range, this.#host, this.#updaters);
 
-    invokeBlock(block, child, this.#host);
+    invokeBlock(block, child);
   }
+}
+
+function finalizeRange<Cursor, Atom>(
+  appendingRange: AppendingReactiveRange<Cursor, Atom>,
+  destroyers: object
+): ReactiveRange<Cursor, Atom> {
+  let range = appendingRange.finalize();
+  associateDestroyableChild(range, destroyers);
+  return range;
 }

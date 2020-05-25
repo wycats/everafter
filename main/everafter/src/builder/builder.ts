@@ -5,6 +5,7 @@ import {
   caller,
   PARENT,
   Source,
+  withDefaultDescription,
 } from "../debug/index";
 import type {
   Host,
@@ -27,15 +28,16 @@ import type { ReactiveParameter } from "./param";
 export type RuntimeState = Dict<Var>;
 
 export interface Compilable<Cursor, Atom> {
-  compile(state: ReactiveState): Evaluate<Cursor, Atom>;
+  compile(state: ReactiveState, host: Host): Evaluate<Cursor, Atom>;
 }
 
 export abstract class CompilableAtom<Cursor, Atom> {
+  declare __proto__: CompilableAtom<Cursor, Atom>;
   abstract compile(state: ReactiveState): Evaluate<Cursor, Atom>;
 }
 
 export type Evaluate<Cursor, Atom, Out = void> = AnnotatedFunction<
-  (region: Region<Cursor, Atom>, host: Host) => Out
+  (region: Region<Cursor, Atom>) => Out
 >;
 
 export interface CompileCursorAdapter<
@@ -116,25 +118,27 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom>
     return new CompilableStaticBlock(this.#statements, this.#source);
   }
 
-  invoke(compilableBlock: CompilableBlock<Cursor, Atom>): void {
+  invoke(compilableBlock: CompilableBlock<Cursor, Atom>, host: Host): void {
     this.#statements.push({
       compile: (state: ReactiveState): Evaluate<Cursor, Atom> => {
-        let block = compilableBlock.intoBlock(state);
+        let block = compilableBlock.intoBlock(state, host);
 
         return annotate(
-          (region: Region<Cursor, Atom>, host: Host) =>
-            invokeBlock(block, region, host),
+          (region: Region<Cursor, Atom>) => invokeBlock(block, region),
           this.#source
         );
       },
     });
   }
 
-  atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void {
+  atom(
+    atom: CompilableAtom<Cursor, Atom> | DefaultAtom,
+    source = caller(PARENT)
+  ): void {
     if (atom instanceof CompilableAtom) {
       this.#statements.push(atom);
     } else {
-      this.#statements.push(this.#ops.defaultAtom(atom));
+      this.#statements.push(this.#ops.defaultAtom(atom, source));
     }
   }
 
@@ -330,8 +334,8 @@ export class Program<Cursor, Atom, DefaultAtom>
     this.#statements = new StaticBlockBuilder(source, ops);
   }
 
-  compile(state: ReactiveState): Evaluate<Cursor, Atom> {
-    return this.#statements.done().compile(state);
+  compile(state: ReactiveState, host: Host): Evaluate<Cursor, Atom> {
+    return this.#statements.done().compile(state, host);
   }
 
   atom(atom: CompilableAtom<Cursor, Atom> | DefaultAtom): void {
@@ -344,7 +348,12 @@ export class Program<Cursor, Atom, DefaultAtom>
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source = caller(PARENT)
   ): void {
-    this.#statements.ifBlock(condition, then, otherwise, source);
+    this.#statements.ifBlock(
+      condition,
+      withDefaultDescription(then, "then"),
+      withDefaultDescription(otherwise, "else"),
+      source.withDefaultDescription("if")
+    );
   }
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
     adapter: CompileCursorAdapter<ChildCursor, ChildAtom, ChildDefaultAtom>

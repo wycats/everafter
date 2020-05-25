@@ -15,11 +15,9 @@ import {
   ReactiveState,
   Region,
   Source,
-  struct,
   Structured,
   Updater,
   Var,
-  effect,
   initializeEffect,
 } from "everafter";
 
@@ -129,27 +127,32 @@ export class ArrayRange
     this.#host = host;
   }
 
-  append(atom: ArrayAtom): Updater {
+  append(atom: ArrayAtom, source: Source): Updater {
     let cursor: ArrayCursor | undefined = undefined;
     let host = this.#host;
 
-    return initializeEffect(() => {
-      if (cursor === undefined) {
-        cursor = this.getCursor();
-        cursor.insert(atom.current);
-        this.#increment(1);
-      } else {
-        let next = atom.current;
-        let current = cursor.current();
-
-        if (next === current) {
-          host.logResult(LogLevel.Info, "nothing to do");
-        } else {
-          host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
-          cursor.replace(next, host);
-        }
-      }
-    });
+    return initializeEffect(
+      {
+        initialize: annotate(() => {
+          cursor = this.getCursor();
+          cursor.insert(atom.current);
+          this.#increment(1);
+          return cursor;
+        }, source),
+        update: annotate((cursor: ArrayCursor) => {
+          let next = atom.current;
+          let current = cursor.current();
+          if (next === current) {
+            host.logResult(LogLevel.Info, "nothing to do");
+          } else {
+            host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
+            cursor.replace(next, host);
+          }
+        }, source),
+      },
+      host,
+      source
+    );
   }
 
   getCursor(): ArrayCursor {
@@ -204,7 +207,7 @@ export class ArrayRange
     }
   };
 
-  clear(): ArrayRange {
+  clears(): ArrayRange {
     this.#array.splice(this.#absoluteStart(), this.#length);
     this.#decrement(this.#length);
     return this;

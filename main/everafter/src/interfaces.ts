@@ -14,9 +14,15 @@ import {
   Source,
 } from "./debug/index";
 import type { CompilableAtom } from "./builder";
+import { destroy } from "./polyfill";
 
 export interface CompileOperations<Cursor, Atom, DefaultAtom> {
-  defaultAtom(atom: DefaultAtom): CompilableAtom<Cursor, Atom>;
+  defaultAtom(atom: DefaultAtom, source: Source): CompilableAtom<Cursor, Atom>;
+}
+
+export interface RenderResult<Cursor, Atom> extends Debuggable {
+  rerender(): void;
+  replace(block: Block<Cursor, Atom>): RenderResult<Cursor, Atom>;
 }
 
 /**
@@ -37,7 +43,15 @@ export interface ReactiveRange<Cursor, ReactiveAtom> extends Debuggable {
    * When a reactive range is cleared, all of its contents are removed from
    * the output, and a new cursor is created for new content.
    */
-  clear(): AppendingReactiveRange<Cursor, ReactiveAtom>;
+  clears(): AppendingReactiveRange<Cursor, ReactiveAtom>;
+}
+
+export function clearRange<Cursor, ReactiveAtom>(
+  range: ReactiveRange<Cursor, ReactiveAtom>
+): AppendingReactiveRange<Cursor, ReactiveAtom> {
+  let appendingRange = range.clears();
+  destroy(range);
+  return appendingRange;
 }
 
 export interface AppendingReactiveRange<Cursor, ReactiveAtom>
@@ -49,8 +63,7 @@ export interface AppendingReactiveRange<Cursor, ReactiveAtom>
 }
 
 export type BlockFunction<Cursor, Atom> = (
-  output: Region<Cursor, Atom>,
-  host: Host
+  output: Region<Cursor, Atom>
 ) => void;
 
 export type Block<Cursor, Atom> = AnnotatedFunction<
@@ -64,6 +77,7 @@ export interface Host {
   filter: LogFilter;
   log(level: LogLevel, message: string, ...style: string[]): void;
   logResult(level: LogLevel, string: string, ...style: string[]): void;
+  logStatus(level: LogLevel, string: string, ...style: string[]): void;
   context<T>(level: LogLevel, structured: IntoStructured, callback: () => T): T;
   indent<T>(level: LogLevel, callback: () => T): T;
 }
@@ -71,8 +85,13 @@ export interface Host {
 export function defaultHost({
   showStackTraces = false,
   filter = INFO_LOGS,
-}: { showStackTraces?: boolean; filter?: LogFilter } = {}): Host {
-  let logger = new ConsoleLogger(showStackTraces);
+  messages = [],
+}: {
+  showStackTraces?: boolean;
+  filter?: LogFilter;
+  messages?: string[];
+} = {}): Host {
+  let logger = new ConsoleLogger(showStackTraces, messages);
 
   return {
     logger,
@@ -82,6 +101,9 @@ export function defaultHost({
     },
     logResult(level: LogLevel, message: string, ...style: string[]): void {
       logger.result(level, filter, message, ...style);
+    },
+    logStatus(level: LogLevel, message: string, ...style: string[]): void {
+      logger.status(level, filter, message, ...style);
     },
     indent<T>(level: LogLevel, callback: () => T): T {
       return logger.indent(level, filter, callback);

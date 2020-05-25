@@ -16,7 +16,7 @@ import type { Dict } from "../utils";
 import type { Var } from "../value";
 
 export interface CompilableBlock<Cursor, Atom> {
-  intoBlock(state: ReactiveState): Block<Cursor, Atom>;
+  intoBlock(state: ReactiveState, host: Host): Block<Cursor, Atom>;
 }
 
 export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
@@ -37,10 +37,10 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
     this.#source = location;
   }
 
-  compile(state: ReactiveState): Evaluate<Cursor, Atom> {
+  compile(state: ReactiveState, host: Host): Evaluate<Cursor, Atom> {
     let condition = this.#condition.hydrate(state);
-    let then = this.#then.intoBlock(state);
-    let otherwise = this.#else.intoBlock(state);
+    let then = this.#then.intoBlock(state, host);
+    let otherwise = this.#else.intoBlock(state, host);
 
     let func = (output: Region<Cursor, Atom>): void => {
       let cond = conditionBlock<Cursor, Atom>(
@@ -81,21 +81,22 @@ export class CompilableStaticBlock<Cursor, Atom>
   }
 
   compile(
-    state: ReactiveState<Dict<Var<unknown>>>
+    state: ReactiveState<Dict<Var<unknown>>>,
+    host: Host
   ): Evaluate<Cursor, Atom, void> {
-    let block = this.intoBlock(state);
+    let block = this.intoBlock(state, host);
 
-    return annotate((region, host) => {
-      invokeBlock(block, region, host);
+    return annotate(region => {
+      invokeBlock(block, region);
     }, this.#source);
   }
 
-  intoBlock(state: ReactiveState): Block<Cursor, Atom> {
-    let statements = this.#statements.map(s => s.compile(state));
+  intoBlock(state: ReactiveState, host: Host): Block<Cursor, Atom> {
+    let statements = this.#statements.map(s => s.compile(state, host));
 
-    return staticBlock((output: Region<Cursor, Atom>, host: Host): void => {
+    return staticBlock((region: Region<Cursor, Atom>): void => {
       for (let statement of statements) {
-        statement(output, host);
+        statement(region);
       }
     }, this.#source);
   }
@@ -122,27 +123,27 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
     this.#source = source;
   }
 
-  compile(state: ReactiveState): Evaluate<ParentCursor, ParentAtom, void> {
-    let block = this.intoBlock(state);
+  compile(
+    state: ReactiveState,
+    host: Host
+  ): Evaluate<ParentCursor, ParentAtom, void> {
+    let block = this.intoBlock(state, host);
 
-    return annotate((region, host) => {
-      invokeBlock(block, region, host);
+    return annotate(region => {
+      invokeBlock(block, region);
     }, this.#source);
   }
 
-  intoBlock(state: ReactiveState): Block<ParentCursor, ParentAtom> {
-    let head = this.#head.intoBlock(state);
-    let body = this.#body.intoBlock(state);
+  intoBlock(state: ReactiveState, host: Host): Block<ParentCursor, ParentAtom> {
+    let head = this.#head.intoBlock(state, host);
+    let body = this.#body.intoBlock(state, host);
 
-    return staticBlock(
-      (region: Region<ParentCursor, ParentAtom>, host: Host): void => {
-        let child = region.open(this.#adapter.runtime);
+    return staticBlock((region: Region<ParentCursor, ParentAtom>): void => {
+      let child = region.open(this.#adapter.runtime);
 
-        invokeBlock(head, child, host);
-        let grandchild = region.flush(this.#adapter.runtime, child);
-        invokeBlock(body, grandchild, host);
-      },
-      this.#source
-    );
+      invokeBlock(head, child);
+      let grandchild = region.flush(this.#adapter.runtime, child);
+      invokeBlock(body, grandchild);
+    }, this.#source);
   }
 }

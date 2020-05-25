@@ -1,6 +1,14 @@
 import { LogLevel, Source } from "./debug/index";
 import type { Block, Host } from "./interfaces";
-import { createCache, getValue, isConst, TrackedCache } from "./polyfill";
+import {
+  createCache,
+  getValue,
+  isConst,
+  TrackedCache,
+  createResource,
+  destroy,
+  linkResource,
+} from "./polyfill";
 
 export function poll(updater: Updater, host: Host): Updater | void {
   return host.context(LogLevel.Info, updater, () => {
@@ -25,7 +33,7 @@ export interface ReactiveRegion<Cursor, Atom> {
 export function updaters(list: Updater[], host: Host, source: Source): Updater {
   let current = list;
 
-  return createCache(() => {
+  let resource = createResource(() => {
     let newUpdaters: Updater[] = [];
 
     // Poll each `Updater`. If `poll` produced a new `Updater`, insert
@@ -42,4 +50,10 @@ export function updaters(list: Updater[], host: Host, source: Source): Updater {
   }, source) as Updater;
   // The entire updaters cache is initialized because the individual items
   // were initialized.
+
+  for (let updater of list) {
+    linkResource(resource, updater);
+  }
+
+  return resource;
 }
