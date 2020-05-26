@@ -1,5 +1,4 @@
 import { conditionBlock, invokeBlock, staticBlock } from "../block-primitives";
-import type { AnnotatedFunction } from "../debug";
 import type { Block, CompileOperations } from "../interfaces";
 import { Owner, Owned } from "../owner";
 import type { Region } from "../region";
@@ -50,9 +49,9 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
   }
 }
 
-export type UserBuilderBlock<Cursor, Atom, DefaultAtom> = AnnotatedFunction<
-  (builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>) => void
->;
+export type UserBuilderBlock<Cursor, Atom, DefaultAtom> = (
+  builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>
+) => void;
 
 export class CompilableStaticBlock<Cursor, Atom> extends Owned
   implements CompilableBlock<Cursor, Atom>, Compilable<Cursor, Atom> {

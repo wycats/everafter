@@ -2,14 +2,7 @@ import { Var, Const, Derived } from "../value";
 // eslint-disable-next-line import/no-cycle
 import { ReactiveState } from "./builder";
 import type { Dict } from "../utils";
-import {
-  AnnotatedFunction,
-  Debuggable,
-  DEBUG,
-  Structured,
-  newtype,
-  description,
-} from "../debug";
+import { Debuggable, DEBUG, Structured, newtype, description } from "../debug";
 
 export type ReactiveDict<
   R extends ReactiveParameters
@@ -20,7 +13,7 @@ export function constant<T>(value: T): ReactiveParameter<T> {
 }
 
 export function call<A extends Var[], B>(
-  call: AnnotatedFunction<UserCall<A, B>>,
+  call: UserCall<A, B>,
   ...inputs: ReactiveParametersForValues<A>
 ): ReactiveParameter<B> {
   return reactive(state => {

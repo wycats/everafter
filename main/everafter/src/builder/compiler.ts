@@ -1,4 +1,4 @@
-import { PARENT, caller, annotate } from "../debug/index";
+import { PARENT, caller, sourceFrame } from "../debug/index";
 import type { CompileOperations, AppendingReactiveRange } from "../interfaces";
 import type { Dict } from "../utils";
 import {

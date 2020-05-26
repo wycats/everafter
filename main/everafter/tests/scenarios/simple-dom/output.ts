@@ -8,9 +8,7 @@ import type {
   SimpleText,
 } from "@simple-dom/interface";
 import {
-  annotate,
   AppendingReactiveRange,
-  caller,
   CompilableAtom,
   CompileCursorAdapter,
   CompileOperations,
@@ -23,8 +21,8 @@ import {
   IntoEffect,
   intoEffect,
   Owned,
+  ownedNew,
   Owner,
-  PARENT,
   ReactiveParameter,
   ReactiveRange,
   ReactiveState,
@@ -34,7 +32,6 @@ import {
   Updater,
   UserEffect,
   Var,
-  ownedNew,
 } from "everafter";
 
 export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {

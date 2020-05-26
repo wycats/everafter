@@ -1,5 +1,4 @@
 import {
-  annotate,
   call,
   caller,
   Cell,
@@ -12,8 +11,7 @@ import {
   ReactiveParameters,
   RootBlock,
   Var,
-  named,
-  f,
+  sourceFrame,
 } from "everafter";
 import type * as qunit from "qunit";
 import { owner, module, test } from "../../helpers";
@@ -22,7 +20,6 @@ import {
   ArrayCursor,
   ArrayRange,
   CompileNumberArrayOps,
-  num,
 } from "./output";
 
 @module("list of numbers")
@@ -43,11 +40,11 @@ export class ListOfNumbersTest {
       new CompileNumberArrayOps()
     );
 
-    const sum = named(
-      (first: Var<number>, second: Var<number>, third: Var<number>): number =>
-        first.current + second.current + third.current,
-      "sum"
-    );
+    const sum = (
+      first: Var<number>,
+      second: Var<number>,
+      third: Var<number>
+    ): number => first.current + second.current + third.current;
 
     const program = compiler.compile((p, { first, second, third, sum }) => {
       p.atom(first);
@@ -93,62 +90,60 @@ export class ListOfNumbersTest {
       new CompileNumberArrayOps()
     );
 
-    const positiveSum = named(
-      (first: Var<number>, second: Var<number>, third: Var<number>): number =>
-        first.current + second.current + third.current,
-      "positiveSum"
-    );
+    const positiveSum = (
+      first: Var<number>,
+      second: Var<number>,
+      third: Var<number>
+    ): number => first.current + second.current + third.current;
 
-    const negativeSum = named(
-      (first: Var<number>, second: Var<number>, third: Var<number>): number =>
-        Math.abs(first.current) +
-        Math.abs(second.current) +
-        Math.abs(third.current),
-      "negativeSum"
-    );
+    const negativeSum = (
+      first: Var<number>,
+      second: Var<number>,
+      third: Var<number>
+    ): number =>
+      Math.abs(first.current) +
+      Math.abs(second.current) +
+      Math.abs(third.current);
 
-    const abs = named(
-      (num: Var<number>): number => Math.abs(num.current),
-      "abs"
-    );
+    const abs = (num: Var<number>): number => Math.abs(num.current);
 
     const program = compiler.compile((b, params) => {
       b.ifBlock(
         params.showPositive,
-        f(b => {
+        b => {
           b.ifBlock(
             params.showAbs,
-            f(b => {
+            b => {
               b.atom(call(abs, params["positive.first"]));
               b.atom(call(abs, params["positive.second"]));
               b.atom(call(abs, params["positive.third"]));
               b.atom(call(abs, params["positive.sum"]));
-            }),
-            f(b => {
+            },
+            b => {
               b.atom(params["positive.first"]);
               b.atom(params["positive.second"]);
               b.atom(params["positive.third"]);
               b.atom(params["positive.sum"]);
-            })
+            }
           );
-        }),
-        f(b => {
+        },
+        b => {
           b.ifBlock(
             params["showAbs"],
-            f(b => {
+            b => {
               b.atom(call(abs, params["negative.first"]));
               b.atom(call(abs, params["negative.second"]));
               b.atom(call(abs, params["negative.third"]));
               b.atom(call(abs, params["negative.sum"]));
-            }),
-            f(b => {
+            },
+            b => {
               b.atom(params["negative.first"]);
               b.atom(params["negative.second"]);
               b.atom(params["negative.third"]);
               b.atom(params["negative.sum"]);
-            })
+            }
           );
-        })
+        }
       );
     });
 
@@ -194,13 +189,15 @@ export class ListOfNumbersTest {
     program: CompiledProgram<ArrayCursor, ArrayAtom, ReactiveParameters>,
     state: A
   ): RenderExpectation {
-    this.assert.step("initial render");
-    let list: number[] = [];
-    let root = program.render(
-      state,
-      this.#owner.instantiate(ArrayRange.from, list)
-    );
-    return new RenderExpectation(root, list, this.assert);
+    return sourceFrame(() => {
+      this.assert.step("initial render");
+      let list: number[] = [];
+      let root = program.render(
+        state,
+        this.#owner.instantiate(ArrayRange.from, list)
+      );
+      return new RenderExpectation(root, list, this.assert);
+    }, caller(PARENT + 1));
   }
 }
 
@@ -228,7 +225,7 @@ class RenderExpectation {
 
   rerender(): void {
     this.#assert.step("no-op rerender");
-    this.#invocation.rerender(caller(PARENT));
+    this.#invocation.rerender();
 
     if (this.#last === undefined) {
       throw new Error(`must render before rerendering`);
@@ -241,7 +238,7 @@ class RenderExpectation {
   update(callback: () => void, expected: readonly number[]): void {
     this.#assert.step("updating");
     callback();
-    this.#invocation.rerender(caller(PARENT));
+    this.#invocation.rerender();
     this.assertList(expected);
     this.#assert.verifySteps(["updating"], "updating: done");
   }

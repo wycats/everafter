@@ -1,20 +1,16 @@
 import type { Evaluate } from "./builder";
 import {
-  caller,
   DEBUG,
-  LogLevel,
-  newtype,
-  PARENT,
-  Structured,
-  getSource,
-  annotate,
   description,
+  getSourceFrame,
+  LogLevel,
+  Structured,
 } from "./debug/index";
-import type { AppendingReactiveRange } from "./interfaces";
-import { Region } from "./region";
-import { Updater, poll } from "./update";
 import { initializeEffect } from "./effect";
-import { getOwner, Owned, OWNED, Owner } from "./owner";
+import type { AppendingReactiveRange } from "./interfaces";
+import { getOwner, Owned, Owner } from "./owner";
+import { Region } from "./region";
+import { poll, Updater } from "./update";
 
 /**
  * Represents the root block of the entire output. The root block is never cleared
@@ -37,6 +33,7 @@ export class RootBlock<Cursor, Atom> extends Owned {
   render(cursor: AppendingReactiveRange<Cursor, Atom>): Updater | void {
     let owner = getOwner(cursor);
     let host = owner.host;
+    let source = getSourceFrame();
 
     this.#update = owner.instantiate(initializeEffect, {
       initialize: () =>

@@ -7,10 +7,6 @@ import {
   ConsoleLogger,
   intoStructured,
   printStructured,
-  AnnotatedFunction,
-  Annotated,
-  annotate,
-  getSource,
 } from "./debug";
 import { unwrap } from "./utils";
 

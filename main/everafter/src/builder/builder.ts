@@ -1,5 +1,4 @@
 import { invokeBlock } from "../block-primitives";
-import { withDefaultDescription } from "../debug/index";
 import type { AppendingReactiveRange, CompileOperations } from "../interfaces";
 import { Factory, getOwner, Owned, Owner } from "../owner";
 import type { Region } from "../region";
@@ -339,11 +338,7 @@ export class Program<Cursor, Atom, DefaultAtom> extends Owned
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>
   ): void {
-    this.#statements.ifBlock(
-      condition,
-      withDefaultDescription(then, "then"),
-      withDefaultDescription(otherwise, "else")
-    );
+    this.#statements.ifBlock(condition, then, otherwise);
   }
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(

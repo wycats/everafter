@@ -10,9 +10,7 @@ import {
   constant,
   Derived,
   Dict,
-  f,
   LogLevel,
-  named,
   Param,
   ReactiveInputs,
   ReactiveParameter,
@@ -83,22 +81,20 @@ export class ValueTest {
       showChild: Param<boolean>(),
     });
 
-    const uppercase = named(
-      (input: Var<string>): string => input.current.toUpperCase(),
-      "uppercase"
-    );
+    const uppercase = (input: Var<string>): string =>
+      input.current.toUpperCase();
 
     const program = compiler.compile((b, { showChild, hello, world }) => {
       b.ifBlock(
         showChild,
-        f(b => {
+        b => {
           b.atom(hello);
           b.atom(constant(" "));
           b.atom(call(uppercase, world));
-        }),
-        f(() => {
+        },
+        () => {
           /* noop */
-        })
+        }
       );
     });
 
@@ -141,10 +137,8 @@ export class ValueTest {
       showChild: Param<boolean>(),
     });
 
-    const uppercase = named(
-      (input: Var<string>): string => input.current.toUpperCase(),
-      "uppercase"
-    );
+    const uppercase = (input: Var<string>): string =>
+      input.current.toUpperCase();
 
     // the "program"
     //
@@ -152,14 +146,14 @@ export class ValueTest {
     const program = compiler.compile((b, { hello, world, showChild }) => {
       b.ifBlock(
         showChild,
-        f(b => {
+        b => {
           b.atom(hello);
           b.atom(constant(" "));
           b.atom(world);
-        }),
-        f(b => {
+        },
+        b => {
           b.atom(call(uppercase, hello));
-        })
+        }
       );
     });
 
@@ -203,10 +197,8 @@ export class ValueTest {
       body.close();
     });
 
-    const uppercase = named(
-      (input: Var<string>): string => input.current.toUpperCase(),
-      "uppercase"
-    );
+    const uppercase = (input: Var<string>): string =>
+      input.current.toUpperCase();
 
     // create our input state
     let hello = Cell("hello");
@@ -236,10 +228,8 @@ export class ValueTest {
       title: Param<string>(),
     });
 
-    const uppercase = named(
-      (input: Var<string>): string => input.current.toUpperCase(),
-      "uppercase"
-    );
+    const uppercase = (input: Var<string>): string =>
+      input.current.toUpperCase();
 
     // the "program"
     //
@@ -292,10 +282,8 @@ export class ValueTest {
       title: Param<string>(),
     });
 
-    const uppercase = named(
-      (input: Var<string>): string => input.current.toUpperCase(),
-      "uppercase"
-    );
+    const uppercase = (input: Var<string>): string =>
+      input.current.toUpperCase();
 
     // the "program"
     //
@@ -348,31 +336,29 @@ export class ValueTest {
       showChild: Param<boolean>(),
     });
 
-    const uppercase = named(
-      (input: Var<string>): string => input.current.toUpperCase(),
-      "uppercase"
-    );
+    const uppercase = (input: Var<string>): string =>
+      input.current.toUpperCase();
 
     const program = compiler.compile((b, { hello, world, showChild }) => {
       let host = this.#owner.host;
 
       b.ifBlock(
         showChild,
-        f(b => {
+        b => {
           b.atom(hello);
           b.atom(constant(" "));
           b.atom(world);
           b.atom(
             effect({
-              initialize: f(() => host.log(LogLevel.Testing, "initializing")),
-              update: f(() => host.log(LogLevel.Testing, "updating")),
-              destroy: f(() => host.log(LogLevel.Testing, "destroying")),
+              initialize: () => host.log(LogLevel.Testing, "initializing"),
+              update: () => host.log(LogLevel.Testing, "updating"),
+              destroy: () => host.log(LogLevel.Testing, "destroying"),
             })
           );
-        }),
-        f(b => {
+        },
+        b => {
           b.atom(call(uppercase, hello));
-        })
+        }
       );
     });
 

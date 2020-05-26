@@ -1,19 +1,7 @@
-import {
-  caller,
-  PARENT,
-  LogLevel,
-  AnnotatedFunction,
-  isAnnotated,
-  printStructured,
-} from "./debug/index";
-import {
-  createCache,
-  getValue,
-  TrackedCache,
-  createResource,
-} from "./polyfill";
-import type { Updater, UpdaterThunk } from "./update";
+import { LogLevel } from "./debug/index";
 import type { Owner } from "./owner";
+import { createResource, getValue } from "./polyfill";
+import type { Updater } from "./update";
 
 export const POLL = Symbol("POLL");
 
@@ -28,8 +16,8 @@ export type IntoEffect<T> = UserEffect<T> | ((value: T | undefined) => void);
 export function intoEffect<T>(effect: IntoEffect<T>): UserEffect<T> {
   if (typeof effect === "function") {
     return {
-      initialize: effect as AnnotatedFunction<() => T>,
-      update: effect as AnnotatedFunction<() => T>,
+      initialize: effect as () => T,
+      update: effect as () => T,
     };
   } else {
     return effect;
