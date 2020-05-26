@@ -5,8 +5,8 @@
     "common/temp": true
   },
   "search.exclude": {
+    "**/dist": true,
     "**/node_modules": true,
-    "common/temp": true,
-    "**/dist": true
+    "common": true
   }
 }

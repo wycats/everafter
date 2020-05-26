@@ -3,38 +3,35 @@ import type { SimpleElement } from "@simple-dom/interface";
 import HTMLSerializer from "@simple-dom/serializer";
 import voidMap from "@simple-dom/void-map";
 import {
-  annotate,
-  Param,
   call,
-  caller,
   Cell,
   CompiledProgram,
+  Compiler,
   constant,
   Derived,
   Dict,
-  PARENT,
-  ReactiveParameters,
-  RootBlock,
-  Var,
-  Compiler,
-  ReactiveInputs,
-  ReactiveParameter,
-  ReactiveParametersForInputs,
+  f,
   LogLevel,
   named,
-  f,
+  Param,
+  ReactiveInputs,
+  ReactiveParameter,
+  ReactiveParameters,
+  ReactiveParametersForInputs,
+  RootBlock,
+  Var,
 } from "everafter";
 import type * as qunit from "qunit";
-import { owner, module, test } from "../../helpers";
+import { module, owner, test } from "../../helpers";
 import {
-  attr,
-  DomCursor,
-  element,
-  DomAtom,
-  DefaultDomAtom,
-  CompileDomOps,
   AppendingDomRange,
+  attr,
+  CompileDomOps,
+  DefaultDomAtom,
+  DomAtom,
+  DomCursor,
   effect,
+  element,
 } from "./output";
 
 @module("values")
@@ -439,8 +436,7 @@ export class ValueTest {
     let parent = doc.createElement("div");
     let root = program.render(
       state,
-      this.#owner.instantiate(AppendingDomRange.appending, parent),
-      caller(PARENT)
+      this.#owner.instantiate(AppendingDomRange.appending, parent)
     );
     let expectation = new RenderExpectation(
       root,
@@ -470,16 +466,16 @@ class RenderExpectation {
     this.#assert = assert;
   }
 
-  expect(expected: string, source = caller(PARENT)): this {
+  expect(expected: string): this {
     assertHTML(this.#assert, this.#element, expected);
 
-    this.rerender(expected, source);
+    this.rerender(expected);
 
     return this;
   }
 
-  private rerender(expected: string, source = caller(PARENT)): void {
-    this.#invocation.rerender(source);
+  private rerender(expected: string): void {
+    this.#invocation.rerender();
 
     assertHTML(this.#assert, this.#element, expected, "no-op rerender");
   }
@@ -492,9 +488,8 @@ class RenderExpectation {
 
   update(callback: () => void): UpdateExpectation {
     callback();
-    this.#invocation.rerender(caller(PARENT));
+    this.#invocation.rerender();
     return new UpdateExpectation(this.#assert, this.#messages, this.#element);
-    // assertHTML(this.#assert, this.#element, expected);
   }
 }
 

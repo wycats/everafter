@@ -1,6 +1,6 @@
 import { isDebuggable, DEBUG, Debuggable } from "./debuggable";
 import type { Dict } from "../utils";
-import { AnnotatedFunction, isAnnotated, getSource, Source } from "./callers";
+import { AnnotatedFunction, isAnnotated, getSource } from "./callers";
 
 /**
  * Make this a class so we get a nominal type (so it can be compared

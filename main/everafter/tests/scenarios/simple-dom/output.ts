@@ -30,7 +30,6 @@ import {
   ReactiveRange,
   ReactiveState,
   Region,
-  Source,
   Structured,
   unreachable,
   Updater,
@@ -39,30 +38,24 @@ import {
 } from "everafter";
 
 export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
-  #source: Source;
   #effect: UserEffect<unknown>;
 
-  constructor(owner: Owner, source: Source, effect: UserEffect<unknown>) {
+  constructor(owner: Owner, effect: UserEffect<unknown>) {
     super(owner);
-    this.#source = source.withDefaultDescription("effect");
     this.#effect = effect;
   }
 
   compile(_state: ReactiveState): Evaluate<DomCursor, DomAtom> {
-    return annotate(region => {
+    return region => {
       region.updateWith(
-        getOwner(this).instantiate(initializeEffect, this.#effect, this.#source)
+        getOwner(this).instantiate(initializeEffect, this.#effect)
       );
-    }, this.#source);
+    };
   }
 }
 
-export function effect(
-  into: IntoEffect<unknown>,
-  source = caller(PARENT)
-): Factory<CompilableEffect> {
-  source = source.withDefaultDescription("effect");
-  return owner => new CompilableEffect(owner, source, intoEffect(into));
+export function effect(into: IntoEffect<unknown>): Factory<CompilableEffect> {
+  return owner => new CompilableEffect(owner, intoEffect(into));
 }
 
 export type DefaultDomAtom = ReactiveParameter<string>;
@@ -70,10 +63,9 @@ export type DefaultDomAtom = ReactiveParameter<string>;
 export class CompileDomOps
   implements CompileOperations<DomCursor, DomAtom, DefaultDomAtom> {
   defaultAtom(
-    atom: DefaultDomAtom,
-    source: Source
+    atom: DefaultDomAtom
   ): Factory<CompilableAtom<DomCursor, DomAtom>> {
-    return text(atom, source);
+    return text(atom);
   }
 }
 
@@ -86,20 +78,17 @@ export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
   #name: ReactiveParameter<string>;
   #value: ReactiveParameter<string>;
   #namespace: ReactiveParameter<AttrNamespace> | null;
-  #source: Source;
 
   constructor(
     owner: Owner,
     name: ReactiveParameter<string>,
     value: ReactiveParameter<string>,
-    namespace: ReactiveParameter<AttrNamespace> | null,
-    source: Source
+    namespace: ReactiveParameter<AttrNamespace> | null
   ) {
     super(owner);
     this.#name = name;
     this.#value = value;
     this.#namespace = namespace;
-    this.#source = source.withDefaultDescription("attr");
   }
 
   compile(state: ReactiveState): Evaluate<AttrCursor, AttrAtom> {
@@ -107,7 +96,7 @@ export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
     let value = this.#value.hydrate(state);
     let ns = this.#namespace ? this.#namespace.hydrate(state) : null;
 
-    return annotate(region => region.atom({ name, value, ns }), this.#source);
+    return region => region.atom({ name, value, ns });
   }
 }
 
@@ -116,15 +105,8 @@ export function attr(
   value: ReactiveParameter<string>,
   namespace?: ReactiveParameter<AttrNamespace>
 ): Factory<CompilableAttr> {
-  let source = caller(PARENT);
   return owner =>
-    owner.instantiate(
-      factory(CompilableAttr),
-      name,
-      value,
-      namespace || null,
-      source
-    );
+    owner.instantiate(factory(CompilableAttr), name, value, namespace || null);
 }
 
 export interface DomAttr {
@@ -185,74 +167,60 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
   A
 > {
   #value: ReactiveParameter<T>;
-  #source: Source;
   #toRuntime: ToRuntime<T>;
 
   constructor(
     owner: Owner,
     value: ReactiveParameter<T>,
-    source: Source,
     toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void
   ) {
     super(owner);
 
     this.#value = value;
-    this.#source = source;
     this.#toRuntime = toRuntime;
   }
 
   compile(state: ReactiveState): Evaluate<DomCursor, DomAttr> {
     let value = this.#value.hydrate(state);
-    return annotate(this.#toRuntime(value), this.#source);
+    return this.#toRuntime(value);
   }
 }
 
 export function text(
-  value: ReactiveParameter<string>,
-  source = caller(PARENT)
+  value: ReactiveParameter<string>
 ): Factory<CompilableDomAtom<string, TextAtom>> {
-  source = source.withDefaultDescription("text");
   return owner =>
     owner.instantiate(
       factory(CompilableDomAtom),
       value,
-      source,
       (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
-        region.atom(runtimeText(value), source);
+        region.atom(runtimeText(value));
       }
     );
 }
 
 export function comment(
-  value: ReactiveParameter<string>,
-  source = caller(PARENT)
+  value: ReactiveParameter<string>
 ): Factory<CompilableDomAtom<string, CommentAtom>> {
-  source = source.withDefaultDescription("comment");
-
   return owner =>
     owner.instantiate(
       factory(CompilableDomAtom),
       value,
-      source,
       (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
-        region.atom(runtimeComment(value), source);
+        region.atom(runtimeComment(value));
       }
     );
 }
 
 export function node(
-  value: ReactiveParameter<SimpleNode>,
-  source = caller(PARENT)
+  value: ReactiveParameter<SimpleNode>
 ): Factory<CompilableDomAtom<SimpleNode, NodeAtom>> {
-  source = source.withDefaultDescription("node");
-
   return owner =>
     owner.instantiate(
       factory(CompilableDomAtom),
       value,
-      source,
       (value: Var<SimpleNode>) => (region: Region<DomCursor, DomAtom>) => {
-        region.atom(runtimeNode(value), source);
+        region.atom(runtimeNode(value));
       }
     );
 }
@@ -415,76 +383,64 @@ export class AppendingDomRange extends Owned
     }
   }
 
-  append(atom: DomAtom, source: Source): Updater {
+  append(atom: DomAtom): Updater {
     switch (atom.kind) {
       case "Text": {
         let doc = this.#document;
 
-        return getOwner(this).instantiate(
-          initializeEffect,
-          {
-            initialize: annotate(() => {
-              let node = doc.createTextNode(atom.data.current);
-              this.insert(node);
-              return node;
-            }, source),
-            update: annotate((node: SimpleText) => {
-              node.nodeValue = atom.data.current;
-            }, source),
+        return getOwner(this).instantiate(initializeEffect, {
+          initialize: () => {
+            let node = doc.createTextNode(atom.data.current);
+            this.insert(node);
+            return node;
           },
-          source
-        );
+          update: (node: SimpleText) => {
+            node.nodeValue = atom.data.current;
+          },
+        });
       }
 
       case "Comment": {
         let doc = this.#document;
 
-        return getOwner(this).instantiate(
-          initializeEffect,
-          {
-            initialize: annotate(() => {
-              let node = doc.createComment(atom.data.current);
-              this.insert(node);
-              return node;
-            }, source),
-            update: annotate((node: SimpleComment) => {
-              node.nodeValue = atom.data.current;
-            }, source),
+        return getOwner(this).instantiate(initializeEffect, {
+          initialize: () => {
+            let node = doc.createComment(atom.data.current);
+            this.insert(node);
+            return node;
           },
-          source
-        );
+          update: (node: SimpleComment) => {
+            node.nodeValue = atom.data.current;
+          },
+        });
       }
 
       case "Node": {
         let node: SimpleNode | undefined = undefined;
 
-        return getOwner(this).instantiate(
-          initializeEffect,
-          {
-            initialize: annotate(() => {
-              node = atom.node.current;
-              this.insert(node);
-              return node;
-            }, source),
-            update: annotate((node: SimpleNode) => {
-              let newNode = atom.node.current;
-
-              let parent = node.parentNode;
-
-              if (parent === null) {
-                throw new Error(
-                  `invariant: attempted to replace a detached node`
-                );
-              }
-
-              let nextSibling = node.nextSibling;
-              parent.removeChild(node);
-
-              parent.insertBefore(newNode, nextSibling);
-            }, source),
+        return getOwner(this).instantiate(initializeEffect, {
+          initialize: () => {
+            node = atom.node.current;
+            this.insert(node);
+            return node;
           },
-          source
-        );
+          update: (node: SimpleNode) => {
+            let newNode = atom.node.current;
+
+            let parent = node.parentNode;
+
+            if (parent === null) {
+              throw new Error(
+                `invariant: attempted to replace a detached node`
+              );
+            }
+
+            let nextSibling = node.nextSibling;
+            parent.removeChild(node);
+
+            parent.insertBefore(newNode, nextSibling);
+          },
+        });
       }
 
       default:
@@ -536,24 +492,20 @@ class AttrRange extends Owned
     return this.#current;
   }
 
-  append(atom: DomAttr, source: Source): Updater {
+  append(atom: DomAttr): Updater {
     let element = this.#current;
 
-    return getOwner(this).instantiate(
-      initializeEffect,
-      annotate(() => {
-        if (atom.ns) {
-          element.setAttributeNS(
-            atom.ns.current,
-            atom.name.current,
-            atom.value.current
-          );
-        } else {
-          element.setAttribute(atom.name.current, atom.value.current);
-        }
-      }, source),
-      source
-    );
+    return getOwner(this).instantiate(initializeEffect, () => {
+      if (atom.ns) {
+        element.setAttributeNS(
+          atom.ns.current,
+          atom.name.current,
+          atom.value.current
+        );
+      } else {
+        element.setAttribute(atom.name.current, atom.value.current);
+      }
+    });
   }
 
   getCursor(): SimpleElement {

@@ -1,29 +1,24 @@
 import {
-  annotate,
   AppendingReactiveRange,
-  caller,
   CompilableAtom,
   CompileOperations,
   DEBUG,
   description,
   Evaluate,
+  factory,
+  Factory,
+  getOwner,
   initializeEffect,
   LogLevel,
-  PARENT,
+  Owned,
+  Owner,
   ReactiveParameter,
   ReactiveRange,
   ReactiveState,
   Region,
-  Source,
   Structured,
-  UpdaterThunk,
-  Var,
-  Owned,
-  Owner,
-  getOwner,
-  factory,
   Updater,
-  Factory,
+  Var,
 } from "everafter";
 
 export type ArrayAtom = Var<number>;
@@ -38,30 +33,25 @@ export class CompileNumberArrayOps
 
 class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   #value: ReactiveParameter<number>;
-  #source: Source;
 
-  constructor(owner: Owner, value: ReactiveParameter<number>, source: Source) {
+  constructor(owner: Owner, value: ReactiveParameter<number>) {
     super(owner);
     this.#value = value;
-    this.#source = source;
   }
 
   compile(state: ReactiveState): Evaluate<ArrayCursor, ArrayAtom> {
     let value = this.#value.hydrate(state);
 
-    let func = (output: Region<ArrayCursor, ArrayAtom>): void => {
-      output.atom(value, this.#source);
+    return (output: Region<ArrayCursor, ArrayAtom>): void => {
+      output.atom(value);
     };
-
-    return annotate(func, this.#source);
   }
 }
 
 export function num(
   num: ReactiveParameter<number>
 ): Factory<CompilableNumberAtom> {
-  return owner =>
-    owner.instantiate(factory(CompilableNumberAtom), num, caller(PARENT));
+  return owner => owner.instantiate(factory(CompilableNumberAtom), num);
 }
 
 export interface Block {
@@ -135,33 +125,29 @@ export class ArrayRange extends Owned
     this.#parent = parent;
   }
 
-  append(atom: ArrayAtom, source: Source): Updater {
+  append(atom: ArrayAtom): Updater {
     let cursor: ArrayCursor | undefined = undefined;
     let owner = getOwner(this);
     let host = owner.host;
 
-    return owner.instantiate(
-      initializeEffect,
-      {
-        initialize: annotate(() => {
-          cursor = this.getCursor();
-          cursor.insert(atom.current);
-          this.#increment(1);
-          return cursor;
-        }, source),
-        update: annotate((cursor: ArrayCursor) => {
-          let next = atom.current;
-          let current = cursor.current();
-          if (next === current) {
-            host.logResult(LogLevel.Info, "nothing to do");
-          } else {
-            host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
-            cursor.replace(next);
-          }
-        }, source),
+    return owner.instantiate(initializeEffect, {
+      initialize: () => {
+        cursor = this.getCursor();
+        cursor.insert(atom.current);
+        this.#increment(1);
+        return cursor;
       },
-      source
-    );
+      update: (cursor: ArrayCursor) => {
+        let next = atom.current;
+        let current = cursor.current();
+        if (next === current) {
+          host.logResult(LogLevel.Info, "nothing to do");
+        } else {
+          host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
+          cursor.replace(next);
+        }
+      },
+    });
   }
 
   getCursor(): ArrayCursor {

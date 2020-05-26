@@ -1,23 +1,14 @@
-import { isConstMemo, memoizeTracked } from "@glimmer/validator";
 import {
-  annotate,
-  AnnotatedFunction,
-  DEBUG,
-  Debuggable,
-  getSource,
-  Source,
-  Structured,
-  description,
-} from "./debug";
-import { unwrap } from "./utils";
-import {
+  associate,
   associateDestructor,
   destructor,
-  associate,
-  willDestroyAssociated,
   didDestroyAssociated,
+  willDestroyAssociated,
 } from "@glimmer/util";
-import { Owner, factory, getOwner, Owned, setOwner } from "./owner";
+import { isConstMemo, memoizeTracked } from "@glimmer/validator";
+import { DEBUG, Debuggable, description, Structured } from "./debug";
+import { Owned, Owner, setOwner } from "./owner";
+import { unwrap } from "./utils";
 
 if (DEBUG === undefined) {
   debugger;
@@ -27,7 +18,7 @@ const NULL = Symbol("NULL");
 
 const CACHE = new WeakMap<
   TrackedCache<unknown>,
-  { value: unknown; memo: AnnotatedFunction<() => unknown> }
+  { value: unknown; memo: () => unknown }
 >();
 
 const TRACKED = Symbol("TRACKED");
@@ -36,13 +27,13 @@ type TRACKED = typeof TRACKED;
 export class TrackedCache<T> implements Debuggable {
   declare tracked: TRACKED;
 
-  constructor(memo: AnnotatedFunction<() => T>) {
+  constructor(memo: () => T) {
     CACHE.set(this, { value: NULL, memo });
     Object.freeze(this);
   }
 
   [DEBUG](): Structured {
-    return getSource(unwrap(CACHE.get(this)).memo)[DEBUG]();
+    return description("TrackedCache");
   }
 }
 
@@ -65,17 +56,9 @@ export function hasDescription<T extends object>(o: T): o is HasDescription<T> {
   return DESCRIPTION.has(o);
 }
 
-export function createCache<T>(
-  callback: () => T,
-  source: Source
-): TrackedCache<T> {
+export function createCache<T>(callback: () => T): TrackedCache<T> {
   let memo = memoizeTracked(callback);
-  let cache = new TrackedCache(annotate(memo, source));
-
-  let desc = source.desc;
-  if (desc) {
-    describe(cache, description(desc));
-  }
+  let cache = new TrackedCache(memo);
 
   return cache;
 }
@@ -95,11 +78,7 @@ export function isConst(cache: TrackedCache<unknown>): boolean {
 }
 
 export class Resource<T> extends TrackedCache<T> implements Owned {
-  constructor(
-    owner: Owner,
-    memo: AnnotatedFunction<() => T>,
-    destructor?: () => void
-  ) {
+  constructor(owner: Owner, memo: () => T, destructor?: () => void) {
     super(memo);
     setOwner(this, owner);
 
@@ -111,11 +90,10 @@ export class Resource<T> extends TrackedCache<T> implements Owned {
 
 export function createResource<T>(
   memo: () => T,
-  source: Source,
   owner: Owner,
   destructor?: () => void
 ): Resource<T> {
-  return new Resource(owner, annotate(memo, source), destructor);
+  return new Resource(owner, memo, destructor);
 }
 
 export function linkResource(

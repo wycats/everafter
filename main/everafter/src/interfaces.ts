@@ -1,15 +1,12 @@
 import type { CompilableAtom } from "./builder";
-import type { AnnotatedFunction, Debuggable, Source } from "./debug/index";
-import type { Owned, Factory } from "./owner";
+import type { Debuggable } from "./debug/index";
+import type { Factory, Owned } from "./owner";
 import { destroy } from "./polyfill";
 import type { Region } from "./region";
-import type { UpdaterThunk, Updater } from "./update";
+import type { Updater } from "./update";
 
 export interface CompileOperations<Cursor, Atom, DefaultAtom> {
-  defaultAtom(
-    atom: DefaultAtom,
-    source: Source
-  ): Factory<CompilableAtom<Cursor, Atom>>;
+  defaultAtom(atom: DefaultAtom): Factory<CompilableAtom<Cursor, Atom>>;
 }
 
 export interface RenderResult<Cursor, Atom> extends Debuggable {
@@ -49,7 +46,7 @@ export function clearRange<Cursor, ReactiveAtom>(
 export interface AppendingReactiveRange<Cursor, ReactiveAtom>
   extends Debuggable,
     Owned {
-  append(atom: ReactiveAtom, source: Source): Updater;
+  append(atom: ReactiveAtom): Updater;
   getCursor(): Cursor;
   child(): AppendingReactiveRange<Cursor, ReactiveAtom>;
   finalize(): ReactiveRange<Cursor, ReactiveAtom>;
@@ -59,8 +56,6 @@ export type BlockFunction<Cursor, Atom> = (
   output: Region<Cursor, Atom>
 ) => void;
 
-export type Block<Cursor, Atom> = AnnotatedFunction<
-  BlockFunction<Cursor, Atom>
->;
+export type Block<Cursor, Atom> = BlockFunction<Cursor, Atom>;
 
 export const RENDER = Symbol("RENDER");

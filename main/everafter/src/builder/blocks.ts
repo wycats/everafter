@@ -1,20 +1,20 @@
-import type { CompileOperations, Block } from "../interfaces";
-// eslint-disable-next-line import/no-cycle
-import {
-  Compilable,
-  ReactiveState,
-  Evaluate,
-  StaticBlockBuilder,
-  Statement,
-  CompileCursorAdapter,
-} from "./builder";
-import type { ReactiveParameter } from "./param";
-import { Source, annotate, AnnotatedFunction, getSource } from "../debug";
-import { invokeBlock, conditionBlock, staticBlock } from "../block-primitives";
+import { conditionBlock, invokeBlock, staticBlock } from "../block-primitives";
+import type { AnnotatedFunction } from "../debug";
+import type { Block, CompileOperations } from "../interfaces";
+import { factory, Owner } from "../owner";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
-import { Owner, factory } from "../owner";
+// eslint-disable-next-line import/no-cycle
+import {
+  Compilable,
+  CompileCursorAdapter,
+  Evaluate,
+  ReactiveState,
+  Statement,
+  StaticBlockBuilder,
+} from "./builder";
+import type { ReactiveParameter } from "./param";
 
 export interface CompilableBlock<Cursor, Atom> {
   intoBlock(state: ReactiveState): Block<Cursor, Atom>;
@@ -24,18 +24,15 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
   #condition: ReactiveParameter<boolean>;
   #then: CompilableBlock<Cursor, Atom>;
   #else: CompilableBlock<Cursor, Atom>;
-  #source: Source;
 
   constructor(
     condition: ReactiveParameter<boolean>,
     then: CompilableBlock<Cursor, Atom>,
-    otherwise: CompilableBlock<Cursor, Atom>,
-    location: Source
+    otherwise: CompilableBlock<Cursor, Atom>
   ) {
     this.#condition = condition;
     this.#then = then;
     this.#else = otherwise;
-    this.#source = location;
   }
 
   compile(state: ReactiveState): Evaluate<Cursor, Atom> {
@@ -44,17 +41,12 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
     let otherwise = this.#else.intoBlock(state);
 
     let func = (output: Region<Cursor, Atom>): void => {
-      let cond = conditionBlock<Cursor, Atom>(
-        condition,
-        then,
-        otherwise,
-        this.#source
-      );
+      let cond = conditionBlock<Cursor, Atom>(condition, then, otherwise);
 
       output.renderBlock(cond);
     };
 
-    return annotate(func, this.#source);
+    return func;
   }
 }
 
@@ -69,21 +61,15 @@ export class CompilableStaticBlock<Cursor, Atom>
     block: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     ops: CompileOperations<Cursor, Atom, DefaultAtom>
   ): CompilableBlock<Cursor, Atom> {
-    let builder = owner.instantiate(
-      factory(StaticBlockBuilder),
-      getSource(block),
-      ops
-    );
+    let builder = owner.instantiate(factory(StaticBlockBuilder), ops);
     block(builder);
     return builder.done();
   }
 
   #statements: readonly Statement<Cursor, Atom>[];
-  #source: Source;
 
-  constructor(statements: readonly Statement<Cursor, Atom>[], source: Source) {
+  constructor(statements: readonly Statement<Cursor, Atom>[]) {
     this.#statements = statements;
-    this.#source = source;
   }
 
   compile(
@@ -91,19 +77,19 @@ export class CompilableStaticBlock<Cursor, Atom>
   ): Evaluate<Cursor, Atom, void> {
     let block = this.intoBlock(state);
 
-    return annotate(region => {
+    return region => {
       invokeBlock(block, region);
-    }, this.#source);
+    };
   }
 
   intoBlock(state: ReactiveState): Block<Cursor, Atom> {
     let statements = this.#statements.map(s => s.compile(state));
 
-    return staticBlock((region: Region<Cursor, Atom>): void => {
+    return (region: Region<Cursor, Atom>): void => {
       for (let statement of statements) {
         statement(region);
       }
-    }, this.#source);
+    };
   }
 }
 
@@ -114,26 +100,23 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
   #head: CompilableBlock<Cursor, Atom>;
   #body: CompilableBlock<ParentCursor, ParentAtom>;
   #adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>;
-  #source: Source;
 
   constructor(
     head: CompilableBlock<Cursor, Atom>,
     body: CompilableBlock<ParentCursor, ParentAtom>,
-    adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>,
-    source: Source
+    adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>
   ) {
     this.#head = head;
     this.#body = body;
     this.#adapter = adapter;
-    this.#source = source;
   }
 
   compile(state: ReactiveState): Evaluate<ParentCursor, ParentAtom, void> {
     let block = this.intoBlock(state);
 
-    return annotate(region => {
+    return region => {
       invokeBlock(block, region);
-    }, this.#source);
+    };
   }
 
   intoBlock(state: ReactiveState): Block<ParentCursor, ParentAtom> {
@@ -146,6 +129,6 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
       invokeBlock(head, child);
       let grandchild = region.flush(this.#adapter.runtime, child);
       invokeBlock(body, grandchild);
-    }, this.#source);
+    });
   }
 }

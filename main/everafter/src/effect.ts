@@ -18,17 +18,15 @@ import type { Owner } from "./owner";
 export const POLL = Symbol("POLL");
 
 export interface UserEffect<T> {
-  initialize: AnnotatedFunction<() => T>;
-  update: AnnotatedFunction<(value: T) => T | void>;
-  destroy?: AnnotatedFunction<(value: T | undefined) => void>;
+  initialize: () => T;
+  update: (value: T) => T | void;
+  destroy?: (value: T | undefined) => void;
 }
 
-export type IntoEffect<T> =
-  | UserEffect<T>
-  | AnnotatedFunction<(value: T | undefined) => void>;
+export type IntoEffect<T> = UserEffect<T> | ((value: T | undefined) => void);
 
 export function intoEffect<T>(effect: IntoEffect<T>): UserEffect<T> {
-  if (isAnnotated(effect)) {
+  if (typeof effect === "function") {
     return {
       initialize: effect as AnnotatedFunction<() => T>,
       update: effect as AnnotatedFunction<() => T>,
@@ -43,8 +41,7 @@ type UNINITIALIZED = typeof UNINITIALIZED;
 
 export function initializeEffect<T>(
   owner: Owner,
-  effect: IntoEffect<T>,
-  source = caller(PARENT)
+  effect: IntoEffect<T>
 ): Updater {
   const { initialize, update, destroy } = intoEffect(effect);
   let value: T | UNINITIALIZED = UNINITIALIZED;
@@ -53,18 +50,10 @@ export function initializeEffect<T>(
   let cache = createResource(
     () => {
       if (value === UNINITIALIZED) {
-        host.logStatus(
-          LogLevel.Info,
-          `initializing ${printStructured(source, true)}`,
-          "color: blue"
-        );
+        host.logStatus(LogLevel.Info, `initializing`, "color: blue");
         value = initialize();
       } else {
-        host.logStatus(
-          LogLevel.Info,
-          `updating ${printStructured(source, true)}`,
-          "color: green"
-        );
+        host.logStatus(LogLevel.Info, `updating`, "color: green");
 
         let next = update(value);
 
@@ -73,7 +62,6 @@ export function initializeEffect<T>(
         }
       }
     },
-    source,
     owner,
     destroy
       ? () => destroy(value === UNINITIALIZED ? undefined : value)

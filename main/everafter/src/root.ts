@@ -8,6 +8,7 @@ import {
   Structured,
   getSource,
   annotate,
+  description,
 } from "./debug/index";
 import type { AppendingReactiveRange } from "./interfaces";
 import { Region } from "./region";
@@ -30,46 +31,36 @@ export class RootBlock<Cursor, Atom> extends Owned {
   }
 
   [DEBUG](): Structured {
-    return newtype("RootBlock", getSource(this.#program));
+    return description("RootBlock");
   }
 
-  render(
-    cursor: AppendingReactiveRange<Cursor, Atom>,
-    source = caller(PARENT, "initial render")
-  ): Updater | void {
+  render(cursor: AppendingReactiveRange<Cursor, Atom>): Updater | void {
     let owner = getOwner(cursor);
     let host = owner.host;
 
-    this.#update = owner.instantiate(
-      initializeEffect,
-      {
-        initialize: annotate(
-          () =>
-            host.context(LogLevel.Info, source, () =>
-              host.indent(LogLevel.Info, () =>
-                owner.instantiate(Region.render, this.#program, cursor)
-              )
-            ),
-          source
+    this.#update = owner.instantiate(initializeEffect, {
+      initialize: () =>
+        host.context(LogLevel.Info, description("RootBlock"), () =>
+          host.indent(LogLevel.Info, () =>
+            owner.instantiate(Region.render, this.#program, cursor)
+          )
         ),
-        update: annotate((updater: Updater | void) => {
-          host.context(LogLevel.Info, source.describe("re-rendering"), () => {
-            if (updater) {
-              poll(updater);
-            } else {
-              host.logResult(LogLevel.Info, "nothing to do, no updaters");
-            }
-          });
-        }, source),
+      update: (updater: Updater | void) => {
+        host.context(LogLevel.Info, description("re-rendering"), () => {
+          if (updater) {
+            poll(updater);
+          } else {
+            host.logResult(LogLevel.Info, "nothing to do, no updaters");
+          }
+        });
       },
-      source
-    );
+    });
   }
 
-  rerender(source = caller(PARENT, "re-rendering")): void {
+  rerender(): void {
     let host = getOwner(this).host;
 
-    host.context(LogLevel.Info, source.describe("re-rendering"), () => {
+    host.context(LogLevel.Info, description("rerendering"), () => {
       if (this.#update) {
         poll(this.#update);
       } else {

@@ -1,15 +1,13 @@
-import { LogLevel, Source } from "./debug/index";
+import { LogLevel } from "./debug/index";
 import type { Block } from "./interfaces";
+import { getOwner, Host, Owned, Owner } from "./owner";
 import {
-  createCache,
+  createResource,
   getValue,
   isConst,
-  TrackedCache,
-  createResource,
-  destroy,
   linkResource,
+  TrackedCache,
 } from "./polyfill";
-import { Host, Owned, getOwner, Owner } from "./owner";
 
 export function poll(updater: Updater): Updater | void {
   let host = getOwner(updater).host;
@@ -33,33 +31,25 @@ export interface ReactiveRegion<Cursor, Atom> {
   initialize(cursor: Cursor, callback: Block<Cursor, Atom>): Updater;
 }
 
-export function updaters(
-  list: Updater[],
-  owner: Owner,
-  source: Source
-): Updater {
+export function updaters(list: Updater[], owner: Owner): Updater {
   let current = list;
   let host = owner.host;
 
-  let resource = createResource(
-    () => {
-      let newUpdaters: Updater[] = [];
+  let resource = createResource(() => {
+    let newUpdaters: Updater[] = [];
 
-      // Poll each `Updater`. If `poll` produced a new `Updater`, insert
-      // it into the new updating array.
-      for (let updater of current) {
-        let result = host.indent(LogLevel.Info, () => poll(updater));
+    // Poll each `Updater`. If `poll` produced a new `Updater`, insert
+    // it into the new updating array.
+    for (let updater of current) {
+      let result = host.indent(LogLevel.Info, () => poll(updater));
 
-        if (result) {
-          newUpdaters.push(updater);
-        }
+      if (result) {
+        newUpdaters.push(updater);
       }
+    }
 
-      current = newUpdaters;
-    },
-    source,
-    owner
-  ) as Updater;
+    current = newUpdaters;
+  }, owner) as Updater;
   // The entire updaters cache is initialized because the individual items
   // were initialized.
 

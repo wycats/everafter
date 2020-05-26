@@ -71,21 +71,19 @@ export class Compiler<
     callback: (
       builder: Program<Cursor, Atom, DefaultAtom>,
       callbackParams: ReactiveDict<Params>
-    ) => void,
-    source = caller(PARENT)
+    ) => void
   ): CompiledProgram<Cursor, Atom, Params> {
     let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
       let builder = getOwner(this).instantiate(
         factory(Program),
-        this.#operations,
-        source.withDefaultDescription("program")
+        this.#operations
       );
       callback(builder, this.#params.dict as ReactiveDict<Params>);
       return builder.compile(state);
     };
 
-    return getOwner(this).instantiateWithSource(
-      annotate(owner => new CompiledProgram(owner, block, this.#params), source)
+    return getOwner(this).instantiate(
+      owner => new CompiledProgram(owner, block, this.#params)
     );
   }
 }
@@ -117,14 +115,13 @@ export class CompiledProgram<
 
   render(
     dict: DynamicRuntimeValues<Params>,
-    cursor: AppendingReactiveRange<Cursor, Atom>,
-    source = caller(PARENT)
+    cursor: AppendingReactiveRange<Cursor, Atom>
   ): RootBlock<Cursor, Atom> {
     let evaluate = this.#block(this.#params.hydrate(dict));
-    let block = getOwner(this).instantiateWithSource(
-      annotate(owner => new RootBlock(owner, evaluate), source)
+    let block = getOwner(this).instantiate(
+      owner => new RootBlock(owner, evaluate)
     );
-    block.render(cursor, source);
+    block.render(cursor);
     return block;
   }
 }

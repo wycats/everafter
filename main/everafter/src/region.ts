@@ -1,25 +1,16 @@
 import { invokeBlock } from "./block-primitives";
 import type { CursorAdapter } from "./builder";
-import {
-  caller,
-  DEBUG,
-  getSource,
-  LogLevel,
-  PARENT,
-  printStructured,
-  Source,
-} from "./debug/index";
+import { DEBUG, description, LogLevel, printStructured } from "./debug/index";
 import {
   AppendingReactiveRange,
   Block,
-  BlockFunction,
   clearRange,
   ReactiveRange,
   RenderResult,
 } from "./interfaces";
+import { factory, getOwner, Owned, Owner } from "./owner";
 import { associateDestroyableChild, linkResource } from "./polyfill";
-import { poll, Updater, updaters, UpdaterThunk } from "./update";
-import { Owner, Owned, getOwner, factory } from "./owner";
+import { poll, Updater, updaters } from "./update";
 
 /**
  * A {@link Region} is created for each area of the output. The {@link Region}
@@ -38,7 +29,7 @@ export class Region<Cursor, Atom> extends Owned {
     if (region.#updaters.length === 0) {
       return;
     } else {
-      return updaters(region.#updaters, getOwner(region), getSource(block));
+      return updaters(region.#updaters, getOwner(region));
     }
   }
 
@@ -60,8 +51,8 @@ export class Region<Cursor, Atom> extends Owned {
     this.#updaters = updaters;
   }
 
-  atom(reactiveAtom: Atom, source = caller(PARENT)): void {
-    this.updateWith(this.#range.append(reactiveAtom, source));
+  atom(reactiveAtom: Atom): void {
+    this.updateWith(this.#range.append(reactiveAtom));
   }
 
   open<ChildCursor, ChildAtom>(
@@ -113,11 +104,11 @@ export class Region<Cursor, Atom> extends Owned {
   /**
    * @internal
    */
-  finalize(source: Source): RenderResult<Cursor, Atom> {
+  finalize(): RenderResult<Cursor, Atom> {
     let range = finalizeRange(this.#range, this.#destroyers);
-    let updater = updaters(this.#updaters, getOwner(this), source);
+    let updater = updaters(this.#updaters, getOwner(this));
 
-    return result(updater, range, source);
+    return result(updater, range);
   }
 
   /**
@@ -131,7 +122,7 @@ export class Region<Cursor, Atom> extends Owned {
     let region = getOwner(this).instantiate(RegionFactory, this.#range.child());
     invokeBlock(block, region);
 
-    return region.finalize(getSource(block));
+    return region.finalize();
   }
 
   /**
@@ -152,12 +143,11 @@ export const RegionFactory = factory(Region);
 
 function result<Cursor, Atom>(
   update: Updater,
-  range: ReactiveRange<Cursor, Atom>,
-  source: Source
+  range: ReactiveRange<Cursor, Atom>
 ): RenderResult<Cursor, Atom> {
   return {
     [DEBUG]: () => {
-      return source[DEBUG]();
+      return description("RenderResult");
     },
 
     rerender: () => {
@@ -168,7 +158,7 @@ function result<Cursor, Atom>(
       let owner = getOwner(update);
       let region = owner.instantiate(RegionFactory, clearRange(range));
       newBlock(region);
-      return region.finalize(source);
+      return region.finalize();
     },
   };
 }

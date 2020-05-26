@@ -1,15 +1,13 @@
 import { tracked } from "@glimmerx/component";
-import { createCache, getValue, isConst, TrackedCache } from "./polyfill";
 import {
-  Debuggable,
-  Structured,
-  newtype,
-  DEBUG,
   anything,
-  caller,
-  PARENT,
-  Source,
+  DEBUG,
+  Debuggable,
+  description,
+  newtype,
+  Structured,
 } from "./debug";
+import { createCache, getValue, isConst, TrackedCache } from "./polyfill";
 
 export type ReactiveResult<T> =
   | {
@@ -91,11 +89,9 @@ export interface Derived<T = unknown> extends Var<T> {}
 
 class DerivedImpl<T> implements Derived<T> {
   #cache: TrackedCache<T>;
-  #source: Source;
 
-  constructor(callback: () => T, source: Source) {
-    this.#cache = createCache(callback, source);
-    this.#source = source;
+  constructor(callback: () => T) {
+    this.#cache = createCache(callback);
   }
 
   get current(): T {
@@ -103,7 +99,7 @@ class DerivedImpl<T> implements Derived<T> {
   }
 
   [DEBUG](): Structured {
-    return newtype("Derived", this.#source);
+    return newtype("Derived", description("Derived"));
   }
 
   compute(): ReactiveResult<T> {
@@ -117,9 +113,6 @@ class DerivedImpl<T> implements Derived<T> {
   }
 }
 
-export function Derived<T>(
-  callback: () => T,
-  source = caller(PARENT)
-): Derived<T> {
-  return new DerivedImpl(callback, source);
+export function Derived<T>(callback: () => T): Derived<T> {
+  return new DerivedImpl(callback);
 }

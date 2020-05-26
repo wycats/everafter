@@ -1,8 +1,7 @@
 import StackTracey, { StackTraceyFrame } from "stacktracey";
-import type { BlockFunction, Block } from "../interfaces";
-import { Debuggable, DEBUG } from "./debuggable";
-import { Structured, description } from "./structured";
 import { unwrap } from "../utils";
+import { DEBUG, Debuggable } from "./debuggable";
+import { description, Structured } from "./structured";
 
 export class Source implements Debuggable {
   #frame: StackTraceyFrame;
