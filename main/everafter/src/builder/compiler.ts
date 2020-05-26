@@ -11,7 +11,7 @@ import {
 } from "./param";
 import { RootBlock } from "../root";
 import { Program, ReactiveState, Evaluate, ProgramBlock } from "./builder";
-import { Owner, Owned, getOwner, factory } from "../owner";
+import { Owner, Owned, getOwner } from "../owner";
 
 /**
  * A {@link Compiler} knows about its reactive parameters, and can compile
@@ -74,10 +74,7 @@ export class Compiler<
     ) => void
   ): CompiledProgram<Cursor, Atom, Params> {
     let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
-      let builder = getOwner(this).instantiate(
-        factory(Program),
-        this.#operations
-      );
+      let builder = this.new(Program, this.#operations);
       callback(builder, this.#params.dict as ReactiveDict<Params>);
       return builder.compile(state);
     };

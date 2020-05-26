@@ -1,7 +1,7 @@
 import { conditionBlock, invokeBlock, staticBlock } from "../block-primitives";
 import type { AnnotatedFunction } from "../debug";
 import type { Block, CompileOperations } from "../interfaces";
-import { factory, Owner } from "../owner";
+import { Owner, Owned } from "../owner";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
@@ -16,7 +16,7 @@ import {
 } from "./builder";
 import type { ReactiveParameter } from "./param";
 
-export interface CompilableBlock<Cursor, Atom> {
+export interface CompilableBlock<Cursor, Atom> extends Owned {
   intoBlock(state: ReactiveState): Block<Cursor, Atom>;
 }
 
@@ -54,21 +54,22 @@ export type UserBuilderBlock<Cursor, Atom, DefaultAtom> = AnnotatedFunction<
   (builder: StaticBlockBuilder<Cursor, Atom, DefaultAtom>) => void
 >;
 
-export class CompilableStaticBlock<Cursor, Atom>
+export class CompilableStaticBlock<Cursor, Atom> extends Owned
   implements CompilableBlock<Cursor, Atom>, Compilable<Cursor, Atom> {
   static from<Cursor, Atom, DefaultAtom>(
     owner: Owner,
     block: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     ops: CompileOperations<Cursor, Atom, DefaultAtom>
   ): CompilableBlock<Cursor, Atom> {
-    let builder = owner.instantiate(factory(StaticBlockBuilder), ops);
+    let builder = owner.new(StaticBlockBuilder, ops);
     block(builder);
     return builder.done();
   }
 
   #statements: readonly Statement<Cursor, Atom>[];
 
-  constructor(statements: readonly Statement<Cursor, Atom>[]) {
+  constructor(owner: Owner, statements: readonly Statement<Cursor, Atom>[]) {
+    super(owner);
     this.#statements = statements;
   }
 
@@ -94,6 +95,7 @@ export class CompilableStaticBlock<Cursor, Atom>
 }
 
 export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
+  extends Owned
   implements
     CompilableBlock<ParentCursor, ParentAtom>,
     Compilable<ParentCursor, ParentAtom> {
@@ -102,10 +104,12 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
   #adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>;
 
   constructor(
+    owner: Owner,
     head: CompilableBlock<Cursor, Atom>,
     body: CompilableBlock<ParentCursor, ParentAtom>,
     adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>
   ) {
+    super(owner);
     this.#head = head;
     this.#body = body;
     this.#adapter = adapter;

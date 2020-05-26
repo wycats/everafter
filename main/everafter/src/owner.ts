@@ -29,21 +29,30 @@ export interface ClassFactory<
 export const OWNED = Symbol("OWNED");
 export type OWNED = typeof OWNED;
 
-export abstract class Owned {
+export class Owned {
   constructor(owner: Owner) {
     OWNER.set(this, owner);
   }
+
+  new<A extends unknown[], T extends Owned | void>(
+    f: ClassFactory<T, A>,
+    ...args: A
+  ): T {
+    let instance = new f(getOwner(this), ...args);
+    return instance;
+  }
+}
+
+export function ownedNew<A extends unknown[], T extends Owned | void>(
+  this: Owned,
+  f: ClassFactory<T, A>,
+  ...args: A
+): T {
+  let instance = new f(getOwner(this), ...args);
+  return instance;
 }
 
 const OWNER = new WeakMap<object, Owner>();
-
-export function factory<T extends Owned, A extends unknown[]>(
-  f: ClassFactory<T, A>
-): Factory<T, A> {
-  return (owner, ...args) => {
-    return new f(owner, ...args);
-  };
-}
 
 export class Owner {
   #host: Host;
@@ -64,13 +73,12 @@ export class Owner {
     return instance;
   }
 
-  instantiateWithSource<A extends unknown[], T extends Owned>(
-    f: AnnotatedFunction<Factory<T, A>>,
+  new<A extends unknown[], T extends Owned | void>(
+    f: ClassFactory<T, A>,
     ...args: A
-  ): Annotated<T> {
-    let instance = this.instantiate(f, ...args);
-    annotate(f, getSource(f));
-    return instance as Annotated<Owned & T>;
+  ): T {
+    let instance = new f(this, ...args);
+    return instance;
   }
 }
 

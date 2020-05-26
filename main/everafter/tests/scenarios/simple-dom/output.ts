@@ -18,7 +18,6 @@ import {
   description,
   Evaluate,
   Factory,
-  factory,
   getOwner,
   initializeEffect,
   IntoEffect,
@@ -35,6 +34,7 @@ import {
   Updater,
   UserEffect,
   Var,
+  ownedNew,
 } from "everafter";
 
 export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
@@ -105,8 +105,7 @@ export function attr(
   value: ReactiveParameter<string>,
   namespace?: ReactiveParameter<AttrNamespace>
 ): Factory<CompilableAttr> {
-  return owner =>
-    owner.instantiate(factory(CompilableAttr), name, value, namespace || null);
+  return owner => owner.new(CompilableAttr, name, value, namespace || null);
 }
 
 export interface DomAttr {
@@ -139,20 +138,18 @@ export function element(
   >
 > {
   return owner => ({
+    new: ownedNew,
     ops: new CompileAttrOps(),
 
     runtime: {
       child(range: AppendingDomRange): AttrRange {
         let element = range.document.createElement(tagName);
-        return owner.instantiate(factory(AttrRange), element);
+        return owner.new(AttrRange, element);
       },
 
       flush(parent: AppendingDomRange, child: AttrRange): AppendingDomRange {
         parent.insert(child.element);
-        return owner.instantiate(
-          factory(AppendingDomRange),
-          new DomCursor(child.element, null)
-        );
+        return owner.new(AppendingDomRange, new DomCursor(child.element, null));
       },
     },
   });
@@ -190,8 +187,8 @@ export function text(
   value: ReactiveParameter<string>
 ): Factory<CompilableDomAtom<string, TextAtom>> {
   return owner =>
-    owner.instantiate(
-      factory(CompilableDomAtom),
+    owner.new(
+      CompilableDomAtom,
       value,
       (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
         region.atom(runtimeText(value));
@@ -203,8 +200,8 @@ export function comment(
   value: ReactiveParameter<string>
 ): Factory<CompilableDomAtom<string, CommentAtom>> {
   return owner =>
-    owner.instantiate(
-      factory(CompilableDomAtom),
+    owner.new(
+      CompilableDomAtom,
       value,
       (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
         region.atom(runtimeComment(value));
@@ -216,8 +213,8 @@ export function node(
   value: ReactiveParameter<SimpleNode>
 ): Factory<CompilableDomAtom<SimpleNode, NodeAtom>> {
   return owner =>
-    owner.instantiate(
-      factory(CompilableDomAtom),
+    owner.new(
+      CompilableDomAtom,
       value,
       (value: Var<SimpleNode>) => (region: Region<DomCursor, DomAtom>) => {
         region.atom(runtimeNode(value));
@@ -321,8 +318,8 @@ export class DomRange extends Owned
       current = next;
     }
 
-    return getOwner(this).instantiate(
-      factory(AppendingDomRange),
+    return this.new(
+      AppendingDomRange,
       new DomCursor(this.parentNode, afterLast)
     );
   }
@@ -331,10 +328,7 @@ export class DomRange extends Owned
 export class AppendingDomRange extends Owned
   implements AppendingReactiveRange<DomCursor, DomAtom> {
   static appending(owner: Owner, parentNode: ParentNode): AppendingDomRange {
-    return owner.instantiate(
-      factory(AppendingDomRange),
-      new DomCursor(parentNode, null)
-    );
+    return owner.new(AppendingDomRange, new DomCursor(parentNode, null));
   }
 
   static splicing(
@@ -342,10 +336,7 @@ export class AppendingDomRange extends Owned
     parentNode: ParentNode,
     nextSibling: SimpleNode
   ): AppendingDomRange {
-    return owner.instantiate(
-      factory(AppendingDomRange),
-      new DomCursor(parentNode, nextSibling)
-    );
+    return owner.new(AppendingDomRange, new DomCursor(parentNode, nextSibling));
   }
 
   declare atom: SimpleNode;
@@ -449,7 +440,7 @@ export class AppendingDomRange extends Owned
   }
 
   child(): AppendingReactiveRange<DomCursor, DomAtom> {
-    return getOwner(this).instantiate(factory(AppendingDomRange), this.#cursor);
+    return this.new(AppendingDomRange, this.#cursor);
   }
 
   finalize(): ReactiveRange<DomCursor, DomAtom> {
@@ -460,19 +451,9 @@ export class AppendingDomRange extends Owned
       let comment = doc.createComment("");
       this.insert(comment);
 
-      return getOwner(this).instantiate(
-        factory(DomRange),
-        cursor.parentNode,
-        comment,
-        comment
-      );
+      return this.new(DomRange, cursor.parentNode, comment, comment);
     } else {
-      return getOwner(this).instantiate(
-        factory(DomRange),
-        cursor.parentNode,
-        this.#start,
-        this.#end
-      );
+      return this.new(DomRange, cursor.parentNode, this.#start, this.#end);
     }
   }
 }

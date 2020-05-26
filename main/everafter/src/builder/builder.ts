@@ -1,7 +1,7 @@
 import { invokeBlock } from "../block-primitives";
 import { withDefaultDescription } from "../debug/index";
 import type { AppendingReactiveRange, CompileOperations } from "../interfaces";
-import { factory, Factory, getOwner, Owned, Owner } from "../owner";
+import { Factory, getOwner, Owned, Owner } from "../owner";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
@@ -42,7 +42,7 @@ export interface CompileCursorAdapter<
     unknown,
     unknown
   > = AppendingReactiveRange<unknown, unknown>
-> {
+> extends Owned {
   ops: CompileOperations<Cursor, Atom, DefaultAtom>;
   runtime: CursorAdapter<Left, Right>;
 }
@@ -101,7 +101,7 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom> extends Owned
   }
 
   done(): CompilableStaticBlock<Cursor, Atom> {
-    return new CompilableStaticBlock(this.#statements);
+    return this.new(CompilableStaticBlock, this.#statements);
   }
 
   invoke(compilableBlock: CompilableBlock<Cursor, Atom>): void {
@@ -161,12 +161,10 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom> extends Owned
     ChildAtom,
     ChildDefaultAtom
   > {
-    let owner = getOwner(this);
-
-    return owner.instantiate(
-      factory(ForeignBlockBuilder),
+    return this.new(
+      ForeignBlockBuilder,
       parent,
-      owner.instantiate(adapter),
+      getOwner(this).instantiate(adapter),
       this.#ops
     );
   }
@@ -199,7 +197,7 @@ class ForeignBlockBuilder<
     this.#parent = parent;
     this.#adapter = adapter;
     this.#ops = ops;
-    this.#builder = owner.instantiate(factory(StaticBlockBuilder), adapter.ops);
+    this.#builder = owner.new(StaticBlockBuilder, adapter.ops);
   }
 
   atom(atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom): void {
@@ -242,8 +240,8 @@ class ForeignBlockBuilder<
     Atom,
     DefaultAtom
   > {
-    return getOwner(this).instantiate(
-      factory(BlockBodyBuilder),
+    return this.new(
+      BlockBodyBuilder,
       this.#parent,
       this.#builder.done(),
       this.#adapter,
@@ -276,11 +274,12 @@ class BlockBodyBuilder<
     this.#parent = parent;
     this.#head = head;
     this.#adapter = adapter;
-    this.#builder = owner.instantiate(factory(StaticBlockBuilder), ops);
+    this.#builder = owner.new(StaticBlockBuilder, ops);
   }
 
   close(): void {
-    let block = new ForeignBlock(
+    let block = this.new(
+      ForeignBlock,
       this.#head,
       this.#builder.done(),
       this.#adapter
@@ -324,7 +323,7 @@ export class Program<Cursor, Atom, DefaultAtom> extends Owned
 
   constructor(owner: Owner, ops: CompileOperations<Cursor, Atom, DefaultAtom>) {
     super(owner);
-    this.#statements = owner.instantiate(factory(StaticBlockBuilder), ops);
+    this.#statements = owner.new(StaticBlockBuilder, ops);
   }
 
   compile(state: ReactiveState): Evaluate<Cursor, Atom> {

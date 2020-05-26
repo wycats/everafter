@@ -7,7 +7,7 @@ import {
 } from "@glimmer/util";
 import { isConstMemo, memoizeTracked } from "@glimmer/validator";
 import { DEBUG, Debuggable, description, Structured } from "./debug";
-import { Owned, Owner, setOwner } from "./owner";
+import { Owned, Owner, setOwner, ClassFactory, getOwner } from "./owner";
 import { unwrap } from "./utils";
 
 if (DEBUG === undefined) {
@@ -85,6 +85,14 @@ export class Resource<T> extends TrackedCache<T> implements Owned {
     if (destructor) {
       registerDestructor(this, destructor);
     }
+  }
+
+  new<A extends unknown[], T extends Owned | void>(
+    f: ClassFactory<T, A>,
+    ...args: A
+  ): T {
+    let instance = new f(getOwner(this), ...args);
+    return instance;
   }
 }
 

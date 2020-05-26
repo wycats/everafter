@@ -5,7 +5,6 @@ import {
   DEBUG,
   description,
   Evaluate,
-  factory,
   Factory,
   getOwner,
   initializeEffect,
@@ -51,7 +50,7 @@ class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
 export function num(
   num: ReactiveParameter<number>
 ): Factory<CompilableNumberAtom> {
-  return owner => owner.instantiate(factory(CompilableNumberAtom), num);
+  return owner => owner.new(CompilableNumberAtom, num);
 }
 
 export interface Block {
@@ -103,7 +102,7 @@ export class ArrayRange extends Owned
     ReactiveRange<ArrayCursor, ArrayAtom>,
     AppendingReactiveRange<ArrayCursor, ArrayAtom> {
   static from(owner: Owner, array: number[]): ArrayRange {
-    return owner.instantiate(factory(ArrayRange), array, 0, array.length, null);
+    return owner.new(ArrayRange, array, 0, array.length, null);
   }
 
   #array: number[];
@@ -151,22 +150,11 @@ export class ArrayRange extends Owned
   }
 
   getCursor(): ArrayCursor {
-    return getOwner(this).instantiate(
-      factory(ArrayCursor),
-      this.#array,
-      this,
-      this.#length
-    );
+    return this.new(ArrayCursor, this.#array, this, this.#length);
   }
 
   child(): AppendingReactiveRange<ArrayCursor, ArrayAtom> {
-    return getOwner(this).instantiate(
-      factory(ArrayRange),
-      this.#array,
-      0,
-      0,
-      this
-    );
+    return this.new(ArrayRange, this.#array, 0, 0, this);
   }
 
   finalize(): ReactiveRange<ArrayCursor, ArrayAtom> {

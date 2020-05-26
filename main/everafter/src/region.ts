@@ -8,7 +8,7 @@ import {
   ReactiveRange,
   RenderResult,
 } from "./interfaces";
-import { factory, getOwner, Owned, Owner } from "./owner";
+import { getOwner, Owned, Owner } from "./owner";
 import { associateDestroyableChild, linkResource } from "./polyfill";
 import { poll, Updater, updaters } from "./update";
 
@@ -62,7 +62,7 @@ export class Region<Cursor, Atom> extends Owned {
     >
   ): Region<ChildCursor, ChildAtom> {
     let appender = adapter.child(this.#range.child());
-    return getOwner(this).instantiate(RegionFactory, appender, this.#updaters);
+    return this.new(Region, appender, this.#updaters);
   }
 
   flush<ChildCursor, ChildAtom>(
@@ -77,7 +77,7 @@ export class Region<Cursor, Atom> extends Owned {
       finalizeRange(child.#range, child.#destroyers)
     );
 
-    return getOwner(this).instantiate(RegionFactory, appender, this.#updaters);
+    return this.new(Region, appender, this.#updaters);
   }
 
   /**
@@ -119,7 +119,7 @@ export class Region<Cursor, Atom> extends Owned {
    * @internal
    */
   renderDynamic(block: Block<Cursor, Atom>): RenderResult<Cursor, Atom> {
-    let region = getOwner(this).instantiate(RegionFactory, this.#range.child());
+    let region = this.new(Region, this.#range.child());
     invokeBlock(block, region);
 
     return region.finalize();
@@ -129,17 +129,11 @@ export class Region<Cursor, Atom> extends Owned {
    * @internal
    */
   renderBlock(block: Block<Cursor, Atom>): void {
-    let child = getOwner(this).instantiate(
-      RegionFactory,
-      this.#range,
-      this.#updaters
-    );
+    let child = this.new(Region, this.#range, this.#updaters);
 
     invokeBlock(block, child);
   }
 }
-
-export const RegionFactory = factory(Region);
 
 function result<Cursor, Atom>(
   update: Updater,
@@ -155,8 +149,7 @@ function result<Cursor, Atom>(
     },
 
     replace: (newBlock: Block<Cursor, Atom>) => {
-      let owner = getOwner(update);
-      let region = owner.instantiate(RegionFactory, clearRange(range));
+      let region = update.new(Region, clearRange(range));
       newBlock(region);
       return region.finalize();
     },
