@@ -16,7 +16,7 @@ import {
   f,
 } from "everafter";
 import type * as qunit from "qunit";
-import { host, module, test } from "../../helpers";
+import { owner, module, test } from "../../helpers";
 import {
   ArrayAtom,
   ArrayCursor,
@@ -29,17 +29,17 @@ import {
 export class ListOfNumbersTest {
   declare assert: qunit.Assert;
 
-  #host = host();
+  #owner = owner();
 
   @test "simple number list"(): void {
-    const compiler = Compiler.for(
+    const compiler = this.#owner.instantiate(
+      Compiler.for,
       {
         first: Param<number>(),
         second: Param<number>(),
         third: Param<number>(),
         sum: Param<number>(),
       },
-      this.#host,
       new CompileNumberArrayOps()
     );
 
@@ -76,7 +76,8 @@ export class ListOfNumbersTest {
   }
 
   @test blocks(): void {
-    const compiler = Compiler.for(
+    const compiler = this.#owner.instantiate(
+      Compiler.for,
       {
         "positive.first": Param<number>(),
         "positive.second": Param<number>(),
@@ -89,7 +90,6 @@ export class ListOfNumbersTest {
         showPositive: Param<boolean>(),
         showAbs: Param<boolean>(),
       },
-      this.#host,
       new CompileNumberArrayOps()
     );
 
@@ -196,7 +196,10 @@ export class ListOfNumbersTest {
   ): RenderExpectation {
     this.assert.step("initial render");
     let list: number[] = [];
-    let root = program.render(state, ArrayRange.from(list, this.#host));
+    let root = program.render(
+      state,
+      this.#owner.instantiate(ArrayRange.from, list)
+    );
     return new RenderExpectation(root, list, this.assert);
   }
 }

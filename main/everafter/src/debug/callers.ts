@@ -68,11 +68,12 @@ export function caller(depth: number, desc?: string): Source {
   return new Source(trace.withSource(depth), desc);
 }
 
-const ANNOTATIONS = new WeakMap<Function, Source>();
+const ANNOTATIONS = new WeakMap<object, Source>();
 const ANNOTATION = Symbol("ANNOTATION");
 type ANNOTATION = typeof ANNOTATION;
 
-export type AnnotatedFunction<F extends Function> = F & { [ANNOTATION]: true };
+export type AnnotatedFunction<F extends Function> = Annotated<F>;
+export type Annotated<T> = T & { [ANNOTATION]: true };
 
 export function isAnnotated(v: unknown): v is AnnotatedFunction<Function> {
   return typeof v === "function" && ANNOTATIONS.has(v);
@@ -102,14 +103,11 @@ export function withDefaultDescription<F extends Function>(
  * A general-purpose function annotater. It attaches an annotation about the
  * caller's source location to the function.
  */
-export function annotate<F extends Function>(
-  f: F,
-  desc: Source
-): AnnotatedFunction<F> {
+export function annotate<F extends object>(f: F, desc: Source): Annotated<F> {
   let source = desc instanceof Source ? desc : caller(PARENT, desc);
 
   ANNOTATIONS.set(f, source);
-  return f as AnnotatedFunction<F>;
+  return f as Annotated<F>;
 }
 
 /**

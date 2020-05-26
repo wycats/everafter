@@ -12,8 +12,8 @@ import {
   TrackedCache,
   createResource,
 } from "./polyfill";
-import type { Updater } from "./update";
-import type { Host } from "./interfaces";
+import type { Updater, UpdaterThunk } from "./update";
+import type { Owner } from "./owner";
 
 export const POLL = Symbol("POLL");
 
@@ -42,12 +42,13 @@ const UNINITIALIZED = Symbol("UNINITIALIZED");
 type UNINITIALIZED = typeof UNINITIALIZED;
 
 export function initializeEffect<T>(
+  owner: Owner,
   effect: IntoEffect<T>,
-  host: Host,
   source = caller(PARENT)
 ): Updater {
   const { initialize, update, destroy } = intoEffect(effect);
   let value: T | UNINITIALIZED = UNINITIALIZED;
+  let host = owner.host;
 
   let cache = createResource(
     () => {
@@ -73,6 +74,7 @@ export function initializeEffect<T>(
       }
     },
     source,
+    owner,
     destroy
       ? () => destroy(value === UNINITIALIZED ? undefined : value)
       : undefined

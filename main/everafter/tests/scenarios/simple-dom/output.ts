@@ -17,10 +17,14 @@ import {
   DEBUG,
   description,
   Evaluate,
-  Host,
+  Factory,
+  factory,
+  getOwner,
   initializeEffect,
   IntoEffect,
   intoEffect,
+  Owned,
+  Owner,
   PARENT,
   ReactiveParameter,
   ReactiveRange,
@@ -37,19 +41,17 @@ import {
 export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
   #source: Source;
   #effect: UserEffect<unknown>;
-  #host: Host;
 
-  constructor(source: Source, effect: UserEffect<unknown>, host: Host) {
-    super();
+  constructor(owner: Owner, source: Source, effect: UserEffect<unknown>) {
+    super(owner);
     this.#source = source.withDefaultDescription("effect");
     this.#effect = effect;
-    this.#host = host;
   }
 
   compile(_state: ReactiveState): Evaluate<DomCursor, DomAtom> {
     return annotate(region => {
       region.updateWith(
-        initializeEffect(this.#effect, this.#host, this.#source)
+        getOwner(this).instantiate(initializeEffect, this.#effect, this.#source)
       );
     }, this.#source);
   }
@@ -57,11 +59,10 @@ export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
 
 export function effect(
   into: IntoEffect<unknown>,
-  host: Host,
   source = caller(PARENT)
-): CompilableEffect {
+): Factory<CompilableEffect> {
   source = source.withDefaultDescription("effect");
-  return new CompilableEffect(source, intoEffect(into), host);
+  return owner => new CompilableEffect(owner, source, intoEffect(into));
 }
 
 export type DefaultDomAtom = ReactiveParameter<string>;
@@ -71,7 +72,7 @@ export class CompileDomOps
   defaultAtom(
     atom: DefaultDomAtom,
     source: Source
-  ): CompilableAtom<DomCursor, DomAtom> {
+  ): Factory<CompilableAtom<DomCursor, DomAtom>> {
     return text(atom, source);
   }
 }
@@ -88,12 +89,13 @@ export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
   #source: Source;
 
   constructor(
+    owner: Owner,
     name: ReactiveParameter<string>,
     value: ReactiveParameter<string>,
     namespace: ReactiveParameter<AttrNamespace> | null,
     source: Source
   ) {
-    super();
+    super(owner);
     this.#name = name;
     this.#value = value;
     this.#namespace = namespace;
@@ -113,8 +115,16 @@ export function attr(
   name: ReactiveParameter<string>,
   value: ReactiveParameter<string>,
   namespace?: ReactiveParameter<AttrNamespace>
-): CompilableAttr {
-  return new CompilableAttr(name, value, namespace || null, caller(PARENT));
+): Factory<CompilableAttr> {
+  let source = caller(PARENT);
+  return owner =>
+    owner.instantiate(
+      factory(CompilableAttr),
+      name,
+      value,
+      namespace || null,
+      source
+    );
 }
 
 export interface DomAttr {
@@ -136,31 +146,39 @@ export function runtimeElement(name: Var<string>): OpenElement {
 }
 
 export function element(
-  tagName: string,
-  host: Host
-): CompileCursorAdapter<
-  DomCursor,
-  DomAtom,
-  AttrCursor,
-  AppendingDomRange,
-  AttrRange
+  tagName: string
+): Factory<
+  CompileCursorAdapter<
+    DomCursor,
+    DomAtom,
+    AttrCursor,
+    AppendingDomRange,
+    AttrRange
+  >
 > {
-  return {
+  return owner => ({
     ops: new CompileAttrOps(),
 
     runtime: {
       child(range: AppendingDomRange): AttrRange {
         let element = range.document.createElement(tagName);
-        return new AttrRange(element, host);
+        return owner.instantiate(factory(AttrRange), element);
       },
 
       flush(parent: AppendingDomRange, child: AttrRange): AppendingDomRange {
         parent.insert(child.element);
-        return new AppendingDomRange(new DomCursor(child.element, null), host);
+        return owner.instantiate(
+          factory(AppendingDomRange),
+          new DomCursor(child.element, null)
+        );
       },
     },
-  };
+  });
 }
+
+export type ToRuntime<T> = (
+  value: Var<T>
+) => (output: Region<DomCursor, DomAtom>) => void;
 
 class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
   DomCursor,
@@ -168,14 +186,15 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
 > {
   #value: ReactiveParameter<T>;
   #source: Source;
-  #toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void;
+  #toRuntime: ToRuntime<T>;
 
   constructor(
+    owner: Owner,
     value: ReactiveParameter<T>,
     source: Source,
     toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void
   ) {
-    super();
+    super(owner);
 
     this.#value = value;
     this.#source = source;
@@ -191,33 +210,51 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
 export function text(
   value: ReactiveParameter<string>,
   source = caller(PARENT)
-): CompilableDomAtom<string, TextAtom> {
+): Factory<CompilableDomAtom<string, TextAtom>> {
   source = source.withDefaultDescription("text");
-  return new CompilableDomAtom(value, source, value => output => {
-    output.atom(runtimeText(value), source);
-  });
+  return owner =>
+    owner.instantiate(
+      factory(CompilableDomAtom),
+      value,
+      source,
+      (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
+        region.atom(runtimeText(value), source);
+      }
+    );
 }
 
 export function comment(
   value: ReactiveParameter<string>,
   source = caller(PARENT)
-): CompilableDomAtom<string, CommentAtom> {
+): Factory<CompilableDomAtom<string, CommentAtom>> {
   source = source.withDefaultDescription("comment");
-  return new CompilableDomAtom(
-    value,
-    source.withDefaultDescription("text"),
-    value => output => output.atom(runtimeComment(value), source)
-  );
+
+  return owner =>
+    owner.instantiate(
+      factory(CompilableDomAtom),
+      value,
+      source,
+      (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
+        region.atom(runtimeComment(value), source);
+      }
+    );
 }
 
 export function node(
   value: ReactiveParameter<SimpleNode>,
   source = caller(PARENT)
-): CompilableDomAtom<SimpleNode, NodeAtom> {
+): Factory<CompilableDomAtom<SimpleNode, NodeAtom>> {
   source = source.withDefaultDescription("node");
-  return new CompilableDomAtom(value, source, value => output =>
-    output.atom(runtimeNode(value), source)
-  );
+
+  return owner =>
+    owner.instantiate(
+      factory(CompilableDomAtom),
+      value,
+      source,
+      (value: Var<SimpleNode>) => (region: Region<DomCursor, DomAtom>) => {
+        region.atom(runtimeNode(value), source);
+      }
+    );
 }
 
 export interface TextAtom {
@@ -281,16 +318,16 @@ export class DomCursor {
   }
 }
 
-export class DomRange implements ReactiveRange<DomCursor, DomAtom> {
-  #host: Host;
-
+export class DomRange extends Owned
+  implements ReactiveRange<DomCursor, DomAtom> {
   constructor(
+    owner: Owner,
     readonly parentNode: ParentNode,
     readonly start: SimpleNode,
-    readonly end: SimpleNode,
-    host: Host
+    readonly end: SimpleNode
   ) {
-    this.#host = host;
+    super(owner);
+
     if (start.parentNode !== end.parentNode) {
       throw new Error(
         `assert: a DomRange's start and end must have the same cursor`
@@ -316,25 +353,31 @@ export class DomRange implements ReactiveRange<DomCursor, DomAtom> {
       current = next;
     }
 
-    return new AppendingDomRange(
-      new DomCursor(this.parentNode, afterLast),
-      this.#host
+    return getOwner(this).instantiate(
+      factory(AppendingDomRange),
+      new DomCursor(this.parentNode, afterLast)
     );
   }
 }
 
-export class AppendingDomRange
+export class AppendingDomRange extends Owned
   implements AppendingReactiveRange<DomCursor, DomAtom> {
-  static appending(parentNode: ParentNode, host: Host): AppendingDomRange {
-    return new AppendingDomRange(new DomCursor(parentNode, null), host);
+  static appending(owner: Owner, parentNode: ParentNode): AppendingDomRange {
+    return owner.instantiate(
+      factory(AppendingDomRange),
+      new DomCursor(parentNode, null)
+    );
   }
 
   static splicing(
+    owner: Owner,
     parentNode: ParentNode,
-    nextSibling: SimpleNode,
-    host: Host
+    nextSibling: SimpleNode
   ): AppendingDomRange {
-    return new AppendingDomRange(new DomCursor(parentNode, nextSibling), host);
+    return owner.instantiate(
+      factory(AppendingDomRange),
+      new DomCursor(parentNode, nextSibling)
+    );
   }
 
   declare atom: SimpleNode;
@@ -342,13 +385,12 @@ export class AppendingDomRange
   #start: SimpleNode | null = null;
   #end: SimpleNode | null = null;
   #cursor: DomCursor;
-  #host: Host;
   readonly #document: SimpleDocument;
 
-  constructor(cursor: DomCursor, host: Host) {
+  constructor(owner: Owner, cursor: DomCursor) {
+    super(owner);
     this.#cursor = cursor;
     this.#document = cursor.parentNode.ownerDocument;
-    this.#host = host;
   }
 
   get document(): SimpleDocument {
@@ -378,7 +420,8 @@ export class AppendingDomRange
       case "Text": {
         let doc = this.#document;
 
-        return initializeEffect(
+        return getOwner(this).instantiate(
+          initializeEffect,
           {
             initialize: annotate(() => {
               let node = doc.createTextNode(atom.data.current);
@@ -389,7 +432,6 @@ export class AppendingDomRange
               node.nodeValue = atom.data.current;
             }, source),
           },
-          this.#host,
           source
         );
       }
@@ -397,7 +439,8 @@ export class AppendingDomRange
       case "Comment": {
         let doc = this.#document;
 
-        return initializeEffect(
+        return getOwner(this).instantiate(
+          initializeEffect,
           {
             initialize: annotate(() => {
               let node = doc.createComment(atom.data.current);
@@ -408,7 +451,6 @@ export class AppendingDomRange
               node.nodeValue = atom.data.current;
             }, source),
           },
-          this.#host,
           source
         );
       }
@@ -416,7 +458,8 @@ export class AppendingDomRange
       case "Node": {
         let node: SimpleNode | undefined = undefined;
 
-        return initializeEffect(
+        return getOwner(this).instantiate(
+          initializeEffect,
           {
             initialize: annotate(() => {
               node = atom.node.current;
@@ -440,7 +483,6 @@ export class AppendingDomRange
               parent.insertBefore(newNode, nextSibling);
             }, source),
           },
-          this.#host,
           source
         );
       }
@@ -451,7 +493,7 @@ export class AppendingDomRange
   }
 
   child(): AppendingReactiveRange<DomCursor, DomAtom> {
-    return new AppendingDomRange(this.#cursor, this.#host);
+    return getOwner(this).instantiate(factory(AppendingDomRange), this.#cursor);
   }
 
   finalize(): ReactiveRange<DomCursor, DomAtom> {
@@ -462,28 +504,32 @@ export class AppendingDomRange
       let comment = doc.createComment("");
       this.insert(comment);
 
-      return new DomRange(cursor.parentNode, comment, comment, this.#host);
+      return getOwner(this).instantiate(
+        factory(DomRange),
+        cursor.parentNode,
+        comment,
+        comment
+      );
     } else {
-      return new DomRange(
+      return getOwner(this).instantiate(
+        factory(DomRange),
         cursor.parentNode,
         this.#start,
-        this.#end,
-        this.#host
+        this.#end
       );
     }
   }
 }
 
-class AttrRange
+class AttrRange extends Owned
   implements
     AppendingReactiveRange<AttrCursor, AttrAtom>,
     ReactiveRange<AttrCursor, AttrAtom> {
   #current: SimpleElement;
-  #host: Host;
 
-  constructor(current: SimpleElement, host: Host) {
+  constructor(owner: Owner, current: SimpleElement) {
+    super(owner);
     this.#current = current;
-    this.#host = host;
   }
 
   get element(): SimpleElement {
@@ -493,7 +539,8 @@ class AttrRange
   append(atom: DomAttr, source: Source): Updater {
     let element = this.#current;
 
-    return initializeEffect(
+    return getOwner(this).instantiate(
+      initializeEffect,
       annotate(() => {
         if (atom.ns) {
           element.setAttributeNS(
@@ -505,7 +552,6 @@ class AttrRange
           element.setAttribute(atom.name.current, atom.value.current);
         }
       }, source),
-      this.#host,
       source
     );
   }

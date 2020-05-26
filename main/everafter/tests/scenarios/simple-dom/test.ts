@@ -25,7 +25,7 @@ import {
   f,
 } from "everafter";
 import type * as qunit from "qunit";
-import { host, module, test } from "../../helpers";
+import { owner, module, test } from "../../helpers";
 import {
   attr,
   DomCursor,
@@ -42,7 +42,7 @@ export class ValueTest {
   declare assert: qunit.Assert;
 
   #testMessages: string[] = [];
-  #host = host(this.#testMessages);
+  #owner = owner(this.#testMessages);
 
   @test "simple values"(): void {
     const compiler = this.compiler({
@@ -198,7 +198,7 @@ export class ValueTest {
     });
 
     const program = compiler.compile((p, { hello, world }) => {
-      let el = p.open(element("p", this.#host));
+      let el = p.open(element("p"));
       let body = el.flush();
       body.atom(hello);
       body.atom(constant(" "));
@@ -249,7 +249,7 @@ export class ValueTest {
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
     const template = compiler.compile((b, { title, hello, world }) => {
       b.open(
-        element("p", this.#host),
+        element("p"),
         el => {
           el.atom(attr(constant("title"), title));
         },
@@ -305,7 +305,7 @@ export class ValueTest {
     // corresponds to `<p>{{@hello}} {{@world}}</p>`
     const template = compiler.compile((p, { title, hello, world }) => {
       p.open(
-        element("p", this.#host),
+        element("p"),
         el => {
           el.atom(attr(constant("title"), title));
         },
@@ -357,6 +357,8 @@ export class ValueTest {
     );
 
     const program = compiler.compile((b, { hello, world, showChild }) => {
+      let host = this.#owner.host;
+
       b.ifBlock(
         showChild,
         f(b => {
@@ -364,18 +366,11 @@ export class ValueTest {
           b.atom(constant(" "));
           b.atom(world);
           b.atom(
-            effect(
-              {
-                initialize: f(() =>
-                  this.#host.log(LogLevel.Testing, "initializing")
-                ),
-                update: f(() => this.#host.log(LogLevel.Testing, "updating")),
-                destroy: f(() =>
-                  this.#host.log(LogLevel.Testing, "destroying")
-                ),
-              },
-              this.#host
-            )
+            effect({
+              initialize: f(() => host.log(LogLevel.Testing, "initializing")),
+              update: f(() => host.log(LogLevel.Testing, "updating")),
+              destroy: f(() => host.log(LogLevel.Testing, "destroying")),
+            })
           );
         }),
         f(b => {
@@ -433,7 +428,7 @@ export class ValueTest {
     DefaultDomAtom,
     ReactiveParametersForInputs<I>
   > {
-    return Compiler.for(inputs, this.#host, new CompileDomOps());
+    return this.#owner.instantiate(Compiler.for, inputs, new CompileDomOps());
   }
 
   private render<A extends Dict<Var>>(
@@ -444,7 +439,7 @@ export class ValueTest {
     let parent = doc.createElement("div");
     let root = program.render(
       state,
-      AppendingDomRange.appending(parent, this.#host),
+      this.#owner.instantiate(AppendingDomRange.appending, parent),
       caller(PARENT)
     );
     let expectation = new RenderExpectation(

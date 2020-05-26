@@ -1,70 +1,63 @@
-import {
-  annotate,
-  caller,
-  LogLevel,
-  printStructured,
-  PARENT,
-  Source,
-  getSource,
-  DEBUG,
-} from "./debug/index";
-import {
-  Block,
-  Host,
-  ReactiveRange,
-  AppendingReactiveRange,
-  BlockFunction,
-  clearRange,
-  RenderResult,
-} from "./interfaces";
-import { Updater, updaters, poll } from "./update";
 import { invokeBlock } from "./block-primitives";
 import type { CursorAdapter } from "./builder";
-import { associateDestructor } from "@glimmer/util";
-import { linkResource, associateDestroyableChild } from "./polyfill";
+import {
+  caller,
+  DEBUG,
+  getSource,
+  LogLevel,
+  PARENT,
+  printStructured,
+  Source,
+} from "./debug/index";
+import {
+  AppendingReactiveRange,
+  Block,
+  BlockFunction,
+  clearRange,
+  ReactiveRange,
+  RenderResult,
+} from "./interfaces";
+import { associateDestroyableChild, linkResource } from "./polyfill";
+import { poll, Updater, updaters, UpdaterThunk } from "./update";
+import { Owner, Owned, getOwner, factory } from "./owner";
 
 /**
  * A {@link Region} is created for each area of the output. The {@link Region}
  * inserts the content into a cursor, and produces a set of updaters that will
  * be run whenever inputs to the region have changed.
  */
-export class Region<Cursor, Atom> {
+export class Region<Cursor, Atom> extends Owned {
   static render<Cursor, Atom>(
+    owner: Owner,
     block: Block<Cursor, Atom>,
-    appender: AppendingReactiveRange<Cursor, Atom>,
-    host: Host
+    appender: AppendingReactiveRange<Cursor, Atom>
   ): Updater | void {
-    let region = new Region(appender, host);
+    let region = owner.instantiate(() => new Region(owner, appender));
     block(region);
 
     if (region.#updaters.length === 0) {
       return;
     } else {
-      return updaters(region.#updaters, host, getSource(block));
+      return updaters(region.#updaters, getOwner(region), getSource(block));
     }
   }
 
   #range: AppendingReactiveRange<Cursor, Atom>;
   #updaters: Updater[];
   #destroyers: object = Object.freeze(Object.create(null));
-  #host: Host;
 
   constructor(
+    owner: Owner,
     range: AppendingReactiveRange<Cursor, Atom>,
-    host: Host,
     updaters: Updater[] = []
   ) {
+    super(owner);
     if (range instanceof Region) {
       throw new Error(`assert: can't wrap TrackedOutput around TrackedOutput`);
     }
 
     this.#range = range;
-    this.#host = host;
     this.#updaters = updaters;
-  }
-
-  get host(): Host {
-    return this.#host;
   }
 
   atom(reactiveAtom: Atom, source = caller(PARENT)): void {
@@ -78,7 +71,7 @@ export class Region<Cursor, Atom> {
     >
   ): Region<ChildCursor, ChildAtom> {
     let appender = adapter.child(this.#range.child());
-    return new Region(appender, this.#host, this.#updaters);
+    return getOwner(this).instantiate(RegionFactory, appender, this.#updaters);
   }
 
   flush<ChildCursor, ChildAtom>(
@@ -93,7 +86,7 @@ export class Region<Cursor, Atom> {
       finalizeRange(child.#range, child.#destroyers)
     );
 
-    return new Region(appender, this.#host, this.#updaters);
+    return getOwner(this).instantiate(RegionFactory, appender, this.#updaters);
   }
 
   /**
@@ -103,79 +96,81 @@ export class Region<Cursor, Atom> {
    *
    * @internal
    */
-  updateWith(update: Updater | void): void {
-    if (update) {
-      this.#host.logResult(
+  updateWith(updater: Updater | void): void {
+    if (updater !== undefined) {
+      let host = getOwner(updater).host;
+
+      host.logResult(
         LogLevel.Info,
-        `${printStructured(update, true)}`,
+        `${printStructured(updater, true)}`,
         "color: green"
       );
-      linkResource(this.#destroyers, update);
-      this.#updaters.push(update);
+      linkResource(this.#destroyers, updater);
+      this.#updaters.push(updater);
     }
   }
 
-  child(): AppendingReactiveRange<Cursor, Atom> {
-    return this.#range.child();
-  }
+  /**
+   * @internal
+   */
+  finalize(source: Source): RenderResult<Cursor, Atom> {
+    let range = finalizeRange(this.#range, this.#destroyers);
+    let updater = updaters(this.#updaters, getOwner(this), source);
 
-  // /**
-  //  * A dynamic block is rendered once every time the inputs into the block
-  //  * change. Whenever the block is rendered again, the {@link ReactiveRange}
-  //  * returned from {@link renderDynamic} is cleared, and the block is rendered
-  //  * into the cursor produced by clearing the range.
-  //  *
-  //  * @internal
-  //  */
-  // renderDynamicInto(
-  //   block: BlockFunction<Cursor, Atom>,
-  //   cursor: AppendingReactiveRange<Cursor, Atom>,
-  //   source: Source
-  // ): RenderResult<Cursor, Atom> {}
+    return result(updater, range, source);
+  }
 
   /**
    * A dynamic block is rendered once every time the inputs into the block
-   * change. Whenever the block is rendered again, the {@link ReactiveRange}
-   * returned from {@link renderDynamic} is cleared, and the block is rendered
-   * into the cursor produced by clearing the range.
+   * change. It returns a {@link RenderResult} that can be used to update
+   * the block or replace the block with another block.
    *
    * @internal
    */
-  renderDynamic(
-    block: BlockFunction<Cursor, Atom>,
-    source: Source,
-    cursor = this.#range.child()
-  ): RenderResult<Cursor, Atom> {
-    let region = new Region(cursor, this.#host);
+  renderDynamic(block: Block<Cursor, Atom>): RenderResult<Cursor, Atom> {
+    let region = getOwner(this).instantiate(RegionFactory, this.#range.child());
+    invokeBlock(block, region);
 
-    block(region);
-
-    let range = finalizeRange(region.#range, region.#destroyers);
-    let update = updaters(region.#updaters, this.#host, source);
-
-    return {
-      [DEBUG]: () => {
-        return source[DEBUG]();
-      },
-
-      rerender: () => {
-        poll(update, this.#host);
-      },
-
-      replace: (newBlock: Block<Cursor, Atom>) => {
-        return region.renderDynamic(newBlock, source, clearRange(range));
-      },
-    };
+    return region.finalize(getSource(block));
   }
 
   /**
    * @internal
    */
   renderBlock(block: Block<Cursor, Atom>): void {
-    let child = new Region(this.#range, this.#host, this.#updaters);
+    let child = getOwner(this).instantiate(
+      RegionFactory,
+      this.#range,
+      this.#updaters
+    );
 
     invokeBlock(block, child);
   }
+}
+
+export const RegionFactory = factory(Region);
+
+function result<Cursor, Atom>(
+  update: Updater,
+  range: ReactiveRange<Cursor, Atom>,
+  source: Source
+): RenderResult<Cursor, Atom> {
+  return {
+    [DEBUG]: () => {
+      return source[DEBUG]();
+    },
+
+    rerender: () => {
+      poll(update);
+    },
+
+    replace: (newBlock: Block<Cursor, Atom>) => {
+      let owner = getOwner(update);
+      let region = owner.instantiate(RegionFactory, clearRange(range));
+      newBlock(region);
+      return region.finalize(source);
+    },
+  };
 }
 
 function finalizeRange<Cursor, Atom>(

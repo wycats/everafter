@@ -6,6 +6,7 @@ import {
   ALL_LOGS,
   INFO_LOGS,
   WARNING_LOGS,
+  Owner,
 } from "../src";
 
 export function module(
@@ -50,12 +51,14 @@ interface Dict<T = unknown> {
   [key: string]: T;
 }
 
-export function host(messages: string[] = []): Host {
-  return defaultHost({
+export function owner(messages: string[] = []): Owner {
+  let host = defaultHost({
     showStackTraces: qunit.config.stacktraces,
     filter: filter(),
     messages,
   });
+
+  return new Owner(host);
 }
 
 function filter(): LogFilter {

@@ -1,10 +1,10 @@
 import { annotate, LogLevel, Source, printStructured } from "./debug/index";
 import { initializeEffect } from "./effect";
-import type { Block, BlockFunction, Host, RenderResult } from "./interfaces";
+import type { Block, BlockFunction, RenderResult } from "./interfaces";
 import type { Region } from "./region";
 import type { Var } from "./value";
 import { createCache, getValue } from "./polyfill";
-import { poll } from "./update";
+import { getOwner } from "./owner";
 
 export function conditionBlock<Cursor, Atom>(
   condition: Var<boolean>,
@@ -15,7 +15,8 @@ export function conditionBlock<Cursor, Atom>(
   return annotate((region: Region<Cursor, Atom>): void => {
     let currentResult: RenderResult<Cursor, Atom> | undefined = undefined;
     let currentBlock: Block<Cursor, Atom> | undefined = undefined;
-    let host = region.host;
+    let owner = getOwner(region);
+    let host = owner.host;
 
     let render = createCache(() => {
       host.context(LogLevel.Info, source.withDefaultDescription(`if`), () => {
@@ -31,7 +32,7 @@ export function conditionBlock<Cursor, Atom>(
             currentResult = currentResult.replace(nextBlock);
           }
         } else {
-          currentResult = region.renderDynamic(nextBlock, source);
+          currentResult = region.renderDynamic(nextBlock);
           host.logResult(LogLevel.Info, printStructured(currentResult, true));
         }
 
@@ -39,9 +40,9 @@ export function conditionBlock<Cursor, Atom>(
       });
     }, source);
 
-    let updater = initializeEffect(
+    let updater = getOwner(region).instantiate(
+      initializeEffect,
       annotate(() => getValue(render), source),
-      host,
       source
     );
 
@@ -64,5 +65,5 @@ export function invokeBlock<Cursor, Atom>(
 ): void {
   let level = LogLevel.Info;
 
-  region.host.context(level, block, () => block(region));
+  getOwner(region).host.context(level, block, () => block(region));
 }

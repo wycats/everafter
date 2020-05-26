@@ -1,9 +1,5 @@
-import { PARENT, caller } from "../debug/index";
-import type {
-  Host,
-  CompileOperations,
-  AppendingReactiveRange,
-} from "../interfaces";
+import { PARENT, caller, annotate } from "../debug/index";
+import type { CompileOperations, AppendingReactiveRange } from "../interfaces";
 import type { Dict } from "../utils";
 import {
   ReactiveParameter,
@@ -15,6 +11,7 @@ import {
 } from "./param";
 import { RootBlock } from "../root";
 import { Program, ReactiveState, Evaluate, ProgramBlock } from "./builder";
+import { Owner, Owned, getOwner, factory } from "../owner";
 
 /**
  * A {@link Compiler} knows about its reactive parameters, and can compile
@@ -33,19 +30,19 @@ export class Compiler<
   Atom,
   DefaultAtom,
   Params extends ReactiveParameters = ReactiveParameters
-> {
+> extends Owned {
   static for<
     Cursor,
     Atom,
     DefaultAtom,
     I extends ReactiveInputs<Dict<ReactiveParameter>>
   >(
+    owner: Owner,
     inputs: I,
-    host: Host,
     operations: CompileOperations<Cursor, Atom, DefaultAtom>
   ): Compiler<Cursor, Atom, DefaultAtom, ReactiveParametersForInputs<I>> {
     let reactiveParams = ReactiveParameters.for(inputs);
-    return new Compiler(reactiveParams, operations, host) as Compiler<
+    return new Compiler(owner, reactiveParams, operations) as Compiler<
       Cursor,
       Atom,
       DefaultAtom,
@@ -55,16 +52,15 @@ export class Compiler<
 
   #params: Params;
   #operations: CompileOperations<Cursor, Atom, DefaultAtom>;
-  #host: Host;
 
   constructor(
+    owner: Owner,
     params: Params,
-    operations: CompileOperations<Cursor, Atom, DefaultAtom>,
-    host: Host
+    operations: CompileOperations<Cursor, Atom, DefaultAtom>
   ) {
+    super(owner);
     this.#params = params;
     this.#operations = operations;
-    this.#host = host;
   }
 
   get params(): Params {
@@ -79,15 +75,18 @@ export class Compiler<
     source = caller(PARENT)
   ): CompiledProgram<Cursor, Atom, Params> {
     let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
-      let builder = new Program(
+      let builder = getOwner(this).instantiate(
+        factory(Program),
         this.#operations,
         source.withDefaultDescription("program")
       );
       callback(builder, this.#params.dict as ReactiveDict<Params>);
-      return builder.compile(state, this.#host);
+      return builder.compile(state);
     };
 
-    return new CompiledProgram(block, this.#params, this.#host);
+    return getOwner(this).instantiateWithSource(
+      annotate(owner => new CompiledProgram(owner, block, this.#params), source)
+    );
   }
 }
 
@@ -102,15 +101,18 @@ export class Compiler<
  * A {@link CompiledProgram} is evaluated at runtime by providing the concrete
  * reactive values and a concrete cursor for the reactive region.
  */
-export class CompiledProgram<Cursor, Atom, Params extends ReactiveParameters> {
+export class CompiledProgram<
+  Cursor,
+  Atom,
+  Params extends ReactiveParameters
+> extends Owned {
   #block: ProgramBlock<Cursor, Atom>;
   #params: Params;
-  #host: Host;
 
-  constructor(block: ProgramBlock<Cursor, Atom>, params: Params, host: Host) {
+  constructor(owner: Owner, block: ProgramBlock<Cursor, Atom>, params: Params) {
+    super(owner);
     this.#block = block;
     this.#params = params;
-    this.#host = host;
   }
 
   render(
@@ -119,7 +121,9 @@ export class CompiledProgram<Cursor, Atom, Params extends ReactiveParameters> {
     source = caller(PARENT)
   ): RootBlock<Cursor, Atom> {
     let evaluate = this.#block(this.#params.hydrate(dict));
-    let block = new RootBlock(evaluate, this.#host);
+    let block = getOwner(this).instantiateWithSource(
+      annotate(owner => new RootBlock(owner, evaluate), source)
+    );
     block.render(cursor, source);
     return block;
   }

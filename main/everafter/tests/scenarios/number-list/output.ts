@@ -7,7 +7,7 @@ import {
   DEBUG,
   description,
   Evaluate,
-  Host,
+  initializeEffect,
   LogLevel,
   PARENT,
   ReactiveParameter,
@@ -16,9 +16,14 @@ import {
   Region,
   Source,
   Structured,
-  Updater,
+  UpdaterThunk,
   Var,
-  initializeEffect,
+  Owned,
+  Owner,
+  getOwner,
+  factory,
+  Updater,
+  Factory,
 } from "everafter";
 
 export type ArrayAtom = Var<number>;
@@ -26,7 +31,7 @@ export type DefaultArrayAtom = ReactiveParameter<number>;
 
 export class CompileNumberArrayOps
   implements CompileOperations<ArrayCursor, ArrayAtom, DefaultArrayAtom> {
-  defaultAtom(atom: DefaultArrayAtom): CompilableNumberAtom {
+  defaultAtom(atom: DefaultArrayAtom): Factory<CompilableNumberAtom> {
     return num(atom);
   }
 }
@@ -35,8 +40,8 @@ class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   #value: ReactiveParameter<number>;
   #source: Source;
 
-  constructor(value: ReactiveParameter<number>, source: Source) {
-    super();
+  constructor(owner: Owner, value: ReactiveParameter<number>, source: Source) {
+    super(owner);
     this.#value = value;
     this.#source = source;
   }
@@ -52,8 +57,11 @@ class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   }
 }
 
-export function num(num: ReactiveParameter<number>): CompilableNumberAtom {
-  return new CompilableNumberAtom(num, caller(PARENT));
+export function num(
+  num: ReactiveParameter<number>
+): Factory<CompilableNumberAtom> {
+  return owner =>
+    owner.instantiate(factory(CompilableNumberAtom), num, caller(PARENT));
 }
 
 export interface Block {
@@ -61,12 +69,13 @@ export interface Block {
   head: never;
 }
 
-export class ArrayCursor {
+export class ArrayCursor extends Owned {
   #array: number[];
   #range: ArrayRange;
   #pos: number;
 
-  constructor(array: number[], range: ArrayRange, pos: number) {
+  constructor(owner: Owner, array: number[], range: ArrayRange, pos: number) {
+    super(owner);
     this.#array = array;
     this.#range = range;
     this.#pos = pos;
@@ -88,8 +97,8 @@ export class ArrayCursor {
     this.#array.splice(this.absolutePos, 0, num);
   }
 
-  replace(num: number, host: Host): void {
-    host.logResult(
+  replace(num: number): void {
+    getOwner(this).host.logResult(
       LogLevel.Info,
       `replacing ${this.absolutePos} from ${
         this.#array[this.absolutePos]
@@ -99,39 +108,40 @@ export class ArrayCursor {
   }
 }
 
-export class ArrayRange
+export class ArrayRange extends Owned
   implements
     ReactiveRange<ArrayCursor, ArrayAtom>,
     AppendingReactiveRange<ArrayCursor, ArrayAtom> {
-  static from(array: number[], host: Host): ArrayRange {
-    return new ArrayRange(array, 0, array.length, null, host);
+  static from(owner: Owner, array: number[]): ArrayRange {
+    return owner.instantiate(factory(ArrayRange), array, 0, array.length, null);
   }
 
   #array: number[];
   #start: number;
   #length: number;
   #parent: ArrayRange | null;
-  #host: Host;
 
   constructor(
+    owner: Owner,
     array: number[],
     start: number,
     length: number,
-    parent: ArrayRange | null,
-    host: Host
+    parent: ArrayRange | null
   ) {
+    super(owner);
     this.#array = array;
     this.#start = start;
     this.#length = length;
     this.#parent = parent;
-    this.#host = host;
   }
 
   append(atom: ArrayAtom, source: Source): Updater {
     let cursor: ArrayCursor | undefined = undefined;
-    let host = this.#host;
+    let owner = getOwner(this);
+    let host = owner.host;
 
-    return initializeEffect(
+    return owner.instantiate(
+      initializeEffect,
       {
         initialize: annotate(() => {
           cursor = this.getCursor();
@@ -146,21 +156,31 @@ export class ArrayRange
             host.logResult(LogLevel.Info, "nothing to do");
           } else {
             host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
-            cursor.replace(next, host);
+            cursor.replace(next);
           }
         }, source),
       },
-      host,
       source
     );
   }
 
   getCursor(): ArrayCursor {
-    return new ArrayCursor(this.#array, this, this.#length);
+    return getOwner(this).instantiate(
+      factory(ArrayCursor),
+      this.#array,
+      this,
+      this.#length
+    );
   }
 
   child(): AppendingReactiveRange<ArrayCursor, ArrayAtom> {
-    return new ArrayRange(this.#array, 0, 0, this, this.#host);
+    return getOwner(this).instantiate(
+      factory(ArrayRange),
+      this.#array,
+      0,
+      0,
+      this
+    );
   }
 
   finalize(): ReactiveRange<ArrayCursor, ArrayAtom> {

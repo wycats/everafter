@@ -17,7 +17,7 @@ import {
   willDestroyAssociated,
   didDestroyAssociated,
 } from "@glimmer/util";
-import type { Host } from "./interfaces";
+import { Owner, factory, getOwner, Owned, setOwner } from "./owner";
 
 if (DEBUG === undefined) {
   debugger;
@@ -94,23 +94,28 @@ export function isConst(cache: TrackedCache<unknown>): boolean {
   return isConstMemo(memo);
 }
 
-export class Resource<T> extends TrackedCache<T> {
-  constructor(memo: AnnotatedFunction<() => T>, destructor: () => void) {
+export class Resource<T> extends TrackedCache<T> implements Owned {
+  constructor(
+    owner: Owner,
+    memo: AnnotatedFunction<() => T>,
+    destructor?: () => void
+  ) {
     super(memo);
-    registerDestructor(this, destructor);
+    setOwner(this, owner);
+
+    if (destructor) {
+      registerDestructor(this, destructor);
+    }
   }
 }
 
 export function createResource<T>(
   memo: () => T,
   source: Source,
+  owner: Owner,
   destructor?: () => void
-): TrackedCache<T> {
-  if (destructor) {
-    return new Resource(annotate(memo, source), destructor);
-  } else {
-    return createCache(memo, source);
-  }
+): Resource<T> {
+  return new Resource(owner, annotate(memo, source), destructor);
 }
 
 export function linkResource(
