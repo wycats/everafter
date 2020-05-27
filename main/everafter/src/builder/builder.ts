@@ -13,7 +13,6 @@ import { Factory, getOwner, Owned, Owner } from "../owner";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
-// eslint-disable-next-line import/no-cycle
 import {
   CompilableBlock,
   CompilableStaticBlock,
@@ -52,7 +51,7 @@ export interface CompileCursorAdapter<
     unknown,
     unknown
   > = AppendingReactiveRange<unknown, unknown>
-> extends Owned {
+  > extends Owned {
   ops: CompileOperations<Cursor, Atom, DefaultAtom>;
   runtime: CursorAdapter<Left, Right>;
 }
@@ -66,7 +65,7 @@ export interface CursorAdapter<
     unknown,
     unknown
   > = AppendingReactiveRange<unknown, unknown>
-> {
+  > {
   child(left: Left): Right;
 
   flush(parent: Left, child: ReturnType<Right["finalize"]>): Left;
@@ -135,8 +134,8 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom> extends Owned
     let atom =
       typeof factory === "function"
         ? getOwner(this).instantiate(
-            factory as Factory<CompilableAtom<Cursor, Atom>>
-          )
+          factory as Factory<CompilableAtom<Cursor, Atom>>
+        )
         : factory;
 
     let statement =
@@ -202,7 +201,7 @@ class ForeignBlockBuilder<
   Cursor,
   Atom,
   DefaultAtom
-> extends Owned implements Builder<Cursor, Atom, DefaultAtom> {
+  > extends Owned implements Builder<Cursor, Atom, DefaultAtom> {
   #parent: Builder<ParentCursor, ParentAtom, ParentDefaultAtom>;
   #adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>;
   #ops: CompileOperations<ParentCursor, ParentAtom, ParentDefaultAtom>;
@@ -282,7 +281,7 @@ class BlockBodyBuilder<
   HeadCursor,
   HeadAtom,
   HeadDefaultAtom
-> extends Owned implements Builder<Cursor, Atom, DefaultAtom> {
+  > extends Owned implements Builder<Cursor, Atom, DefaultAtom> {
   #parent: Builder<Cursor, Atom, DefaultAtom>;
   #head: CompilableBlock<HeadCursor, HeadAtom>;
   #adapter: CompileCursorAdapter<HeadCursor, HeadAtom, HeadDefaultAtom>;

@@ -4,7 +4,6 @@ import { Owner, Owned, getOwner } from "../owner";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
-// eslint-disable-next-line import/no-cycle
 import {
   Compilable,
   CompileCursorAdapter,
@@ -22,8 +21,6 @@ import {
   LogLevel,
   isDebuggable,
   printStructured,
-  description,
-  Structured,
   DEBUG,
 } from "../debug";
 
@@ -133,8 +130,8 @@ export class CompilableStaticBlock<Cursor, Atom> extends Owned
 export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
   extends Owned
   implements
-    CompilableBlock<ParentCursor, ParentAtom>,
-    Compilable<ParentCursor, ParentAtom> {
+  CompilableBlock<ParentCursor, ParentAtom>,
+  Compilable<ParentCursor, ParentAtom> {
   #head: CompilableBlock<Cursor, Atom>;
   #body: CompilableBlock<ParentCursor, ParentAtom>;
   #adapter: CompileCursorAdapter<Cursor, Atom, DefaultAtom>;

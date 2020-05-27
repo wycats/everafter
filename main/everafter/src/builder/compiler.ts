@@ -2,7 +2,6 @@ import {
   f,
   getSource,
   LogLevel,
-  getSourceHere,
   caller,
   PARENT,
   getSourceFrame,
@@ -40,7 +39,7 @@ export class Compiler<
   Atom,
   DefaultAtom,
   Params extends ReactiveParameters = ReactiveParameters
-> extends Owned {
+  > extends Owned {
   static for<
     Cursor,
     Atom,
@@ -112,7 +111,7 @@ export class CompiledProgram<
   Cursor,
   Atom,
   Params extends ReactiveParameters
-> extends Owned {
+  > extends Owned {
   #block: ProgramBlock<Cursor, Atom>;
   #params: Params;
 

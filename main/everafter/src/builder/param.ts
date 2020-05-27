@@ -1,12 +1,11 @@
 import { Var, Const, Derived } from "../value";
-// eslint-disable-next-line import/no-cycle
 import { ReactiveState } from "./builder";
 import type { Dict } from "../utils";
 import { Debuggable, DEBUG, Structured, newtype, description } from "../debug";
 
 export type ReactiveDict<
   R extends ReactiveParameters
-> = R extends ReactiveParameters<infer R> ? R : never;
+  > = R extends ReactiveParameters<infer R> ? R : never;
 
 export function constant<T>(value: T): ReactiveParameter<T> {
   return reactive(() => Const(value), "const");
@@ -34,7 +33,7 @@ export function callEffect<A extends Var[], B>(
 
 export class ReactiveParameters<
   D extends Dict<ReactiveParameter> = Dict<ReactiveParameter>
-> {
+  > {
   static for<D extends Dict<ReactiveParameter>>(
     input: ReactiveInputs<D>
   ): ReactiveParameters<D> {
@@ -114,13 +113,13 @@ export type ReactiveParametersForTuple<T extends readonly Var<unknown>[]> = {
 
 export type ReactiveValuesForTuple<
   T extends readonly ReactiveParameter<unknown>[]
-> = {
-  [P in keyof T]: T[P] extends ReactiveParameter<infer R> ? Var<R> : never;
-};
+  > = {
+    [P in keyof T]: T[P] extends ReactiveParameter<infer R> ? Var<R> : never;
+  };
 
 export type ReactiveParametersForInputs<
   I extends ReactiveInputs<Dict<ReactiveParameter>>
-> = I extends ReactiveInputs<infer R> ? ReactiveParameters<R> : never;
+  > = I extends ReactiveInputs<infer R> ? ReactiveParameters<R> : never;
 
 type UserCall<A extends Var[], B> = (...args: A) => B;
 
@@ -138,7 +137,7 @@ export type RuntimeValuesForDict<D extends Dict<ReactiveParameter>> = {
 
 export type DynamicRuntimeValues<
   D extends Dict<ReactiveParameter> | ReactiveParameters
-> = D extends ReactiveParameters<infer D>
+  > = D extends ReactiveParameters<infer D>
   ? RuntimeValuesForDict<D>
   : D extends Dict<ReactiveParameter>
   ? RuntimeValuesForDict<D>

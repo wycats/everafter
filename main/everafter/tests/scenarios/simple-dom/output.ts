@@ -18,8 +18,6 @@ import {
   Factory,
   getOwner,
   initializeEffect,
-  IntoEffect,
-  intoEffect,
   Owned,
   ownedNew,
   Owner,
@@ -32,12 +30,8 @@ import {
   Updater,
   UserEffect,
   Var,
-  struct,
-  getSourceHere,
   getSourceFrame,
   getSource,
-  maybeGetSource,
-  ReactiveParametersForInputs,
   ReactiveParametersForTuple,
   ReactiveValuesForTuple,
 } from "everafter";
@@ -82,6 +76,7 @@ export function effect<T, Args extends readonly ReactiveParameter<unknown>[]>(
   effect: UserEffect<T, ReactiveValuesForTuple<Args>>,
   ...args: Args
 ): Factory<CompilableEffect<T, ReactiveValuesForTuple<Args>>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return owner => new CompilableEffect(owner, effect, args as any);
 }
 

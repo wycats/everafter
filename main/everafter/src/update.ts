@@ -2,8 +2,6 @@ import {
   LogLevel,
   Source,
   setDefaultSource,
-  NO_SOURCE,
-  getSourceFrame,
 } from "./debug/index";
 import type { Block } from "./interfaces";
 import {

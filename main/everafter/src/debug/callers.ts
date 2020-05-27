@@ -1,6 +1,6 @@
 import StackTracey, { StackTraceyFrame } from "stacktracey";
 import { DEBUG, Debuggable } from "./debuggable";
-import { description, Structured, newtype } from "./structured";
+import { description, Structured } from "./structured";
 
 export const SOURCE_STACK: Source[] = [];
 

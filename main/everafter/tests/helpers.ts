@@ -1,7 +1,6 @@
 import * as qunit from "qunit";
 import {
   defaultHost,
-  Host,
   LogFilter,
   ALL_LOGS,
   INFO_LOGS,

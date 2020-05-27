@@ -1,7 +1,6 @@
 import { isDebuggable, DEBUG, Debuggable } from "./debuggable";
 import type { Dict } from "../utils";
 import { maybeGetSource } from "./callers";
-import type { Updater } from "../update";
 
 /**
  * Make this a class so we get a nominal type (so it can be compared
@@ -124,9 +123,9 @@ export function struct(name: string, fields: Dict<unknown>): Structured {
     (Object.keys(fields)
       .map(key => [key, intoStructured(fields[key])])
       .filter(([, value]) => value !== undefined) as unknown) as readonly [
-      string,
-      Structured
-    ][]
+        string,
+        Structured
+      ][]
   );
 }
 

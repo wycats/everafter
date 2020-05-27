@@ -1,5 +1,5 @@
 import { unreachable } from "../utils";
-import { Style, css, group } from "../owner";
+import { Style, css } from "../owner";
 
 export interface LogFilter {
   info: boolean;

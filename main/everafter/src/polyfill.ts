@@ -8,12 +8,7 @@ import {
 import { isConstMemo, memoizeTracked } from "@glimmer/validator";
 import {
   DEBUG,
-  Debuggable,
-  description,
   Structured,
-  newtype,
-  isDebuggable,
-  maybeGetSource,
 } from "./debug";
 import { Owned, Owner, setOwner, ClassFactory, getOwner } from "./owner";
 import { unwrap } from "./utils";

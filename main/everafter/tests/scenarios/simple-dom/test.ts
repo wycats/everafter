@@ -333,7 +333,7 @@ export class ValueTest {
       .expect(`<p title="ember-octane">goodbye PLANET</p>`);
   }
 
-  @test destroyable() {
+  @test destroyable(): void {
     const compiler = this.compiler({
       hello: Param<string>(),
       world: Param<string>(),

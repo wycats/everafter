@@ -6,26 +6,15 @@ module.exports = {
   },
   ignorePatterns: ["dist/", "node_modules/", "!.*"],
   env: {
-    browser: true,
-  },
-  settings: {
-    "import/resolver": {
-      typescript: {
-        directory: ["{src,tests,docs}/tsconfig.json"],
-      },
-      webpack: true,
-    },
+    browser: false,
   },
   overrides: [
     {
       files: ["**/*.ts"],
       plugins: ["@glimmerx", "@typescript-eslint", "prettier"],
       extends: [
-        "plugin:@typescript-eslint/recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
         "prettier/@typescript-eslint",
-        "plugin:import/errors",
-        "plugin:import/warnings",
-        "plugin:import/typescript",
       ],
       rules: {
         "@glimmerx/template-vars": "error",
@@ -42,8 +31,6 @@ module.exports = {
           "error",
           { argsIgnorePattern: "^_" },
         ],
-        "import/export": "off",
-        "import/no-cycle": ["error"],
         "prefer-const": "off",
         "no-constant-condition": [
           "error",

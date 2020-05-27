@@ -1,6 +1,6 @@
 import { invokeBlock } from "./block-primitives";
 import type { CursorAdapter } from "./builder";
-import { DEBUG, description, LogLevel, printStructured } from "./debug/index";
+import { DEBUG, description, LogLevel } from "./debug/index";
 import {
   AppendingReactiveRange,
   Block,

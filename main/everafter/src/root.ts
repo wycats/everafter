@@ -2,7 +2,6 @@ import type { Evaluate } from "./builder";
 import {
   DEBUG,
   description,
-  getSourceFrame,
   LogLevel,
   Structured,
   maybeGetSource,

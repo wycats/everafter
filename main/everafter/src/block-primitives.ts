@@ -1,5 +1,4 @@
 import {
-  description,
   LogLevel,
   printStructured,
   getSource,
