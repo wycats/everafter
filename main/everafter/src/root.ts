@@ -5,6 +5,8 @@ import {
   getSourceFrame,
   LogLevel,
   Structured,
+  maybeGetSource,
+  getSource,
 } from "./debug/index";
 import { initializeEffect } from "./effect";
 import type { AppendingReactiveRange } from "./interfaces";
@@ -33,25 +35,29 @@ export class RootBlock<Cursor, Atom> extends Owned {
   render(cursor: AppendingReactiveRange<Cursor, Atom>): Updater | void {
     let owner = getOwner(cursor);
     let host = owner.host;
-    let source = getSourceFrame();
+    let source = maybeGetSource(this.#program);
 
-    this.#update = owner.instantiate(initializeEffect, {
-      initialize: () =>
-        host.context(LogLevel.Info, description("RootBlock"), () =>
-          host.indent(LogLevel.Info, () =>
-            owner.instantiate(Region.render, this.#program, cursor)
-          )
-        ),
-      update: (updater: Updater | void) => {
-        host.context(LogLevel.Info, description("re-rendering"), () => {
-          if (updater) {
-            poll(updater);
-          } else {
-            host.logResult(LogLevel.Info, "nothing to do, no updaters");
-          }
-        });
+    this.#update = owner.instantiate(
+      initializeEffect,
+      {
+        initialize: () =>
+          host.context(
+            LogLevel.Info,
+            source ? source.describe("root block") : undefined,
+            () => owner.instantiate(Region.render, this.#program, cursor)
+          ),
+        update: (updater: Updater | void) => {
+          host.context(LogLevel.Info, description("re-rendering"), () => {
+            if (updater) {
+              poll(updater);
+            } else {
+              host.logResult(LogLevel.Info, "nothing to do, no updaters");
+            }
+          });
+        },
       },
-    });
+      getSource(this)
+    );
   }
 
   rerender(): void {

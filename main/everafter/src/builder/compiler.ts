@@ -1,17 +1,27 @@
-import { PARENT, caller, sourceFrame } from "../debug/index";
-import type { CompileOperations, AppendingReactiveRange } from "../interfaces";
-import type { Dict } from "../utils";
 import {
-  ReactiveParameter,
-  ReactiveParameters,
+  f,
+  getSource,
+  LogLevel,
+  getSourceHere,
+  caller,
+  PARENT,
+  getSourceFrame,
+  maybeGetSource,
+  setDefaultSource,
+} from "../debug/index";
+import type { AppendingReactiveRange, CompileOperations } from "../interfaces";
+import { getOwner, Owned, Owner } from "../owner";
+import { RootBlock } from "../root";
+import type { Dict } from "../utils";
+import { Evaluate, Program, ProgramBlock, ReactiveState } from "./builder";
+import {
+  DynamicRuntimeValues,
   ReactiveDict,
   ReactiveInputs,
+  ReactiveParameter,
+  ReactiveParameters,
   ReactiveParametersForInputs,
-  DynamicRuntimeValues,
 } from "./param";
-import { RootBlock } from "../root";
-import { Program, ReactiveState, Evaluate, ProgramBlock } from "./builder";
-import { Owner, Owned, getOwner } from "../owner";
 
 /**
  * A {@link Compiler} knows about its reactive parameters, and can compile
@@ -73,6 +83,8 @@ export class Compiler<
       callbackParams: ReactiveDict<Params>
     ) => void
   ): CompiledProgram<Cursor, Atom, Params> {
+    let source = caller(PARENT).withDefaultDescription("program");
+
     let block = (state: ReactiveState): Evaluate<Cursor, Atom> => {
       let builder = this.new(Program, this.#operations);
       callback(builder, this.#params.dict as ReactiveDict<Params>);
@@ -80,7 +92,7 @@ export class Compiler<
     };
 
     return getOwner(this).instantiate(
-      owner => new CompiledProgram(owner, block, this.#params)
+      owner => new CompiledProgram(owner, f(block, source), this.#params)
     );
   }
 }
@@ -114,11 +126,23 @@ export class CompiledProgram<
     dict: DynamicRuntimeValues<Params>,
     cursor: AppendingReactiveRange<Cursor, Atom>
   ): RootBlock<Cursor, Atom> {
-    let evaluate = this.#block(this.#params.hydrate(dict));
-    let block = getOwner(this).instantiate(
-      owner => new RootBlock(owner, evaluate)
+    let source = getSourceFrame();
+
+    return getOwner(this).host.context(
+      LogLevel.Info,
+      source ? source.describe("rendering") : undefined,
+      () => {
+        let evaluate = setDefaultSource(
+          this.#block(this.#params.hydrate(dict)),
+          maybeGetSource(this.#block)
+        );
+        let block = getOwner(this).instantiate(
+          owner => new RootBlock(owner, evaluate)
+        );
+        setDefaultSource(block, getSource(this.#block));
+        block.render(cursor);
+        return block;
+      }
     );
-    block.render(cursor);
-    return block;
   }
 }

@@ -6,7 +6,15 @@ import {
   willDestroyAssociated,
 } from "@glimmer/util";
 import { isConstMemo, memoizeTracked } from "@glimmer/validator";
-import { DEBUG, Debuggable, description, Structured } from "./debug";
+import {
+  DEBUG,
+  Debuggable,
+  description,
+  Structured,
+  newtype,
+  isDebuggable,
+  maybeGetSource,
+} from "./debug";
 import { Owned, Owner, setOwner, ClassFactory, getOwner } from "./owner";
 import { unwrap } from "./utils";
 
@@ -24,16 +32,12 @@ const CACHE = new WeakMap<
 const TRACKED = Symbol("TRACKED");
 type TRACKED = typeof TRACKED;
 
-export class TrackedCache<T> implements Debuggable {
+export class TrackedCache<T> {
   declare tracked: TRACKED;
 
   constructor(memo: () => T) {
     CACHE.set(this, { value: NULL, memo });
     Object.freeze(this);
-  }
-
-  [DEBUG](): Structured {
-    return description("TrackedCache");
   }
 }
 
@@ -101,7 +105,7 @@ export function createResource<T>(
   owner: Owner,
   destructor?: () => void
 ): Resource<T> {
-  return new Resource(owner, memo, destructor);
+  return new Resource(owner, memoizeTracked(memo), destructor);
 }
 
 export function linkResource(

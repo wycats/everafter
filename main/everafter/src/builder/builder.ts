@@ -1,4 +1,13 @@
 import { invokeBlock } from "../block-primitives";
+import {
+  caller,
+  DEBUG,
+  Debuggable,
+  PARENT,
+  setDefaultSource,
+  Source,
+  Structured,
+} from "../debug";
 import type { AppendingReactiveRange, CompileOperations } from "../interfaces";
 import { Factory, getOwner, Owned, Owner } from "../owner";
 import type { Region } from "../region";
@@ -20,9 +29,11 @@ export interface Compilable<Cursor, Atom> {
   compile(state: ReactiveState): Evaluate<Cursor, Atom>;
 }
 
-export abstract class CompilableAtom<Cursor, Atom> extends Owned {
+export abstract class CompilableAtom<Cursor, Atom> extends Owned
+  implements Compilable<Cursor, Atom>, Debuggable {
   declare __proto__: CompilableAtom<Cursor, Atom>;
   abstract compile(state: ReactiveState): Evaluate<Cursor, Atom>;
+  abstract [DEBUG](): Structured;
 }
 
 export type Evaluate<Cursor, Atom, Out = void> = (
@@ -62,12 +73,16 @@ export interface CursorAdapter<
 }
 
 export interface Builder<Cursor, Atom, DefaultAtom> {
-  atom(atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom): void;
+  atom(
+    atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom,
+    source: Source
+  ): void;
 
   ifBlock<A extends ReactiveParameter<boolean>>(
     condition: A,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
-    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    source?: Source
   ): void;
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
@@ -113,26 +128,32 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom> extends Owned
     });
   }
 
-  atom(factory: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom): void {
+  atom(
+    factory: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom,
+    source = caller(PARENT)
+  ): void {
     let atom =
       typeof factory === "function"
         ? getOwner(this).instantiate(
             factory as Factory<CompilableAtom<Cursor, Atom>>
           )
         : factory;
-    if (atom instanceof CompilableAtom) {
-      this.#statements.push(atom);
-    } else {
-      this.#statements.push(
-        getOwner(this).instantiate(this.#ops.defaultAtom(atom))
-      );
-    }
+
+    let statement =
+      atom instanceof CompilableAtom
+        ? atom
+        : getOwner(this).instantiate(this.#ops.defaultAtom(atom));
+
+    setDefaultSource(statement, source);
+
+    this.#statements.push(statement);
   }
 
   ifBlock(
     condition: ReactiveParameter<boolean>,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
-    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    source = caller(PARENT).withDefaultDescription("if")
   ): void {
     let cond = new Conditional(
       condition,
@@ -144,6 +165,7 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom> extends Owned
       )
     );
 
+    setDefaultSource(cond, source);
     this.#statements.push(cond);
   }
 
@@ -199,16 +221,20 @@ class ForeignBlockBuilder<
     this.#builder = owner.new(StaticBlockBuilder, adapter.ops);
   }
 
-  atom(atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom): void {
-    this.#builder.atom(atom);
+  atom(
+    atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom,
+    source: Source = caller(PARENT)
+  ): void {
+    this.#builder.atom(atom, source);
   }
 
   ifBlock(
     condition: ReactiveParameter<boolean>,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
-    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    source = caller(PARENT)
   ): void {
-    this.#builder.ifBlock(condition, then, otherwise);
+    this.#builder.ifBlock(condition, then, otherwise, source);
   }
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(
@@ -329,16 +355,20 @@ export class Program<Cursor, Atom, DefaultAtom> extends Owned
     return this.#statements.done().compile(state);
   }
 
-  atom(atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom): void {
-    this.#statements.atom(atom);
+  atom(
+    atom: Factory<CompilableAtom<Cursor, Atom>> | DefaultAtom,
+    source = caller(PARENT)
+  ): void {
+    this.#statements.atom(atom, source);
   }
 
   ifBlock<A extends ReactiveParameter<boolean>>(
     condition: A,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
-    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>
+    otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
+    source = caller(PARENT).withDefaultDescription("if")
   ): void {
-    this.#statements.ifBlock(condition, then, otherwise);
+    this.#statements.ifBlock(condition, then, otherwise, source);
   }
 
   open<ChildCursor, ChildAtom, ChildDefaultAtom>(

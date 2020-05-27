@@ -8,8 +8,16 @@ import {
   ReactiveRange,
   RenderResult,
 } from "./interfaces";
-import { getOwner, Owned, Owner } from "./owner";
-import { associateDestroyableChild, linkResource } from "./polyfill";
+import {
+  getOwner,
+  Owned,
+  Owner,
+  SUCCESS,
+  IGNORE,
+  INITIAL,
+  group,
+} from "./owner";
+import { associateDestroyableChild, linkResource, isConst } from "./polyfill";
 import { poll, Updater, updaters } from "./update";
 
 /**
@@ -88,14 +96,12 @@ export class Region<Cursor, Atom> extends Owned {
    * @internal
    */
   updateWith(updater: Updater | void): void {
-    if (updater !== undefined) {
-      let host = getOwner(updater).host;
+    let host = getOwner(this).host;
 
-      host.logResult(
-        LogLevel.Info,
-        `${printStructured(updater, true)}`,
-        "color: green"
-      );
+    if (updater === undefined || isConst(updater)) {
+      host.logResult(LogLevel.Info, `static`, group(IGNORE, INITIAL));
+    } else if (updater !== undefined) {
+      host.logResult(LogLevel.Info, `dynamic`, group(SUCCESS, INITIAL));
       linkResource(this.#destroyers, updater);
       this.#updaters.push(updater);
     }

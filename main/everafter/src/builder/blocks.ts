@@ -1,6 +1,6 @@
 import { conditionBlock, invokeBlock, staticBlock } from "../block-primitives";
 import type { Block, CompileOperations } from "../interfaces";
-import { Owner, Owned } from "../owner";
+import { Owner, Owned, getOwner } from "../owner";
 import type { Region } from "../region";
 import type { Dict } from "../utils";
 import type { Var } from "../value";
@@ -14,6 +14,18 @@ import {
   StaticBlockBuilder,
 } from "./builder";
 import type { ReactiveParameter } from "./param";
+import {
+  setDefaultSource,
+  getSource,
+  maybeGetSource,
+  sourceFrame,
+  LogLevel,
+  isDebuggable,
+  printStructured,
+  description,
+  Structured,
+  DEBUG,
+} from "../debug";
 
 export interface CompilableBlock<Cursor, Atom> extends Owned {
   intoBlock(state: ReactiveState): Block<Cursor, Atom>;
@@ -40,10 +52,13 @@ export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
     let otherwise = this.#else.intoBlock(state);
 
     let func = (output: Region<Cursor, Atom>): void => {
-      let cond = conditionBlock<Cursor, Atom>(condition, then, otherwise);
-
-      output.renderBlock(cond);
+      sourceFrame(() => {
+        let cond = conditionBlock<Cursor, Atom>(condition, then, otherwise);
+        output.renderBlock(cond);
+      }, getSource(this));
     };
+
+    setDefaultSource(func, getSource(this));
 
     return func;
   }
@@ -62,7 +77,9 @@ export class CompilableStaticBlock<Cursor, Atom> extends Owned
   ): CompilableBlock<Cursor, Atom> {
     let builder = owner.new(StaticBlockBuilder, ops);
     block(builder);
-    return builder.done();
+    let compiled = builder.done();
+    setDefaultSource(compiled, getSource(block));
+    return compiled;
   }
 
   #statements: readonly Statement<Cursor, Atom>[];
@@ -83,11 +100,31 @@ export class CompilableStaticBlock<Cursor, Atom> extends Owned
   }
 
   intoBlock(state: ReactiveState): Block<Cursor, Atom> {
-    let statements = this.#statements.map(s => s.compile(state));
+    let statements = this.#statements.map((s: Statement<Cursor, Atom>) => {
+      let compiled = s.compile(state);
+      let source = maybeGetSource(s);
+      let debug = isDebuggable(s) ? printStructured(s, true) : undefined;
+
+      setDefaultSource(compiled, source);
+
+      if (source && debug) {
+        return [compiled, source.describe(debug)] as const;
+      } else if (source) {
+        return [compiled, source[DEBUG]()] as const;
+      } else if (isDebuggable(s)) {
+        return [compiled, s[DEBUG]()] as const;
+      } else {
+        return [compiled, undefined] as const;
+      }
+    });
 
     return (region: Region<Cursor, Atom>): void => {
-      for (let statement of statements) {
-        statement(region);
+      for (let [statement, debug] of statements) {
+        sourceFrame(() => {
+          getOwner(region).host.context(LogLevel.Info, debug, () =>
+            statement(region)
+          );
+        }, maybeGetSource(statement) || null);
       }
     };
   }

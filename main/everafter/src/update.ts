@@ -1,6 +1,21 @@
-import { LogLevel } from "./debug/index";
+import {
+  LogLevel,
+  Source,
+  setDefaultSource,
+  NO_SOURCE,
+  getSourceFrame,
+} from "./debug/index";
 import type { Block } from "./interfaces";
-import { getOwner, Host, Owned, Owner } from "./owner";
+import {
+  getOwner,
+  Host,
+  Owned,
+  Owner,
+  IGNORE,
+  SUCCESS,
+  UPDATE,
+  group,
+} from "./owner";
 import {
   createResource,
   getValue,
@@ -15,8 +30,10 @@ export function poll(updater: Updater): Updater | void {
     getValue(updater);
 
     if (isConst(updater)) {
+      host.logResult(LogLevel.Info, "const", group(IGNORE, UPDATE));
       return;
     } else {
+      host.logResult(LogLevel.Info, "dynamic", group(SUCCESS, UPDATE));
       return updater;
     }
   });
@@ -26,6 +43,14 @@ export const UPDATER = Symbol("INITIALIZED UPDATER");
 export type UPDATER = typeof UPDATER;
 export type UpdaterThunk = (host: Host) => Updater | void;
 export type Updater = TrackedCache<() => void> & { [UPDATER]: true } & Owned;
+
+export function updater(
+  input: TrackedCache<() => void> & Owned,
+  source: Source
+): Updater {
+  setDefaultSource(input, source);
+  return input as Updater;
+}
 
 export interface ReactiveRegion<Cursor, Atom> {
   initialize(cursor: Cursor, callback: Block<Cursor, Atom>): Updater;
@@ -49,7 +74,7 @@ export function updaters(list: Updater[], owner: Owner): Updater {
     }
 
     current = newUpdaters;
-  }, owner) as Updater;
+  }, owner);
   // The entire updaters cache is initialized because the individual items
   // were initialized.
 

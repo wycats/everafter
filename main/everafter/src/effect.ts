@@ -1,7 +1,7 @@
-import { LogLevel } from "./debug/index";
+import type { Source } from "./debug/index";
 import type { Owner } from "./owner";
 import { createResource, getValue } from "./polyfill";
-import type { Updater } from "./update";
+import { Updater, updater } from "./update";
 
 export const POLL = Symbol("POLL");
 
@@ -29,20 +29,17 @@ type UNINITIALIZED = typeof UNINITIALIZED;
 
 export function initializeEffect<T>(
   owner: Owner,
-  effect: IntoEffect<T>
+  effect: IntoEffect<T>,
+  source: Source
 ): Updater {
   const { initialize, update, destroy } = intoEffect(effect);
   let value: T | UNINITIALIZED = UNINITIALIZED;
-  let host = owner.host;
 
   let cache = createResource(
     () => {
       if (value === UNINITIALIZED) {
-        host.logStatus(LogLevel.Info, `initializing`, "color: blue");
         value = initialize();
       } else {
-        host.logStatus(LogLevel.Info, `updating`, "color: green");
-
         let next = update(value);
 
         if (next !== undefined) {
@@ -59,5 +56,5 @@ export function initializeEffect<T>(
   // initialize effect
   getValue(cache);
 
-  return cache as Updater;
+  return updater(cache, source);
 }

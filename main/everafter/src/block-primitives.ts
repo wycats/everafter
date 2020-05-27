@@ -1,4 +1,12 @@
-import { description, LogLevel, printStructured } from "./debug/index";
+import {
+  description,
+  LogLevel,
+  printStructured,
+  getSource,
+  maybeGetSource,
+  getSourceFrame,
+  NO_SOURCE,
+} from "./debug/index";
 import { initializeEffect } from "./effect";
 import type { Block, BlockFunction, RenderResult } from "./interfaces";
 import { getOwner } from "./owner";
@@ -16,31 +24,32 @@ export function conditionBlock<Cursor, Atom>(
     let currentBlock: Block<Cursor, Atom> | undefined = undefined;
     let owner = getOwner(region);
     let host = owner.host;
+    let source = getSourceFrame().or(NO_SOURCE.describe("if"));
 
     let render = createCache(() => {
-      host.context(LogLevel.Info, description("if"), () => {
-        let isTrue = condition.current;
-        let nextBlock = isTrue ? then : otherwise;
+      let isTrue = condition.current;
+      let nextBlock = isTrue ? then : otherwise;
 
-        if (currentResult) {
-          if (currentBlock === nextBlock) {
-            host.logResult(LogLevel.Info, `stable block, updating contents`);
-            currentResult.rerender();
-          } else {
-            host.logResult(LogLevel.Info, `unstable block, re-rendering`);
-            currentResult = currentResult.replace(nextBlock);
-          }
+      if (currentResult) {
+        if (currentBlock === nextBlock) {
+          host.logResult(LogLevel.Info, `stable block, updating contents`);
+          currentResult.rerender();
         } else {
-          currentResult = region.renderDynamic(nextBlock);
-          host.logResult(LogLevel.Info, printStructured(currentResult, true));
+          host.logResult(LogLevel.Info, `unstable block, re-rendering`);
+          currentResult = currentResult.replace(nextBlock);
         }
+      } else {
+        currentResult = region.renderDynamic(nextBlock);
+        host.logResult(LogLevel.Info, printStructured(currentResult, true));
+      }
 
-        currentBlock = nextBlock;
-      });
+      currentBlock = nextBlock;
     });
 
-    let updater = getOwner(region).instantiate(initializeEffect, () =>
-      getValue(render)
+    let updater = getOwner(region).instantiate(
+      initializeEffect,
+      () => getValue(render),
+      source
     );
 
     region.updateWith(updater);
@@ -61,7 +70,13 @@ export function invokeBlock<Cursor, Atom>(
 ): void {
   let level = LogLevel.Info;
 
-  getOwner(region).host.context(level, description("Block"), () =>
-    block(region)
-  );
+  if (maybeGetSource(block)) {
+    getOwner(region).host.context(
+      level,
+      getSource(block).withDefaultDescription("Block"),
+      () => block(region)
+    );
+  } else {
+    block(region);
+  }
 }

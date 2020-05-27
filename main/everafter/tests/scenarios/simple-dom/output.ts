@@ -32,6 +32,11 @@ import {
   Updater,
   UserEffect,
   Var,
+  struct,
+  getSourceHere,
+  getSourceFrame,
+  getSource,
+  maybeGetSource,
 } from "everafter";
 
 export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
@@ -42,10 +47,18 @@ export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
     this.#effect = effect;
   }
 
+  [DEBUG](): Structured {
+    return description("effect");
+  }
+
   compile(_state: ReactiveState): Evaluate<DomCursor, DomAtom> {
     return region => {
       region.updateWith(
-        getOwner(this).instantiate(initializeEffect, this.#effect)
+        getOwner(this).instantiate(
+          initializeEffect,
+          this.#effect,
+          getSource(this).describe("effect")
+        )
       );
     };
   }
@@ -86,6 +99,10 @@ export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
     this.#name = name;
     this.#value = value;
     this.#namespace = namespace;
+  }
+
+  [DEBUG](): Structured {
+    return description("attr");
   }
 
   compile(state: ReactiveState): Evaluate<AttrCursor, AttrAtom> {
@@ -161,17 +178,23 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
   A
 > {
   #value: ReactiveParameter<T>;
+  #desc: string;
   #toRuntime: ToRuntime<T>;
 
   constructor(
     owner: Owner,
     value: ReactiveParameter<T>,
+    desc: string,
     toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void
   ) {
     super(owner);
-
+    this.#desc = desc;
     this.#value = value;
     this.#toRuntime = toRuntime;
+  }
+
+  [DEBUG](): Structured {
+    return description(this.#desc);
   }
 
   compile(state: ReactiveState): Evaluate<DomCursor, DomAttr> {
@@ -187,6 +210,7 @@ export function text(
     owner.new(
       CompilableDomAtom,
       value,
+      "text",
       (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
         region.atom(runtimeText(value));
       }
@@ -200,6 +224,7 @@ export function comment(
     owner.new(
       CompilableDomAtom,
       value,
+      "comment",
       (value: Var<string>) => (region: Region<DomCursor, DomAtom>) => {
         region.atom(runtimeComment(value));
       }
@@ -213,6 +238,7 @@ export function node(
     owner.new(
       CompilableDomAtom,
       value,
+      "node",
       (value: Var<SimpleNode>) => (region: Region<DomCursor, DomAtom>) => {
         region.atom(runtimeNode(value));
       }
@@ -376,59 +402,71 @@ export class AppendingDomRange extends Owned
       case "Text": {
         let doc = this.#document;
 
-        return getOwner(this).instantiate(initializeEffect, {
-          initialize: () => {
-            let node = doc.createTextNode(atom.data.current);
-            this.insert(node);
-            return node;
+        return getOwner(this).instantiate(
+          initializeEffect,
+          {
+            initialize: () => {
+              let node = doc.createTextNode(atom.data.current);
+              this.insert(node);
+              return node;
+            },
+            update: (node: SimpleText) => {
+              node.nodeValue = atom.data.current;
+            },
           },
-          update: (node: SimpleText) => {
-            node.nodeValue = atom.data.current;
-          },
-        });
+          getSourceFrame().describe("Text")
+        );
       }
 
       case "Comment": {
         let doc = this.#document;
 
-        return getOwner(this).instantiate(initializeEffect, {
-          initialize: () => {
-            let node = doc.createComment(atom.data.current);
-            this.insert(node);
-            return node;
+        return getOwner(this).instantiate(
+          initializeEffect,
+          {
+            initialize: () => {
+              let node = doc.createComment(atom.data.current);
+              this.insert(node);
+              return node;
+            },
+            update: (node: SimpleComment) => {
+              node.nodeValue = atom.data.current;
+            },
           },
-          update: (node: SimpleComment) => {
-            node.nodeValue = atom.data.current;
-          },
-        });
+          getSourceFrame().describe("Comment")
+        );
       }
 
       case "Node": {
         let node: SimpleNode | undefined = undefined;
 
-        return getOwner(this).instantiate(initializeEffect, {
-          initialize: () => {
-            node = atom.node.current;
-            this.insert(node);
-            return node;
+        return getOwner(this).instantiate(
+          initializeEffect,
+          {
+            initialize: () => {
+              node = atom.node.current;
+              this.insert(node);
+              return node;
+            },
+            update: (node: SimpleNode) => {
+              let newNode = atom.node.current;
+
+              let parent = node.parentNode;
+
+              if (parent === null) {
+                throw new Error(
+                  `invariant: attempted to replace a detached node`
+                );
+              }
+
+              let nextSibling = node.nextSibling;
+              parent.removeChild(node);
+
+              parent.insertBefore(newNode, nextSibling);
+            },
           },
-          update: (node: SimpleNode) => {
-            let newNode = atom.node.current;
-
-            let parent = node.parentNode;
-
-            if (parent === null) {
-              throw new Error(
-                `invariant: attempted to replace a detached node`
-              );
-            }
-
-            let nextSibling = node.nextSibling;
-            parent.removeChild(node);
-
-            parent.insertBefore(newNode, nextSibling);
-          },
-        });
+          getSourceFrame().describe("Node")
+        );
       }
 
       default:
@@ -473,17 +511,21 @@ class AttrRange extends Owned
   append(atom: DomAttr): Updater {
     let element = this.#current;
 
-    return getOwner(this).instantiate(initializeEffect, () => {
-      if (atom.ns) {
-        element.setAttributeNS(
-          atom.ns.current,
-          atom.name.current,
-          atom.value.current
-        );
-      } else {
-        element.setAttribute(atom.name.current, atom.value.current);
-      }
-    });
+    return getOwner(this).instantiate(
+      initializeEffect,
+      () => {
+        if (atom.ns) {
+          element.setAttributeNS(
+            atom.ns.current,
+            atom.name.current,
+            atom.value.current
+          );
+        } else {
+          element.setAttribute(atom.name.current, atom.value.current);
+        }
+      },
+      getSourceFrame().describe("attr")
+    );
   }
 
   getCursor(): SimpleElement {

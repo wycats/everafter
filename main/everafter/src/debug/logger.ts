@@ -1,4 +1,5 @@
 import { unreachable } from "../utils";
+import { Style, css, group } from "../owner";
 
 export interface LogFilter {
   info: boolean;
@@ -34,20 +35,51 @@ export const enum LogLevel {
   Testing = "Testing",
 }
 
+export function styleFor(style: Style, ignore = false): string {
+  switch (style.type) {
+    case "success":
+      return "color: white";
+    case "ignore":
+      return "color: white";
+    case "initial":
+      return ignore ? "background-color: #ccf" : "background-color: #99f";
+    case "update":
+      return ignore ? "background-color: #6b6" : "background-color: #3b3";
+    case "css":
+      return style.value;
+    case "group": {
+      let styles = style.value.slice();
+      let ignore = styles.findIndex(v => v.type === "ignore");
+
+      if (ignore === -1) {
+        return styles.map(style => styleFor(style)).join(";");
+      } else {
+        return styles.map(style => styleFor(style, true)).join(";");
+      }
+    }
+    default:
+      unreachable(style);
+  }
+}
+
+export function stylesFor(styles: readonly Style[]): string[] {
+  return styles.map(styleFor);
+}
+
 export interface Logger {
   begin(messageLevel: LogLevel, filter: LogFilter, string: string): void;
   result(
     level: LogLevel,
     filter: LogFilter,
     string: string,
-    ...style: string[]
+    ...style: Style[]
   ): void;
   end(level: LogLevel, filter: LogFilter, string: string): void;
   log(
     messageLevel: LogLevel,
     filter: LogFilter,
     string: string,
-    ...style: string[]
+    ...style: Style[]
   ): void;
   indent<T>(messageLevel: LogLevel, filter: LogFilter, callback: () => T): T;
 }
@@ -95,17 +127,16 @@ export class ConsoleLogger implements Logger {
     this.#indent--;
   }
 
-  private logMethod(level: LogLevel): (arg: string, ...args: string[]) => void {
+  private logMethod(level: LogLevel): (arg: string, ...args: Style[]) => void {
     switch (level) {
       case LogLevel.Testing:
-        return (arg: string, ...args: string[]) =>
-          this.#testMessages.push(arg, ...args);
+        return (arg: string) => this.#testMessages.push(arg);
       case LogLevel.Info:
-        return (arg: string, ...args: string[]) => {
+        return (arg: string, ...args: Style[]) => {
           this.logWithStackTrace(console.info, arg, ...args);
         };
       case LogLevel.Internals:
-        return (arg: string, ...args: string[]) => {
+        return (arg: string, ...args: Style[]) => {
           this.logWithStackTrace(console.debug, arg, ...args);
         };
       default:
@@ -116,16 +147,16 @@ export class ConsoleLogger implements Logger {
   private logWithStackTrace(
     method: (...args: string[]) => void,
     message: string,
-    ...args: string[]
+    ...styles: Style[]
   ): void {
     let indented = `${"  ".repeat(this.#indent)}${message}`;
 
     if (this.#showStackTrace) {
-      console.groupCollapsed(indented, ...args);
+      console.groupCollapsed(indented, ...stylesFor(styles));
       console.trace();
       console.groupEnd();
     } else {
-      method(indented, ...args);
+      method(indented, ...stylesFor(styles));
     }
   }
 
@@ -133,7 +164,7 @@ export class ConsoleLogger implements Logger {
     level: LogLevel,
     filter: LogFilter,
     message: string,
-    ...style: string[]
+    ...style: Style[]
   ): void {
     if (!shouldShow(filter, level)) {
       return;
@@ -154,7 +185,7 @@ export class ConsoleLogger implements Logger {
     level: LogLevel,
     filter: LogFilter,
     string: string,
-    ...style: string[]
+    ...style: Style[]
   ): void {
     if (!shouldShow(filter, level)) {
       return;
@@ -169,7 +200,7 @@ export class ConsoleLogger implements Logger {
     level: LogLevel,
     filter: LogFilter,
     string: string,
-    ...style: string[]
+    ...style: Style[]
   ): void {
     if (!shouldShow(filter, level)) {
       return;
@@ -186,6 +217,6 @@ export class ConsoleLogger implements Logger {
     }
     let message = `<- %c${string}`;
 
-    this.logWithStackTrace(console.debug, message, "color: #999");
+    this.logWithStackTrace(console.debug, message, css("color: #999"));
   }
 }

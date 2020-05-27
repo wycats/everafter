@@ -2,7 +2,6 @@ import {
   Logger,
   LogFilter,
   LogLevel,
-  IntoStructured,
   INFO_LOGS,
   ConsoleLogger,
   intoStructured,
@@ -88,13 +87,63 @@ export function setOwner<T extends object>(value: T, o: Owner): T {
   return value;
 }
 
+export interface SuccessStyle {
+  type: "success";
+}
+
+export interface IgnoreStyle {
+  type: "ignore";
+}
+
+export interface InitialStyle {
+  type: "initial";
+}
+
+export interface UpdateStyle {
+  type: "update";
+}
+
+export interface CssStyle {
+  type: "css";
+  value: string;
+}
+
+export interface GroupStyle {
+  type: "group";
+  value: readonly Style[];
+}
+
+export const SUCCESS: SuccessStyle = { type: "success" };
+export const IGNORE: IgnoreStyle = { type: "ignore" };
+export const INITIAL: InitialStyle = { type: "initial" };
+export const UPDATE: UpdateStyle = { type: "update" };
+
+export function css(value: string): CssStyle {
+  return {
+    type: "css",
+    value,
+  };
+}
+
+export function group(...styles: readonly Style[]): GroupStyle {
+  return { type: "group", value: styles };
+}
+
+export type Style =
+  | SuccessStyle
+  | IgnoreStyle
+  | InitialStyle
+  | UpdateStyle
+  | CssStyle
+  | GroupStyle;
+
 export interface Host {
   logger: Logger;
   filter: LogFilter;
-  log(level: LogLevel, message: string, ...style: string[]): void;
-  logResult(level: LogLevel, string: string, ...style: string[]): void;
-  logStatus(level: LogLevel, string: string, ...style: string[]): void;
-  context<T>(level: LogLevel, structured: IntoStructured, callback: () => T): T;
+  log(level: LogLevel, message: string, ...style: Style[]): void;
+  logResult(level: LogLevel, string: string, ...style: Style[]): void;
+  logStatus(level: LogLevel, string: string, ...style: Style[]): void;
+  context<T>(level: LogLevel, structured: unknown, callback: () => T): T;
   indent<T>(level: LogLevel, callback: () => T): T;
 }
 
@@ -112,25 +161,31 @@ export function defaultHost({
   return {
     logger,
     filter,
-    log(messageLevel: LogLevel, message: string, ...style: string[]): void {
+    log(messageLevel: LogLevel, message: string, ...style: Style[]): void {
       logger.log(messageLevel, filter, message, ...style);
     },
-    logResult(level: LogLevel, message: string, ...style: string[]): void {
+    logResult(level: LogLevel, message: string, ...style: Style[]): void {
       logger.result(level, filter, message, ...style);
     },
-    logStatus(level: LogLevel, message: string, ...style: string[]): void {
+    logStatus(level: LogLevel, message: string, ...style: Style[]): void {
       logger.status(level, filter, message, ...style);
     },
     indent<T>(level: LogLevel, callback: () => T): T {
       return logger.indent(level, filter, callback);
     },
-    context<T>(level: LogLevel, into: IntoStructured, callback: () => T): T {
-      let structured = intoStructured(into);
+    context<T>(level: LogLevel, into: unknown, callback: () => T): T {
+      if (into) {
+        let structured = intoStructured(into);
 
-      logger.begin(level, filter, printStructured(structured, true));
-      let result = this.indent(LogLevel.Info, () => callback());
-      logger.end(LogLevel.Info, filter, printStructured(structured, false));
-      return result;
+        if (structured) {
+          logger.begin(level, filter, printStructured(structured, true));
+          let result = this.indent(LogLevel.Info, () => callback());
+          logger.end(LogLevel.Info, filter, printStructured(structured, false));
+          return result;
+        }
+      }
+
+      return callback();
     },
   };
 }

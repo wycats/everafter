@@ -18,6 +18,10 @@ import {
   ReactiveParametersForInputs,
   RootBlock,
   Var,
+  sourceFrame,
+  caller,
+  PARENT,
+  f,
 } from "everafter";
 import type * as qunit from "qunit";
 import { module, owner, test } from "../../helpers";
@@ -87,14 +91,14 @@ export class ValueTest {
     const program = compiler.compile((b, { showChild, hello, world }) => {
       b.ifBlock(
         showChild,
-        b => {
+        f(b => {
           b.atom(hello);
           b.atom(constant(" "));
           b.atom(call(uppercase, world));
-        },
-        () => {
+        }),
+        f(() => {
           /* noop */
-        }
+        })
       );
     });
 
@@ -146,14 +150,14 @@ export class ValueTest {
     const program = compiler.compile((b, { hello, world, showChild }) => {
       b.ifBlock(
         showChild,
-        b => {
+        f(b => {
           b.atom(hello);
           b.atom(constant(" "));
           b.atom(world);
-        },
-        b => {
+        }),
+        f(b => {
           b.atom(call(uppercase, hello));
-        }
+        })
       );
     });
 
@@ -418,19 +422,21 @@ export class ValueTest {
     program: CompiledProgram<DomCursor, DomAtom, ReactiveParameters>,
     state: A
   ): RenderExpectation {
-    let doc = createDocument();
-    let parent = doc.createElement("div");
-    let root = program.render(
-      state,
-      this.#owner.instantiate(AppendingDomRange.appending, parent)
-    );
-    let expectation = new RenderExpectation(
-      root,
-      parent,
-      this.#testMessages,
-      this.assert
-    );
-    return expectation;
+    return sourceFrame(() => {
+      let doc = createDocument();
+      let parent = doc.createElement("div");
+      let root = program.render(
+        state,
+        this.#owner.instantiate(AppendingDomRange.appending, parent)
+      );
+      let expectation = new RenderExpectation(
+        root,
+        parent,
+        this.#testMessages,
+        this.assert
+      );
+      return expectation;
+    }, caller(PARENT));
   }
 }
 

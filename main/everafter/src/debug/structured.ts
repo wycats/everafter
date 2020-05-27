@@ -1,5 +1,7 @@
 import { isDebuggable, DEBUG, Debuggable } from "./debuggable";
 import type { Dict } from "../utils";
+import { maybeGetSource } from "./callers";
+import type { Updater } from "../update";
 
 /**
  * Make this a class so we get a nominal type (so it can be compared
@@ -80,38 +82,52 @@ export class List extends Structured {
   }
 }
 
-export type IntoStructured =
-  | Structured
-  | Debuggable
-  | Function
-  | readonly IntoStructured[];
-
 function isArray<T>(input: unknown | T[]): input is readonly T[] {
   return Array.isArray(input);
 }
 
-export function intoStructured(input: IntoStructured): Structured {
+export function intoStructured(input: unknown): Structured | undefined {
   if (isArray(input)) {
-    return new List(input.map(intoStructured));
+    let items = input.map(intoStructured).filter(item => item !== undefined);
+    return new List(items as Structured[]);
   }
 
   if (input instanceof Structured) {
     return input;
-  } else if (typeof input === "function") {
-    return description(input.name || "anonymous");
   } else {
-    return input[DEBUG]();
+    if (input === null) {
+      return description("null");
+    }
+
+    if (
+      (typeof input === "object" && input !== null) ||
+      typeof input === "function"
+    ) {
+      let source = maybeGetSource(input);
+
+      if (source) {
+        return source[DEBUG]();
+      } else if (isDebuggable(input)) {
+        return input[DEBUG]();
+      } else {
+        return;
+      }
+    }
+
+    return description(String(input));
   }
 }
 
-export function struct(name: string, fields: Dict<IntoStructured>): Structured {
+export function struct(name: string, fields: Dict<unknown>): Structured {
   return new Struct(
     name,
-    Object.keys(fields).map(key => [key, intoStructured(fields[key])])
+    Object.keys(fields)
+      .map(key => [key, intoStructured(fields[key])])
+      .filter(([, value]) => value !== undefined)
   );
 }
 
-export function newtype(name: string, body: IntoStructured): Structured {
+export function newtype(name: string, body: unknown): Structured {
   return new Newtype(name, intoStructured(body));
 }
 
@@ -119,19 +135,13 @@ export function description(name: string): Structured {
   return new Newtype(name);
 }
 
-export function nullable(value: IntoStructured | null | undefined): Structured {
-  if (value === null || value === undefined) {
-    return description(String(value));
-  } else {
-    return intoStructured(value);
-  }
-}
-
 export function printStructured(
-  input: IntoStructured,
+  intoStructured: Structured | Debuggable,
   verbose: boolean
 ): string {
-  let structured = intoStructured(input);
+  let structured = isDebuggable(intoStructured)
+    ? intoStructured[DEBUG]()
+    : intoStructured;
 
   if (verbose === false) {
     return structured.type;

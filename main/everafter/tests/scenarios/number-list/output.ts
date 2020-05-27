@@ -18,6 +18,7 @@ import {
   Structured,
   Updater,
   Var,
+  getSourceFrame,
 } from "everafter";
 
 export type ArrayAtom = Var<number>;
@@ -36,6 +37,10 @@ class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
   constructor(owner: Owner, value: ReactiveParameter<number>) {
     super(owner);
     this.#value = value;
+  }
+
+  [DEBUG](): Structured {
+    return description("number");
   }
 
   compile(state: ReactiveState): Evaluate<ArrayCursor, ArrayAtom> {
@@ -129,24 +134,28 @@ export class ArrayRange extends Owned
     let owner = getOwner(this);
     let host = owner.host;
 
-    return owner.instantiate(initializeEffect, {
-      initialize: () => {
-        cursor = this.getCursor();
-        cursor.insert(atom.current);
-        this.#increment(1);
-        return cursor;
+    return owner.instantiate(
+      initializeEffect,
+      {
+        initialize: () => {
+          cursor = this.getCursor();
+          cursor.insert(atom.current);
+          this.#increment(1);
+          return cursor;
+        },
+        update: (cursor: ArrayCursor) => {
+          let next = atom.current;
+          let current = cursor.current();
+          if (next === current) {
+            host.logResult(LogLevel.Info, "nothing to do");
+          } else {
+            host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
+            cursor.replace(next);
+          }
+        },
       },
-      update: (cursor: ArrayCursor) => {
-        let next = atom.current;
-        let current = cursor.current();
-        if (next === current) {
-          host.logResult(LogLevel.Info, "nothing to do");
-        } else {
-          host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
-          cursor.replace(next);
-        }
-      },
-    });
+      getSourceFrame() || null
+    );
   }
 
   getCursor(): ArrayCursor {
