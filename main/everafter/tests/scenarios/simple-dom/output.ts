@@ -37,35 +37,52 @@ import {
   getSourceFrame,
   getSource,
   maybeGetSource,
+  ReactiveParametersForInputs,
+  ReactiveParametersForTuple,
+  ReactiveValuesForTuple,
 } from "everafter";
 
-export class CompilableEffect extends CompilableAtom<DomCursor, DomAtom> {
-  #effect: UserEffect<unknown>;
+export class CompilableEffect<
+  T,
+  Args extends readonly Var<unknown>[]
+  > extends CompilableAtom<DomCursor, DomAtom> {
+  #effect: UserEffect<T, Args>;
+  #args: ReactiveParametersForTuple<Args>;
 
-  constructor(owner: Owner, effect: UserEffect<unknown>) {
+  constructor(
+    owner: Owner,
+    effect: UserEffect<T, Args>,
+    args: ReactiveParametersForTuple<Args>
+  ) {
     super(owner);
     this.#effect = effect;
+    this.#args = args;
   }
 
   [DEBUG](): Structured {
     return description("effect");
   }
 
-  compile(_state: ReactiveState): Evaluate<DomCursor, DomAtom> {
+  compile(state: ReactiveState): Evaluate<DomCursor, DomAtom> {
+    let args = (this.#args.map(arg => arg.hydrate(state)) as unknown) as Args;
     return region => {
       region.updateWith(
-        getOwner(this).instantiate(
-          initializeEffect,
+        initializeEffect(
+          getOwner(this),
+          getSource(this).describe("effect"),
           this.#effect,
-          getSource(this).describe("effect")
+          ...args
         )
       );
     };
   }
 }
 
-export function effect(into: IntoEffect<unknown>): Factory<CompilableEffect> {
-  return owner => new CompilableEffect(owner, intoEffect(into));
+export function effect<T, Args extends readonly ReactiveParameter<unknown>[]>(
+  effect: UserEffect<T, ReactiveValuesForTuple<Args>>,
+  ...args: Args
+): Factory<CompilableEffect<T, ReactiveValuesForTuple<Args>>> {
+  return owner => new CompilableEffect(owner, effect, args as any);
 }
 
 export type DefaultDomAtom = ReactiveParameter<string>;
@@ -176,7 +193,7 @@ export type ToRuntime<T> = (
 class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
   DomCursor,
   A
-> {
+  > {
   #value: ReactiveParameter<T>;
   #desc: string;
   #toRuntime: ToRuntime<T>;
@@ -299,7 +316,7 @@ export class DomCursor {
   constructor(
     readonly parentNode: ParentNode,
     readonly nextSibling: SimpleNode | null
-  ) {}
+  ) { }
 
   insert(node: SimpleNode): void {
     this.parentNode.insertBefore(node, this.nextSibling);
@@ -404,6 +421,7 @@ export class AppendingDomRange extends Owned
 
         return getOwner(this).instantiate(
           initializeEffect,
+          getSourceFrame().describe("Text"),
           {
             initialize: () => {
               let node = doc.createTextNode(atom.data.current);
@@ -413,8 +431,7 @@ export class AppendingDomRange extends Owned
             update: (node: SimpleText) => {
               node.nodeValue = atom.data.current;
             },
-          },
-          getSourceFrame().describe("Text")
+          }
         );
       }
 
@@ -423,6 +440,7 @@ export class AppendingDomRange extends Owned
 
         return getOwner(this).instantiate(
           initializeEffect,
+          getSourceFrame().describe("Comment"),
           {
             initialize: () => {
               let node = doc.createComment(atom.data.current);
@@ -432,8 +450,7 @@ export class AppendingDomRange extends Owned
             update: (node: SimpleComment) => {
               node.nodeValue = atom.data.current;
             },
-          },
-          getSourceFrame().describe("Comment")
+          }
         );
       }
 
@@ -442,6 +459,7 @@ export class AppendingDomRange extends Owned
 
         return getOwner(this).instantiate(
           initializeEffect,
+          getSourceFrame().describe("Node"),
           {
             initialize: () => {
               node = atom.node.current;
@@ -464,8 +482,7 @@ export class AppendingDomRange extends Owned
 
               parent.insertBefore(newNode, nextSibling);
             },
-          },
-          getSourceFrame().describe("Node")
+          }
         );
       }
 
@@ -495,8 +512,8 @@ export class AppendingDomRange extends Owned
 
 class AttrRange extends Owned
   implements
-    AppendingReactiveRange<AttrCursor, AttrAtom>,
-    ReactiveRange<AttrCursor, AttrAtom> {
+  AppendingReactiveRange<AttrCursor, AttrAtom>,
+  ReactiveRange<AttrCursor, AttrAtom> {
   #current: SimpleElement;
 
   constructor(owner: Owner, current: SimpleElement) {
@@ -513,6 +530,7 @@ class AttrRange extends Owned
 
     return getOwner(this).instantiate(
       initializeEffect,
+      getSourceFrame().describe("attr"),
       () => {
         if (atom.ns) {
           element.setAttributeNS(
@@ -523,8 +541,7 @@ class AttrRange extends Owned
         } else {
           element.setAttribute(atom.name.current, atom.value.current);
         }
-      },
-      getSourceFrame().describe("attr")
+      }
     );
   }
 

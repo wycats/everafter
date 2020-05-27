@@ -353,11 +353,18 @@ export class ValueTest {
           b.atom(constant(" "));
           b.atom(world);
           b.atom(
-            effect({
-              initialize: () => host.log(LogLevel.Testing, "initializing"),
-              update: () => host.log(LogLevel.Testing, "updating"),
-              destroy: () => host.log(LogLevel.Testing, "destroying"),
-            })
+            effect(
+              {
+                initialize: hello => {
+                  host.log(LogLevel.Testing, `initializing ${hello.current}`);
+                  return hello;
+                },
+                update: (hello: Var<string>) =>
+                  host.log(LogLevel.Testing, `updating ${hello.current}`),
+                destroy: () => host.log(LogLevel.Testing, "destroying"),
+              },
+              hello
+            )
           );
         },
         b => {
@@ -378,20 +385,21 @@ export class ValueTest {
       showChild,
     })
       .expect("hello WORLD")
-      .messages("initializing");
+      .messages("initializing hello");
 
     // update a cell, but don't change the block itself
     result
       .update(() => (hello.current = "goodbye"))
       .expect("goodbye WORLD")
-      .messages("updating");
+      .messages("updating goodbye");
 
     // update the input to a derived reactive value, but don't change
-    // the block itself
+    // the block itself. since the effect didn't use `world`, it won't
+    // run again
     result
       .update(() => (world.current = "planet"))
       .expect("goodbye PLANET")
-      .messages("updating");
+      .messages();
 
     // update the condition to blow away the block; the child block
     // doesn't have the effect inside, so we shouldn't see a new

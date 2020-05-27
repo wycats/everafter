@@ -82,5 +82,5 @@ export function updaters(list: Updater[], owner: Owner): Updater {
     linkResource(resource, updater);
   }
 
-  return resource;
+  return resource as Updater;
 }

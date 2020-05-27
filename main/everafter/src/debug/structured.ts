@@ -121,9 +121,12 @@ export function intoStructured(input: unknown): Structured | undefined {
 export function struct(name: string, fields: Dict<unknown>): Structured {
   return new Struct(
     name,
-    Object.keys(fields)
+    (Object.keys(fields)
       .map(key => [key, intoStructured(fields[key])])
-      .filter(([, value]) => value !== undefined)
+      .filter(([, value]) => value !== undefined) as unknown) as readonly [
+      string,
+      Structured
+    ][]
   );
 }
 

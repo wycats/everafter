@@ -1,0 +1,15 @@
+importers:
+  .:
+    devDependencies:
+      typescript: 4.0.0-dev.20200506
+    specifiers:
+      typescript: 4.0.0-dev.20200506
+lockfileVersion: 5.1
+packages:
+  /typescript/4.0.0-dev.20200506:
+    dev: true
+    engines:
+      node: '>=4.2.0'
+    hasBin: true
+    resolution:
+      integrity: sha512-eH1FsgFdVMGD3fkwlkmcbLTf6a2pQRgaiZEW9652U7PnRhJnhynhdgjV90yiATd/stAcUPPCeXiNc87fobxI0A==

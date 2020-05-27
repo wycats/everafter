@@ -1,9 +1,11 @@
 {
-  "extends": "./tsconfig.shared.json",
-  "compilerOptions": {
-    "baseUrl": "./"
-  },
-  "references": [{ "path": "./src" }, { "path": "./tests" }],
   "files": [],
-  "exclude": ["dist/**"]
+  "references": [
+    {
+      "path": "./src"
+    },
+    {
+      "path": "./tests"
+    }
+  ],
 }

@@ -37,27 +37,23 @@ export class RootBlock<Cursor, Atom> extends Owned {
     let host = owner.host;
     let source = maybeGetSource(this.#program);
 
-    this.#update = owner.instantiate(
-      initializeEffect,
-      {
-        initialize: () =>
-          host.context(
-            LogLevel.Info,
-            source ? source.describe("root block") : undefined,
-            () => owner.instantiate(Region.render, this.#program, cursor)
-          ),
-        update: (updater: Updater | void) => {
-          host.context(LogLevel.Info, description("re-rendering"), () => {
-            if (updater) {
-              poll(updater);
-            } else {
-              host.logResult(LogLevel.Info, "nothing to do, no updaters");
-            }
-          });
-        },
+    this.#update = owner.instantiate(initializeEffect, getSource(this), {
+      initialize: () =>
+        host.context(
+          LogLevel.Info,
+          source ? source.describe("root block") : undefined,
+          () => owner.instantiate(Region.render, this.#program, cursor)
+        ),
+      update: (updater: Updater | void) => {
+        host.context(LogLevel.Info, description("re-rendering"), () => {
+          if (updater) {
+            poll(updater);
+          } else {
+            host.logResult(LogLevel.Info, "nothing to do, no updaters");
+          }
+        });
       },
-      getSource(this)
-    );
+    });
   }
 
   rerender(): void {

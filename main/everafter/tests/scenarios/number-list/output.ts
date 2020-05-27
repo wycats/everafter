@@ -134,28 +134,24 @@ export class ArrayRange extends Owned
     let owner = getOwner(this);
     let host = owner.host;
 
-    return owner.instantiate(
-      initializeEffect,
-      {
-        initialize: () => {
-          cursor = this.getCursor();
-          cursor.insert(atom.current);
-          this.#increment(1);
-          return cursor;
-        },
-        update: (cursor: ArrayCursor) => {
-          let next = atom.current;
-          let current = cursor.current();
-          if (next === current) {
-            host.logResult(LogLevel.Info, "nothing to do");
-          } else {
-            host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
-            cursor.replace(next);
-          }
-        },
+    return owner.instantiate(initializeEffect, getSourceFrame(), {
+      initialize: () => {
+        cursor = this.getCursor();
+        cursor.insert(atom.current);
+        this.#increment(1);
+        return cursor;
       },
-      getSourceFrame() || null
-    );
+      update: (cursor: ArrayCursor) => {
+        let next = atom.current;
+        let current = cursor.current();
+        if (next === current) {
+          host.logResult(LogLevel.Info, "nothing to do");
+        } else {
+          host.logResult(LogLevel.Info, `replacing ${current} with ${next}`);
+          cursor.replace(next);
+        }
+      },
+    });
   }
 
   getCursor(): ArrayCursor {

@@ -63,7 +63,7 @@ export function styleFor(style: Style, ignore = false): string {
 }
 
 export function stylesFor(styles: readonly Style[]): string[] {
-  return styles.map(styleFor);
+  return styles.map(style => styleFor(style));
 }
 
 export interface Logger {

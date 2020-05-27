@@ -22,6 +22,16 @@ export function call<A extends Var[], B>(
   }, "call");
 }
 
+export function callEffect<A extends Var[], B>(
+  call: UserCall<A, B>,
+  ...inputs: ReactiveParametersForValues<A>
+): ReactiveParameter<B> {
+  return reactive(state => {
+    let hydratedInputs = inputs.map(input => input.hydrate(state)) as A;
+    return Derived(() => call(...hydratedInputs));
+  }, "call");
+}
+
 export class ReactiveParameters<
   D extends Dict<ReactiveParameter> = Dict<ReactiveParameter>
 > {
@@ -96,6 +106,16 @@ function reactive<T>(
 export type ReactiveInput<T extends ReactiveParameter> = (key: string) => T;
 export type ReactiveInputs<T extends Dict<ReactiveParameter>> = {
   [P in keyof T]: ReactiveInput<T[P]>;
+};
+
+export type ReactiveParametersForTuple<T extends readonly Var<unknown>[]> = {
+  [P in keyof T]: T[P] extends Var<infer R> ? ReactiveParameter<R> : never;
+};
+
+export type ReactiveValuesForTuple<
+  T extends readonly ReactiveParameter<unknown>[]
+> = {
+  [P in keyof T]: T[P] extends ReactiveParameter<infer R> ? Var<R> : never;
 };
 
 export type ReactiveParametersForInputs<

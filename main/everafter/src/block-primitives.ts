@@ -46,10 +46,8 @@ export function conditionBlock<Cursor, Atom>(
       currentBlock = nextBlock;
     });
 
-    let updater = getOwner(region).instantiate(
-      initializeEffect,
-      () => getValue(render),
-      source
+    let updater = getOwner(region).instantiate(initializeEffect, source, () =>
+      getValue(render)
     );
 
     region.updateWith(updater);
