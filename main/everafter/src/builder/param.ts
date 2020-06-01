@@ -7,14 +7,14 @@ export type ReactiveDict<
   R extends ReactiveParameters
   > = R extends ReactiveParameters<infer R> ? R : never;
 
-export function constant<T>(value: T): ReactiveParameter<T> {
+export function constant<T>(value: T): Param<T> {
   return reactive(() => Const(value), "const");
 }
 
 export function call<A extends Var[], B>(
   call: UserCall<A, B>,
   ...inputs: ReactiveParametersForValues<A>
-): ReactiveParameter<B> {
+): Param<B> {
   return reactive(state => {
     let hydratedInputs = inputs.map(input => input.hydrate(state)) as A;
     return Derived(() => call(...hydratedInputs));
@@ -24,7 +24,7 @@ export function call<A extends Var[], B>(
 export function callEffect<A extends Var[], B>(
   call: UserCall<A, B>,
   ...inputs: ReactiveParametersForValues<A>
-): ReactiveParameter<B> {
+): Param<B> {
   return reactive(state => {
     let hydratedInputs = inputs.map(input => input.hydrate(state)) as A;
     return Derived(() => call(...hydratedInputs));
@@ -32,9 +32,9 @@ export function callEffect<A extends Var[], B>(
 }
 
 export class ReactiveParameters<
-  D extends Dict<ReactiveParameter> = Dict<ReactiveParameter>
+  D extends Dict<Param> = Dict<Param>
   > {
-  static for<D extends Dict<ReactiveParameter>>(
+  static for<D extends Dict<Param>>(
     input: ReactiveInputs<D>
   ): ReactiveParameters<D> {
     let dict: Dict = {};
@@ -74,15 +74,15 @@ export class ReactiveParameters<
   }
 }
 
-export function Param<T>(): (key: string) => ReactiveParameter<T> {
+export function Param<T>(): (key: string) => Param<T> {
   return key =>
     reactive(
       state => state.dynamic[key as string],
       "dynamic"
-    ) as ReactiveParameter<T>;
+    ) as Param<T>;
 }
 
-export interface ReactiveParameter<T = unknown> extends Debuggable {
+export interface Param<T = unknown> extends Debuggable {
   hydrate(state: ReactiveState): Var<T>;
 }
 
@@ -91,7 +91,7 @@ let ID = 0;
 function reactive<T>(
   callback: (state: ReactiveState) => Var<T>,
   kind: string
-): ReactiveParameter<T> {
+): Param<T> {
   return {
     [DEBUG](): Structured {
       return newtype("reactive", description(`${kind}(${ID++})`));
@@ -102,43 +102,43 @@ function reactive<T>(
   };
 }
 
-export type ReactiveInput<T extends ReactiveParameter> = (key: string) => T;
-export type ReactiveInputs<T extends Dict<ReactiveParameter>> = {
+export type ReactiveInput<T extends Param> = (key: string) => T;
+export type ReactiveInputs<T extends Dict<Param>> = {
   [P in keyof T]: ReactiveInput<T[P]>;
 };
 
 export type ReactiveParametersForTuple<T extends readonly Var<unknown>[]> = {
-  [P in keyof T]: T[P] extends Var<infer R> ? ReactiveParameter<R> : never;
+  [P in keyof T]: T[P] extends Var<infer R> ? Param<R> : never;
 };
 
 export type ReactiveValuesForTuple<
-  T extends readonly ReactiveParameter<unknown>[]
+  T extends readonly Param<unknown>[]
   > = {
-    [P in keyof T]: T[P] extends ReactiveParameter<infer R> ? Var<R> : never;
+    [P in keyof T]: T[P] extends Param<infer R> ? Var<R> : never;
   };
 
 export type ReactiveParametersForInputs<
-  I extends ReactiveInputs<Dict<ReactiveParameter>>
+  I extends ReactiveInputs<Dict<Param>>
   > = I extends ReactiveInputs<infer R> ? ReactiveParameters<R> : never;
 
 type UserCall<A extends Var[], B> = (...args: A) => B;
 
 type ReactiveParameterForValue<V extends Var> = V extends Var<infer R>
-  ? ReactiveParameter<R>
+  ? Param<R>
   : never;
 
 type ReactiveParametersForValues<A extends Var[]> = {
   [P in keyof A]: A[P] extends Var ? ReactiveParameterForValue<A[P]> : never;
 };
 
-export type RuntimeValuesForDict<D extends Dict<ReactiveParameter>> = {
-  [P in keyof D]: D[P] extends ReactiveParameter<infer R> ? Var<R> : never;
+export type RuntimeValuesForDict<D extends Dict<Param>> = {
+  [P in keyof D]: D[P] extends Param<infer R> ? Var<R> : never;
 };
 
 export type DynamicRuntimeValues<
-  D extends Dict<ReactiveParameter> | ReactiveParameters
+  D extends Dict<Param> | ReactiveParameters
   > = D extends ReactiveParameters<infer D>
   ? RuntimeValuesForDict<D>
-  : D extends Dict<ReactiveParameter>
+  : D extends Dict<Param>
   ? RuntimeValuesForDict<D>
   : never;

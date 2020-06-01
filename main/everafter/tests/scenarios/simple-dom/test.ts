@@ -11,9 +11,8 @@ import {
   Derived,
   Dict,
   LogLevel,
-  Param,
   ReactiveInputs,
-  ReactiveParameter,
+  Param,
   ReactiveParameters,
   ReactiveParametersForInputs,
   RootBlock,
@@ -415,7 +414,7 @@ export class ValueTest {
       .messages();
   }
 
-  private compiler<I extends ReactiveInputs<Dict<ReactiveParameter>>>(
+  private compiler<I extends ReactiveInputs<Dict<Param>>>(
     inputs: I
   ): Compiler<
     DomCursor,

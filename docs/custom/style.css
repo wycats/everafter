@@ -1,0 +1,149 @@
+:root {
+  --variable-color: #996;
+  --variable-fill: #ffc;
+  --derived-color: #b40;
+  --derived-fill: #fc6;
+  --definition: #c72;
+  --reference: #b3b;
+  --font-family: "Open Sans", sans-serif;
+  --font-style: normal;
+  --font-weight: normal;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.light body {
+  --inline-code-color: #999;
+}
+
+#content a[name] {
+  color: var(--definition);
+  font-weight: bold;
+}
+
+#content a[href^="#"]:not([id]) {
+  color: var(--reference);
+  font-style: italic;
+  font-weight: bold;
+  font-family: Cambria, Cochin, Georgia, Times, "Times New Roman", serif;
+}
+
+#content g.output g.static rect {
+  fill: var(--static-fill);
+  stroke: var(--static-color);
+}
+
+#content g.output g.static .label {
+  color: var(--static-color);
+}
+
+#content g.edgeLabel {
+  background-color: transparent;
+}
+
+#content g.edgeLabel foreignObject div span {
+  width: min-content;
+  height: min-content;
+  position: relative;
+  top: 3px;
+}
+
+#content g#first rect,
+#content g#last rect,
+#content g#title rect,
+#content g#variable rect {
+  stroke: var(--variable-color);
+  fill: var(--variable-fill);
+}
+
+#content g#first text,
+#content g#last text,
+#content g#title text,
+#content g#variable text {
+  fill: var(--variable-color);
+}
+
+#content g#fullName rect,
+#content g#derived rect {
+  stroke: var(--derived-color);
+  fill: var(--derived-fill);
+}
+
+#content g#fullName text,
+#content g#derived text {
+  fill: var(--derived-color);
+}
+
+#content g#program > rect:nth-child(1),
+#content g#paragraph > rect:nth-child(1),
+#content g#header > rect:nth-child(1),
+#content g#legend > rect:nth-child(1) {
+  display: none;
+}
+
+#content g#program > text.state-title,
+#content g#paragraph > text.state-title,
+#content g#header > text.state-title,
+#content g#legend > text.state-title {
+  transform: translateY(-3px);
+}
+
+#content g#program > rect:nth-child(2),
+#content g#paragraph > rect:nth-child(2),
+#content g#header > rect:nth-child(2) {
+  fill: #cdc;
+}
+
+#content g#program > text.state-title,
+#content g#paragraph > text.state-title,
+#content g#header > text.state-title {
+  fill: #595;
+  transform: translateY(-3px);
+}
+
+#content g#legend > text.state-title {
+  fill: #666;
+}
+
+#content g#legend {
+  opacity: 50%;
+}
+
+#content g#legend > rect:nth-child(2) {
+  fill: #ccc;
+}
+
+/*
+#content g#paragraph rect {
+  stroke: var(--static-color);
+  fill: var(--static-fill);
+}
+
+#content g#paragraph text {
+  fill: var(--static-color);
+} */
+
+#content p {
+  position: relative;
+}
+
+#content a[href^="#"]:not([id]) .popover {
+  position: absolute;
+  background-color: #eee;
+  z-index: 999;
+  padding: 0 2rem;
+  color: #333;
+  width: 60%;
+  line-height: 1rem;
+  margin-bottom: 1rem;
+}
+
+#content a[href^="#"]:not([id]) .popover p {
+  color: #333;
+  font-family: var(--font-family);
+  font-weight: var(--font-weight);
+  font-style: var(--font-style);
+  font-size: 80%;
+}

@@ -21,7 +21,7 @@ import {
   Owned,
   ownedNew,
   Owner,
-  ReactiveParameter,
+  Param,
   ReactiveRange,
   ReactiveState,
   Region,
@@ -72,7 +72,7 @@ export class CompilableEffect<
   }
 }
 
-export function effect<T, Args extends readonly ReactiveParameter<unknown>[]>(
+export function effect<T, Args extends readonly Param<unknown>[]>(
   effect: UserEffect<T, ReactiveValuesForTuple<Args>>,
   ...args: Args
 ): Factory<CompilableEffect<T, ReactiveValuesForTuple<Args>>> {
@@ -80,7 +80,7 @@ export function effect<T, Args extends readonly ReactiveParameter<unknown>[]>(
   return owner => new CompilableEffect(owner, effect, args as any);
 }
 
-export type DefaultDomAtom = ReactiveParameter<string>;
+export type DefaultDomAtom = Param<string>;
 
 export class CompileDomOps
   implements CompileOperations<DomCursor, DomAtom, DefaultDomAtom> {
@@ -97,15 +97,15 @@ interface OpenElement {
 }
 
 export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
-  #name: ReactiveParameter<string>;
-  #value: ReactiveParameter<string>;
-  #namespace: ReactiveParameter<AttrNamespace> | null;
+  #name: Param<string>;
+  #value: Param<string>;
+  #namespace: Param<AttrNamespace> | null;
 
   constructor(
     owner: Owner,
-    name: ReactiveParameter<string>,
-    value: ReactiveParameter<string>,
-    namespace: ReactiveParameter<AttrNamespace> | null
+    name: Param<string>,
+    value: Param<string>,
+    namespace: Param<AttrNamespace> | null
   ) {
     super(owner);
     this.#name = name;
@@ -127,9 +127,9 @@ export class CompilableAttr extends CompilableAtom<AttrCursor, AttrAtom> {
 }
 
 export function attr(
-  name: ReactiveParameter<string>,
-  value: ReactiveParameter<string>,
-  namespace?: ReactiveParameter<AttrNamespace>
+  name: Param<string>,
+  value: Param<string>,
+  namespace?: Param<AttrNamespace>
 ): Factory<CompilableAttr> {
   return owner => owner.new(CompilableAttr, name, value, namespace || null);
 }
@@ -189,13 +189,13 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
   DomCursor,
   A
   > {
-  #value: ReactiveParameter<T>;
+  #value: Param<T>;
   #desc: string;
   #toRuntime: ToRuntime<T>;
 
   constructor(
     owner: Owner,
-    value: ReactiveParameter<T>,
+    value: Param<T>,
     desc: string,
     toRuntime: (value: Var<T>) => (output: Region<DomCursor, DomAtom>) => void
   ) {
@@ -216,7 +216,7 @@ class CompilableDomAtom<T, A extends DomAtom> extends CompilableAtom<
 }
 
 export function text(
-  value: ReactiveParameter<string>
+  value: Param<string>
 ): Factory<CompilableDomAtom<string, TextAtom>> {
   return owner =>
     owner.new(
@@ -230,7 +230,7 @@ export function text(
 }
 
 export function comment(
-  value: ReactiveParameter<string>
+  value: Param<string>
 ): Factory<CompilableDomAtom<string, CommentAtom>> {
   return owner =>
     owner.new(
@@ -244,7 +244,7 @@ export function comment(
 }
 
 export function node(
-  value: ReactiveParameter<SimpleNode>
+  value: Param<SimpleNode>
 ): Factory<CompilableDomAtom<SimpleNode, NodeAtom>> {
   return owner =>
     owner.new(
@@ -343,7 +343,7 @@ export class DomRange extends Owned
     throw new Error("not implemented");
   }
 
-  clears(): AppendingDomRange {
+  clear(): AppendingDomRange {
     let afterLast = this.end.nextSibling;
     let current: SimpleNode | null = this.start;
 
@@ -523,19 +523,24 @@ class AttrRange extends Owned
   append(atom: DomAttr): Updater {
     let element = this.#current;
 
+    function attr(): void {
+      if (atom.ns) {
+        element.setAttributeNS(
+          atom.ns.current,
+          atom.name.current,
+          atom.value.current
+        );
+      } else {
+        element.setAttribute(atom.name.current, atom.value.current);
+      }
+    }
+
     return getOwner(this).instantiate(
       initializeEffect,
       getSourceFrame().describe("attr"),
-      () => {
-        if (atom.ns) {
-          element.setAttributeNS(
-            atom.ns.current,
-            atom.name.current,
-            atom.value.current
-          );
-        } else {
-          element.setAttribute(atom.name.current, atom.value.current);
-        }
+      {
+        initialize: attr,
+        update: attr
       }
     );
   }
@@ -555,7 +560,7 @@ class AttrRange extends Owned
   [DEBUG](): Structured {
     return description("AttrRange");
   }
-  clears(): AppendingReactiveRange<SimpleElement, DomAttr> {
+  clear(): AppendingReactiveRange<SimpleElement, DomAttr> {
     throw new Error(
       "Method not implemented. Is it a problem that clearing attributes doesn't make sense? Does it teach us something?"
     );

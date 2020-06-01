@@ -1,4 +1,4 @@
-import { conditionBlock, invokeBlock, staticBlock } from "../block-primitives";
+import { conditionBlock, invokeBlock } from "../block-primitives";
 import type { Block, CompileOperations } from "../interfaces";
 import { Owner, Owned, getOwner } from "../owner";
 import type { Region } from "../region";
@@ -12,7 +12,7 @@ import {
   Statement,
   StaticBlockBuilder,
 } from "./builder";
-import type { ReactiveParameter } from "./param";
+import type { Param } from "./param";
 import {
   setDefaultSource,
   getSource,
@@ -29,12 +29,12 @@ export interface CompilableBlock<Cursor, Atom> extends Owned {
 }
 
 export class Conditional<Cursor, Atom> implements Compilable<Cursor, Atom> {
-  #condition: ReactiveParameter<boolean>;
+  #condition: Param<boolean>;
   #then: CompilableBlock<Cursor, Atom>;
   #else: CompilableBlock<Cursor, Atom>;
 
   constructor(
-    condition: ReactiveParameter<boolean>,
+    condition: Param<boolean>,
     then: CompilableBlock<Cursor, Atom>,
     otherwise: CompilableBlock<Cursor, Atom>
   ) {
@@ -160,12 +160,12 @@ export class ForeignBlock<ParentCursor, ParentAtom, Cursor, Atom, DefaultAtom>
     let head = this.#head.intoBlock(state);
     let body = this.#body.intoBlock(state);
 
-    return staticBlock((region: Region<ParentCursor, ParentAtom>): void => {
+    return (region: Region<ParentCursor, ParentAtom>): void => {
       let child = region.open(this.#adapter.runtime);
 
       invokeBlock(head, child);
       let grandchild = region.flush(this.#adapter.runtime, child);
       invokeBlock(body, grandchild);
-    });
+    };
   }
 }

@@ -17,7 +17,7 @@ import {
   DynamicRuntimeValues,
   ReactiveDict,
   ReactiveInputs,
-  ReactiveParameter,
+  Param,
   ReactiveParameters,
   ReactiveParametersForInputs,
 } from "./param";
@@ -44,7 +44,7 @@ export class Compiler<
     Cursor,
     Atom,
     DefaultAtom,
-    I extends ReactiveInputs<Dict<ReactiveParameter>>
+    I extends ReactiveInputs<Dict<Param>>
   >(
     owner: Owner,
     inputs: I,

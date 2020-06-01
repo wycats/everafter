@@ -32,30 +32,22 @@ export interface ReactiveRange<Cursor, ReactiveAtom> extends Debuggable, Owned {
    * When a reactive range is cleared, all of its contents are removed from
    * the output, and a new cursor is created for new content.
    */
-  clears(): AppendingReactiveRange<Cursor, ReactiveAtom>;
+  clear(): AppendingReactiveRange<Cursor, ReactiveAtom>;
 }
 
-export function clearRange<Cursor, ReactiveAtom>(
-  range: ReactiveRange<Cursor, ReactiveAtom>
-): AppendingReactiveRange<Cursor, ReactiveAtom> {
-  let appendingRange = range.clears();
-  destroy(range);
-  return appendingRange;
-}
-
-export interface AppendingReactiveRange<Cursor, ReactiveAtom>
-  extends Debuggable,
-    Owned {
+export interface AppendingReactiveRange<Cursor, ReactiveAtom> extends Debuggable, Owned {
   append(atom: ReactiveAtom): Updater;
   getCursor(): Cursor;
   child(): AppendingReactiveRange<Cursor, ReactiveAtom>;
   finalize(): ReactiveRange<Cursor, ReactiveAtom>;
 }
 
-export type BlockFunction<Cursor, Atom> = (
-  output: Region<Cursor, Atom>
-) => void;
+export type Block<Cursor, Atom> = (output: Region<Cursor, Atom>) => void;
 
-export type Block<Cursor, Atom> = BlockFunction<Cursor, Atom>;
-
-export const RENDER = Symbol("RENDER");
+export function clearRange<Cursor, ReactiveAtom>(
+  range: ReactiveRange<Cursor, ReactiveAtom>
+): AppendingReactiveRange<Cursor, ReactiveAtom> {
+  const appendingRange = range.clear();
+  destroy(range);
+  return appendingRange;
+}

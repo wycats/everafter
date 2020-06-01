@@ -1,0 +1,512 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>EverAfter: A General-Purpose Model of Reactivity</title>
+        
+        <meta name="robots" content="noindex" />
+        
+
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+        <link rel="stylesheet" href="mermaid.css">
+        
+        <link rel="stylesheet" href="src/custom/style.css">
+        
+
+        
+        <!-- MathJax -->
+        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+        
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="chapter_1.html"><strong aria-hidden="true">1.</strong> A Broad Overview</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                        
+                    </div>
+
+                    <h1 class="menu-title">EverAfter: A General-Purpose Model of Reactivity</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1><a class="header" href="#a-broad-overview" id="a-broad-overview">A Broad Overview</a></h1>
+<p>EverAfter is a reactivity library that glues together reactive inputs with a notion of reactive outputs.</p>
+<p>This book primarily describes everafter's reactivity philosophy, using the library to illustrate the concepts.</p>
+<h1><a class="header" href="#characteristics" id="characteristics">Characteristics</a></h1>
+<p>EverAfter reactivity is a flavor of discrete incremental computation with these novel properties:</p>
+<ol>
+<li>strong from-scratch consistency</li>
+<li>execution-driven</li>
+<li>revision tracking</li>
+</ol>
+<h2><a class="header" href="#incremental-computation" id="incremental-computation">Incremental Computation</a></h2>
+<p>EverAfter reactivity is a flavor of <a href="https://en.wikipedia.org/wiki/Incremental_computing">incremental computation</a>, as described by <a href="http://www.umut-acar.org/">Umut Acar</a> in <a href="https://www.cs.cmu.edu/%7Erwh/theses/acar.pdf">Self Adjusting Computation</a> and more recently in a number of papers by <a href="https://dblp.uni-trier.de/pers/h/Hammer:Matthew_A=.html">Matt Hammer</a>.</p>
+<p>Incremental computation is described by Hammer:</p>
+<blockquote>
+<p>In many software systems, a fixed algorithm runs repeatedly over a series of <em>incrementally changing</em> inputs (<math><msub><mi>Input</mi><mn>1</mn></msub><mo>,</mo><mspace/><msub><mi>Input</mi><mn>2</mn></msub><mo>,</mo><mspace/><mi>…</mi></math>), producing a series of <em>incrementally changing</em> outputs (<math><msub><mi>Output</mi><mn>1</mn></msub><mo>,</mo><mspace/><msub><mi>Output</mi><mn>2</mn></msub><mo>,</mo><mspace/><mi>…</mi></math>). For example, programmers often change only a single line of source code and recompile, so <math><msub><mi>Input</mi><mn>t</mn></msub></math> is often similar to <math><msub><mi>Input</mi><mn>t-1</mn></msub></math>.</p>
+<p>The goal of incremental <em>computation</em> is to exploit input similarity by reusing work from previous runs. If the source code <math><msub><mi>Input</mi><mn>t</mn></msub></math> is almost the same as <math><msub><mi>Input</mi><mn>t-1</mn></msub></math>, much of the work done to compile <math><msub><mi>Input</mi><mn>t</mn></msub></math> and produce the target <math><msub><mi>Output</mi><mn>t</mn></msub></math> can be reused.</p>
+</blockquote>
+<p>Hammer's incremental computation also defines a correctness property: &quot;A program <math><mi>P</mi></math> is incremental if repeating <math><mi>P</mi></math> with a changed input is faster than from-scratch recomputation.&quot; This property is called <a name="from-scratch-consistency">from-scratch consistency</a>.</p>
+<p>EverAfter reactivity is a flavor of incremental computation because it creates &quot;from-scratch consistent&quot; outputs more efficiently than from-scratch recomputation.</p>
+<h3><a class="header" href="#definitions" id="definitions">Definitions</a></h3>
+<p>Throughout this book, we refer to <em>incrementally changing inputs</em> as <a name="reactive-cell">reactive cells</a> (or <a name="cell">cells</a> for short).</p>
+<p>We refer to <em>incrementally changing outputs</em> as <a name="reactive-output">reactive outputs</a> (or <a name="output">outputs</a> for short).</p>
+<p>We refer to the result of a computation on <a href="chapter_1.html#reactive-value">reactive values</a> as <a name="derived value">derived values</a>.</p>
+<p>Finally, we define <a name="reactive-value">reactive values</a> as either <a href="chapter_1.html#reactive-cell">reactive cells</a> or <a href="chapter_1.html#derived-value">derived values</a>.</p>
+<h3><a class="header" href="#strong-from-scratch-consistency" id="strong-from-scratch-consistency">Strong <em>From-Scratch Consistency</em></a></h3>
+<p>Normally, incremental computation is interested in improving the performance of maintaining from-scratch consistency; it is a pure optimization over from-scratch recomputation.</p>
+<p>EverAfter reactivity is interested in another constraint: output data structures that have unmanaged internal state.</p>
+<p>For example, consider an incremental program that turns some reactive inputs into a series of incrementally changing web pages, displayed in a web browser. Once the web page is displayed in the web browser, the user can interact with the web page, changing properties such as scroll position, cursor position, and focus.</p>
+<p>Those properties are not present in the reactive inputs, so a from-scratch <em>recomputation</em> would restore them to their initial state (as defined by web specifications).</p>
+<p>For this reason, EverAfter reactivity uses a stronger definition of from-scratch consistency: &quot;A program \( P \) is strongly from-scratch consistent if repeating \( P \) with a changed input is faster than from-scratch recomputation <em>and</em> only if each atomic part of its output is only replaced when at least one of its reactive inputs changes.&quot;</p>
+<p>We will explore the meaning of &quot;atomic part&quot; and the definition of a reactive input to an atomic part more fully throughout this book.</p>
+<h2><a class="header" href="#execution-driven" id="execution-driven">Execution-Driven</a></h2>
+<p>EverAfter reactivity is <em>execution-driven</em>. This means that reactive inputs do not have references to the reactive outputs that depend upon them. Instead, reactive outputs determine whether they require recomputation by using a novel validation graph.</p>
+<p>Consider this simple one-shot function written in TypeScript.</p>
+<pre><code class="language-ts">function program(input: string) {
+  return document.createTextNode(input);
+}
+</code></pre>
+<p>This program takes a single string input and returns a text node with the input string as its node value.</p>
+<p>Many reactivity systems are push-based, propagating changes directly. This means that each reactive inputs holds a reference to its output, perhaps indirectly, and whenever the input changes, it notifies the output. Acar and Hammer describe this as applying a <em>change propagation algorithm</em> to a <em>dynamic dependency graph</em>.</p>
+<pre class="mermaid">sequenceDiagram
+  participant User
+  participant Input
+  participant Output
+  User->>Input: Initialize Input to "hello world"
+  Input->>Output: My value is "hello world"
+  Note right of Output: Create text node
+  User->>Input: Update Input to "goodbye world"
+  Input->>Output: My value is "goodbye world"
+  Note right of Output: Update text node
+</pre>
+<p>EverAfter's reactivity is <em>evaluation-based</em>. This means that values are always computed by dereferencing a variable or calling a function, both during initialization and change propagation.</p>
+<pre class="mermaid">sequenceDiagram
+  participant User
+  participant Input
+  participant Output
+  rect rgb(200, 200, 200)
+  Note over User,Input: User initializes the inputs
+  User->>Input: Initialize Input to "hello world"
+  end
+  rect rgb(220, 220, 220)
+  Note over Input,Output: Initialize the system
+  Output->>Input: What is your value?
+  Input->>Output: "hello world"
+  Note right of Output: Create text node
+  end
+  Note over User,Output: Some time passes
+  rect rgb(200, 200, 200)
+  Note over User,Input: Update the inputs
+  User->>Input: Update Input to "goodbye world"
+  end
+  rect rgb(220, 220, 220)
+  Note over Input,Output: Propagate changes
+  Output->>Input: What is your value?
+  Input->>Output: "goodbye world"
+  Note right of Output: Update text node
+  end
+</pre>
+<p>After initializing the system, evaluation-based reactivity maintains the direction of data flow when propagating changes. Rather than propagating changes from inputs to outputs, evaluation-based data flow maintains the direction of data flow between initialization and updating. The primary benefit of this approach is significantly less up-front overhead that is normally incurred by bookkeeping. We will discuss other benefits of this approach throughout this book.</p>
+<p>A careful reader has probably already noticed that evaluation-based data flow appears to have violated <em>from-scratch consistency</em>. We now perform the same number of expensive operations during change propagation as we did during initialization.</p>
+<p>To restore from-scratch consistency, we add <em>revision tracking</em> to our reactive system.</p>
+<h2><a class="header" href="#revision-tracking" id="revision-tracking">Revision Tracking</a></h2>
+<p>First, we introduce a <em>revision clock</em>. Each tick of the global clock corresponds to a single mutation to a single reactive input.</p>
+<p>Second, we associate each reactive input with a point on the <a name="revision-timeline">revision timeline</a> on which it was last mutated. We call this the input's <a name="timestamp">timestamp</a>. By storing the input's timestamp during initialization, a <a href="chapter_1.html#reactive-output">reactive output</a> can efficiently determine whether it needs to demand the value and perform the expensive operation on the output.</p>
+<figure>
+<pre class="mermaid">sequenceDiagram
+  participant User
+  participant Input
+  participant Output
+  rect rgb(200, 200, 200)
+  Note over User,Input: User initializes the inputs
+  User->>Input: Initialize Input to "hello world"
+  end
+  rect rgb(220, 220, 220)
+  Note over Input,Output: Initialize the system
+  Output->>Input: What is your value?
+  Input->>Output: "hello world"
+  Output-->>Input: What is your timestamp?
+  Input-->>Output: «1»
+  Note right of Output: Create text node
+  end
+  Note over User,Output: Some time passes
+  rect rgb(200, 200, 200)
+  Note over User,Input: Update the inputs
+  User->>Input: Update Input to "goodbye world"
+  end
+  rect rgb(220, 220, 220)
+  Note over Input,Output: Update the system
+  Output-->>Input: What is your timestamp?
+  Input-->>Output: «2»
+  Note right of Output: Text node is stale
+  Output->>Input: What is your value?
+  Input->>Output: "goodbye world"
+  Note right of Output: Update text node
+  end
+</pre>
+<figcaption>Fig. 1. Change propagation</figcaption>
+</figure>
+<p><a name="everafter-reactivity">Evaluation-based reactivity with revision tracking (&quot;EverAfter reactivity&quot;)</a> restores from-scratch consistency to our system. Provided that the input didn't change, change propagation is once again substantially cheaper than from-scratch evaluation.</p>
+<p>Importantly, evaluation-based change propagation with revision tracking <strong>does not</strong> depend on a particular programming language's concept of referential equality, and it does not depend on memoizing input values. In practical use, the overhead of <a href="chapter_1.html#timestamp">timestamp</a> validation is negligble.</p>
+<p>The rest of this book is concerned with two topics:</p>
+<ol>
+<li>Expanding the concepts we covered so far to allow for efficient validation of derived inputs</li>
+<li>The practical implementation techniques that make EverAfter reactivity efficient in larger scale programs</li>
+</ol>
+<h2><a class="header" href="#composition-at-a-glance" id="composition-at-a-glance">Composition at a Glance</a></h2>
+<p>Before moving on, we will describe, at a high level, how inputs can be composed together using <a href="chapter_1.html#everafter-reactivity">EverAfter reactivity</a>, and how such a composition avoids adding overhead for each composition.</p>
+<p>Consider the following from-scratch program.</p>
+<figure>
+<pre><code class="language-ts">function fullName(first: string, last: string): string {
+  return `${first} ${last}`;
+}
+
+function program(first: string, last: string, title: string) {
+  let header = document.createElement(&quot;h1&quot;);
+  let titleNode = document.createTextNode(title);
+  header.appendChild(titleNode);
+
+  let paragraph = document.createElement(&quot;p&quot;);
+  let nameNode = document.createTextNode(fullName(first, last));
+  paragraph.appendChild(lastNode);
+
+  let div = document.createElement(&quot;div&quot;);
+  div.appendChild(header);
+  div.appendChild(paragraph);
+
+  return div;
+}
+</code></pre>
+<figcaption>Fig. 2. The code listing for a from-scratch program demonstrating composition</figcaption>
+</figure>
+<p>This program expects three reactive variables (<code>first</code>, <code>last</code> and <code>title</code>). It derives <code>fullName</code> from <code>first</code> and <code>last</code>, which becomes the input to <code>nameNode</code>. As before, <code>title</code> is the input to <code>titleNode</code>.</p>
+<figure>
+<pre class="mermaid">stateDiagram
+  state program {
+     state paragraph {
+       nameNode --> fullName
+       fullName --> first
+       fullName --> last
+     }
+     state header {
+        titleNode --> title
+     }
+  }
+  state legend {
+    variable
+    derived
+    output
+  }
+</pre>
+<figcaption>Fig 3. A diagram of the data flow described by the code in Fig. 2</figcaption>
+</figure>
+<p>When the user changes the inputs, the changes are propagated much the same way as in Fig. 1. Fig. 4 elaborates the consequences of composition.</p>
+<figure>
+<pre class="mermaid">sequenceDiagram
+  participant User
+  participant Inputs
+  participant Output
+  rect rgb(200, 200, 200)
+  Note over User,Inputs: User initializes the inputs
+  User->>Inputs: Initialize title to "hello world"
+  User->>Inputs: Initialize first to "Matt"
+  User->>Inputs: Initialize last to "Hammer"
+  end
+  rect rgb(220, 220, 220)
+     Note over Inputs,Output: Initialize the system
+     rect rgb(180, 180, 180)
+        Note over Inputs,Output: Initialize header
+        Output->>Inputs: What is the value of title?
+        Inputs->>Output: "hello world"
+        Output-->>Inputs: What is the timestamp of title?
+        Inputs-->>Output: «1»
+     end
+     Note right of Output: Create text node
+     Note right of Output: Last timestamp: «1»
+     rect rgb(180, 180, 180)
+        Note over Inputs,Output: Initialize paragraph
+        rect rgb(160, 160, 160)
+          rect rgba(160, 160, 160, 0.5)
+            Output->>Inputs: What is the value of first?
+            Inputs->>Output: "Matt"
+            Output-->>Inputs: What is the timestamp of first?
+            Inputs-->>Output: «1»
+          end
+          rect rgba(160, 160, 160, 0.5)
+            Output->>Inputs: What is the value of last?
+            Inputs->>Output: "Hammer"
+            Output-->>Inputs: What is the timestamp of last?
+            Inputs-->>Output: «1»
+          end
+        end
+        Note left of Output: Invoke fullName with "Matt" and "Hammer"
+        Note left of Output: Result: "Matt Hammer"
+     end
+     Note right of Output: Create text node
+     Note right of Output: Last timestamp: «1»
+  end
+  Note over User,Output: Some time passes
+  rect rgb(200, 200, 200)
+    Note over User,Inputs: Update the inputs
+    User->>Inputs: Update title to "goodbye world"
+  end
+  rect rgb(220, 220, 220)
+    Note over Inputs,Output: Propagate changes
+    Output-->>Inputs: Is title up to date for «1»?
+    Inputs-->>Output: no
+    Note right of Output: title is stale ⚠️
+    Output->>Inputs: What is the value of title?
+    Inputs->>Output: "goodbye world"
+    Output-->>Inputs: What is the timestamp of first?
+    Inputs-->>Output: «2»
+    Note right of Output: Update title 🔨
+    Note right of Output: Last timestamp: «2»
+    Output-->>Inputs: Is first up to date for «1»?
+    Inputs-->>Output: yes
+    Output-->>Inputs: Is last up to date for «1»?
+    Inputs-->>Output: yes
+    Note right of Output: fullName is fresh ✔️
+  end
+  Note over User,Output: Some time passes
+  rect rgb(200, 200, 200)
+    Note over User,Inputs: Update the inputs
+    User->>Inputs: Update first to "Matthew"
+  end
+  rect rgb(220, 220, 220)
+    Note over Inputs,Output: Propagate changes
+    rect rgb(200, 200, 200)
+      Note over Inputs,Output: Validate title
+      Output-->>Inputs: Is title up to date for «2»?
+      Inputs-->>Output: yes
+      Note right of Output: title is fresh ✔️
+    end
+    rect rgb(200, 200, 200)
+      Note over Inputs,Output: Validate fullName
+      Output-->>Inputs: Is first up to date for «1»?
+      Inputs-->>Output: no
+      Note right of Output: fullName is stale ⚠️
+      rect rgb(180, 180, 180)
+        Output->>Inputs: What is the value of first?
+        Inputs->>Output: "Matthew"
+        Output-->>Inputs: What is the timestamp of first?
+        Inputs-->>Output: «3»
+        Output->>Inputs: What is the value of last?
+        Inputs->>Output: "Hammer"
+        Output-->>Inputs: What is the timestamp of last?
+        Inputs-->>Output: «3»
+      end
+      Note left of Output: Invoke fullName with "Matt" and "Hammer"
+      Note left of Output: Result: "Matt Hammer"
+      Note right of Output: Update fullName 🔨
+      Note right of Output: Last timestamp: «3»
+    end
+  end
+</pre>
+<figcaption>Fig. 4. Change propagation through composition.
+</figure>
+<p>We can make a few observations.</p>
+<p>First, because <code>fullName</code> is composed of <code>first</code> and <code>last</code>, we could remember a single timestamp for the entire composition, and validate each of its inputs using that timestamp. This means that abstractions do not increase overhead: we only need to store a single timestamp for all of the inputs to an abstraction, and validating an abstraction just means validating the inputs to the abstraction.</p>
+<p>Second, because <code>fullName</code> is not itself reactive, the algorithm needs to derive it again from its inputs whenever any of its inputs change. This means the algorithm <em>doesn't</em> need to memoize <code>first</code>, <code>last</code> or the result of calling <code>fullName</code> at all. If neither of <code>first</code> or <code>last</code> changed, the output remains up to date. If either <code>first</code> or <code>last</code> changes, the algorithm acquires the most recent version of both and calls the <code>fullName</code> function again, updating the output.</p>
+<p>In some cases, it might be more efficient to memoize a derived value that is used as an input into other derived values. As we'll show later, EverAfter reactivity is expressive enough to allow memoization where necessary, but does not impose the cost of memoization where it would provide little value.</p>
+<p>In earlier implementations of this algorithm, we more aggressively memoized inputs. After changing the algorithm to default to validation without memoization, as illustrated above, we found that the vast majority of caches were unused, and the overall performance of the system at scale improved substantially.</p>
+<blockquote>
+<p>The archivist role (<math><mi mathvariant="monospace">ar</mi></math>) corresponds to computation whose dependencies we cache, and the editor role ( \( \mathtt{ed} \) ) corresponds to computation that feeds the archivist with input changes, and demands any changed output that is relevant; in short, the editor represents the world outside the cached computation.</p>
+</blockquote>
+<h1><a class="header" href="#reactivity-checkpoints" id="reactivity-checkpoints">Reactivity Checkpoints</a></h1>
+<p>EverAfter's reactivity model is <em>discrete</em>, which means that the output of the system is from-scratch consistent with its inputs at specific moments on the <a href="chapter_1.html#revision-timeline">revision timeline</a>. We call those moments in time <em>reactivity checkpoints</em>.</p>
+<p>Importantly, the reactive output does not make any demands on input cells or derived inputs between reactivity checkpoints. This means that when an input cell \( \mathtt{C} \) is mutated, the only bookkeeping that is necessary is to increment the current point on the <a href="chapter_1.html#revision-timeline">revision timeline</a> to \( \mathtt{T} \) and record \( \mathtt{T} \) as the current timestamp of \( \mathtt{C} \). No additional bookkeeping is immediately needed for derived inputs or for outputs that depend on the input cell.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+        
+        
+        <script type="text/javascript">
+            window.playpen_copyable = true;
+        </script>
+        
+
+        
+
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+        <script type="text/javascript" src="mermaid.js"></script>
+        
+        <script type="text/javascript" src="src/custom/init.js"></script>
+        
+
+        
+        
+        <script type="text/javascript">
+        window.addEventListener('load', function() {
+            MathJax.Hub.Register.StartupHook('End', function() {
+                window.setTimeout(window.print, 100);
+            });
+        });
+        </script>
+        
+        
+
+    </body>
+</html>

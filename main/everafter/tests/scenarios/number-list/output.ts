@@ -11,7 +11,7 @@ import {
   LogLevel,
   Owned,
   Owner,
-  ReactiveParameter,
+  Param,
   ReactiveRange,
   ReactiveState,
   Region,
@@ -22,7 +22,7 @@ import {
 } from "everafter";
 
 export type ArrayAtom = Var<number>;
-export type DefaultArrayAtom = ReactiveParameter<number>;
+export type DefaultArrayAtom = Param<number>;
 
 export class CompileNumberArrayOps
   implements CompileOperations<ArrayCursor, ArrayAtom, DefaultArrayAtom> {
@@ -32,9 +32,9 @@ export class CompileNumberArrayOps
 }
 
 class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
-  #value: ReactiveParameter<number>;
+  #value: Param<number>;
 
-  constructor(owner: Owner, value: ReactiveParameter<number>) {
+  constructor(owner: Owner, value: Param<number>) {
     super(owner);
     this.#value = value;
   }
@@ -53,7 +53,7 @@ class CompilableNumberAtom extends CompilableAtom<ArrayCursor, ArrayAtom> {
 }
 
 export function num(
-  num: ReactiveParameter<number>
+  num: Param<number>
 ): Factory<CompilableNumberAtom> {
   return owner => owner.new(CompilableNumberAtom, num);
 }
@@ -95,7 +95,7 @@ export class ArrayCursor extends Owned {
     getOwner(this).host.logResult(
       LogLevel.Info,
       `replacing ${this.absolutePos} from ${
-        this.#array[this.absolutePos]
+      this.#array[this.absolutePos]
       } to ${num}`
     );
     this.#array[this.absolutePos] = num;
@@ -104,8 +104,8 @@ export class ArrayCursor extends Owned {
 
 export class ArrayRange extends Owned
   implements
-    ReactiveRange<ArrayCursor, ArrayAtom>,
-    AppendingReactiveRange<ArrayCursor, ArrayAtom> {
+  ReactiveRange<ArrayCursor, ArrayAtom>,
+  AppendingReactiveRange<ArrayCursor, ArrayAtom> {
   static from(owner: Owner, array: number[]): ArrayRange {
     return owner.new(ArrayRange, array, 0, array.length, null);
   }
@@ -206,7 +206,7 @@ export class ArrayRange extends Owned
     }
   };
 
-  clears(): ArrayRange {
+  clear(): ArrayRange {
     this.#array.splice(this.#absoluteStart(), this.#length);
     this.#decrement(this.#length);
     return this;

@@ -7,7 +7,7 @@ import {
   NO_SOURCE,
 } from "./debug/index";
 import { initializeEffect } from "./effect";
-import type { Block, BlockFunction, RenderResult } from "./interfaces";
+import type { Block, RenderResult } from "./interfaces";
 import { getOwner } from "./owner";
 import { createCache, getValue } from "./polyfill";
 import type { Region } from "./region";
@@ -45,19 +45,12 @@ export function conditionBlock<Cursor, Atom>(
       currentBlock = nextBlock;
     });
 
-    let updater = getOwner(region).instantiate(initializeEffect, source, () =>
-      getValue(render)
-    );
+    let updater = getOwner(region).instantiate(initializeEffect, source, {
+      initialize: () => getValue(render),
+      update: () => getValue(render),
+    });
 
     region.updateWith(updater);
-  };
-}
-
-export function staticBlock<Cursor, Atom>(
-  block: BlockFunction<Cursor, Atom>
-): Block<Cursor, Atom> {
-  return (region: Region<Cursor, Atom>): void => {
-    block(region);
   };
 }
 
@@ -68,10 +61,8 @@ export function invokeBlock<Cursor, Atom>(
   let level = LogLevel.Info;
 
   if (maybeGetSource(block)) {
-    getOwner(region).host.context(
-      level,
-      getSource(block).withDefaultDescription("Block"),
-      () => block(region)
+    getOwner(region).host.context(level, getSource(block).withDefaultDescription("Block"), () =>
+      block(region)
     );
   } else {
     block(region);

@@ -1,0 +1,18 @@
+[book]
+authors = ["Yehuda Katz"]
+language = "en"
+multilingual = false
+src = "src"
+title = "EverAfter: A General-Purpose Model of Reactivity"
+
+[build]
+build-dir = "../docs"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+theme = "src/theme"
+mathjax-support = true
+additional-css = ["mermaid.css", "src/custom/style.css"]
+additional-js = ["mermaid.js", "src/custom/init.js"]

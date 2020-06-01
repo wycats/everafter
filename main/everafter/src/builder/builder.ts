@@ -20,7 +20,7 @@ import {
   ForeignBlock,
   UserBuilderBlock,
 } from "./blocks";
-import type { ReactiveParameter } from "./param";
+import type { Param } from "./param";
 
 export type RuntimeState = Dict<Var>;
 
@@ -77,7 +77,7 @@ export interface Builder<Cursor, Atom, DefaultAtom> {
     source: Source
   ): void;
 
-  ifBlock<A extends ReactiveParameter<boolean>>(
+  ifBlock<A extends Param<boolean>>(
     condition: A,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
@@ -149,7 +149,7 @@ export class StaticBlockBuilder<Cursor, Atom, DefaultAtom> extends Owned
   }
 
   ifBlock(
-    condition: ReactiveParameter<boolean>,
+    condition: Param<boolean>,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source = caller(PARENT).withDefaultDescription("if")
@@ -228,7 +228,7 @@ class ForeignBlockBuilder<
   }
 
   ifBlock(
-    condition: ReactiveParameter<boolean>,
+    condition: Param<boolean>,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     source = caller(PARENT)
@@ -316,7 +316,7 @@ class BlockBodyBuilder<
     this.#builder.atom(atom);
   }
 
-  ifBlock<A extends ReactiveParameter<boolean>>(
+  ifBlock<A extends Param<boolean>>(
     condition: A,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>
@@ -361,7 +361,7 @@ export class Program<Cursor, Atom, DefaultAtom> extends Owned
     this.#statements.atom(atom, source);
   }
 
-  ifBlock<A extends ReactiveParameter<boolean>>(
+  ifBlock<A extends Param<boolean>>(
     condition: A,
     then: UserBuilderBlock<Cursor, Atom, DefaultAtom>,
     otherwise: UserBuilderBlock<Cursor, Atom, DefaultAtom>,

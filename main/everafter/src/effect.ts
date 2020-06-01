@@ -3,6 +3,7 @@ import type { Owner } from "./owner";
 import { createResource, getValue } from "./polyfill";
 import { Updater, updater } from "./update";
 import type { Var } from "./value";
+import { UNINITIALIZED } from "./utils";
 
 export const POLL = Symbol("POLL");
 
@@ -12,12 +13,8 @@ export interface UserEffect<T, Args extends readonly Var<unknown>[]> {
   destroy?: (value: T | undefined) => void;
 }
 
-export type IntoEffect<T, Args extends readonly Var<unknown>[]> =
-  | UserEffect<T, Args>
-  | ((value: T | undefined, ...args: Args) => void);
-
 export function intoEffect<T, Args extends readonly Var<unknown>[]>(
-  effect: IntoEffect<T, Args>
+  effect: UserEffect<T, Args>
 ): UserEffect<T, Args> {
   if (typeof effect === "function") {
     return {
@@ -29,16 +26,13 @@ export function intoEffect<T, Args extends readonly Var<unknown>[]>(
   }
 }
 
-const UNINITIALIZED = Symbol("UNINITIALIZED");
-type UNINITIALIZED = typeof UNINITIALIZED;
-
 export function initializeEffect<T, Args extends readonly Var<unknown>[]>(
   owner: Owner,
   source: Source,
-  effect: IntoEffect<T, Args>,
+  effect: UserEffect<T, Args>,
   ...args: Args
 ): Updater {
-  const { initialize, update, destroy } = intoEffect(effect);
+  const { initialize, update, destroy } = effect;
   let value: T | UNINITIALIZED = UNINITIALIZED;
 
   let cache = createResource(
@@ -54,9 +48,7 @@ export function initializeEffect<T, Args extends readonly Var<unknown>[]>(
       }
     },
     owner,
-    destroy
-      ? () => destroy(value === UNINITIALIZED ? undefined : value)
-      : undefined
+    destroy ? () => destroy(value === UNINITIALIZED ? undefined : value) : undefined
   );
 
   // initialize effect

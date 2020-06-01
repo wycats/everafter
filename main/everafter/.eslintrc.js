@@ -1,7 +1,7 @@
 module.exports = {
   parser: "@typescript-eslint/parser",
   parserOptions: {
-    ecmaVersion: 2019,
+    ecmaVersion: 2020,
     sourceType: "module",
   },
   ignorePatterns: ["dist/", "node_modules/", "!.*"],
@@ -11,13 +11,16 @@ module.exports = {
   overrides: [
     {
       files: ["**/*.ts"],
-      plugins: ["@glimmerx", "@typescript-eslint", "prettier"],
+      plugins: ["prettier", "@typescript-eslint"],
       extends: [
-        "plugin:@typescript-eslint/eslint-recommended",
+        // "plugin:@typescript-eslint/recommended",
+        "eslint:recommended",
+        "prettier",
         "prettier/@typescript-eslint",
+        "plugin:prettier/recommended", // this has to be last
       ],
       rules: {
-        "@glimmerx/template-vars": "error",
+        "prettier/prettier": "error",
         "@typescript-eslint/explicit-function-return-type": [
           "error",
           {

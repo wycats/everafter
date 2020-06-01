@@ -1,5 +1,7 @@
 {
-  "files.associations": { "*.json": "jsonc" },
+  "files.associations": {
+    "*.json": "jsonc"
+  },
   "files.exclude": {
     "**/node_modules": true,
     "common/temp": true
@@ -9,5 +11,29 @@
     "**/node_modules": true,
     "common": true
   },
-  "eslint.enable": true
+  "eslint.enable": true,
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "editor.formatOnSave": true,
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#d8c108",
+    "activityBar.activeBorder": "#057b6e",
+    "activityBar.background": "#d8c108",
+    "activityBar.foreground": "#15202b",
+    "activityBar.inactiveForeground": "#15202b99",
+    "activityBarBadge.background": "#057b6e",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "statusBar.background": "#a79506",
+    "statusBar.border": "#a79506",
+    "statusBar.foreground": "#15202b",
+    "statusBarItem.hoverBackground": "#766904",
+    "titleBar.activeBackground": "#a79506",
+    "titleBar.activeForeground": "#15202b",
+    "titleBar.border": "#a79506",
+    "titleBar.inactiveBackground": "#a7950699",
+    "titleBar.inactiveForeground": "#15202b99"
+  },
+  "peacock.remoteColor": "#a79506"
 }
