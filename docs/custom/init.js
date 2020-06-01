@@ -10,19 +10,7 @@ mermaid.init({
   },
 });
 
-console.log(window.MathJax);
-
-window.MathJax = {
-  tex: {
-    macros: {
-      def: [String.raw`\color{Bittersweet}{\sf #1}`, 1],
-      ref: [String.raw`\color{Plum}{\sf #1}`, 1],
-      // keyword: [`\\color{red}{#1}`, 1],
-    },
-  },
-};
-
-document.addEventListener("click", (e) => {
+document.addEventListener("click", e => {
   let existing = document.querySelector(".popover");
 
   let link = e.target;
