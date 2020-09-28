@@ -4,7 +4,7 @@
 <head>
     <!-- Book generated using mdBook -->
     <meta charset="UTF-8">
-    <title>Chapter 0 - EverAfter: A General-Purpose Model of Reactivity</title>
+    <title></title>
     
 
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -171,96 +171,8 @@
 
             <div id="content" class="content">
                 <main>
-                    <h1><a class="header" href="#the-reactive-timeline" id="the-reactive-timeline">The Reactive Timeline</a></h1>
-<p>Each mutation in EverAfter reactivity takes place on a unique point on the <em>reactive timeline</em>.</p>
-<p>Changes to reactive inputs are periodically applied to the reactive output. Each point on the
-reactive timeline after which the output was updated is called a <em>transaction checkpoint</em>.</p>
-<h1><a class="header" href="#the-input-data-model" id="the-input-data-model">The Input Data Model</a></h1>
-<h2><a class="header" href="#reactive-cell" id="reactive-cell">Reactive Cell</a></h2>
-<p>The underlying unit of reactivity in EverAfter is the <em>reactive cell</em>, which represents a single
-unit of atomic storage.</p>
-<p>A <em>reactive cell</em> has three fundamental operations:</p>
-<ul>
-<li><code>read()</code>: Read the current value of this cell.</li>
-<li><code>update(value)</code>: Update the value of this cell.</li>
-<li><code>revision</code>: The point on the <em>reactive timeline</em> when this cell was last updated.</li>
-</ul>
-<p>When a reactive cell is <em>updated</em>, the <em>reactive timeline</em>'s timestamp is incremented, and the
-cells' <em>revision</em> is updated to the current timestamp.</p>
-<p>When a reactive cell <math><mi mathvariant="monospace">C</mi></math> is <em>consumed</em>, the <em>current
-reactive computation</em> acquires a dependency on <math><mi mathvariant="monospace">C</mi></math>.</p>
-<h2><a class="header" href="#reactive-external-storage" id="reactive-external-storage">Reactive External Storage</a></h2>
-<h2><a class="header" href="#reactive-computation" id="reactive-computation">Reactive Computation</a></h2>
-<p>A <em>reactive computation</em> is a computation that reads from reactive cells either by reading their
-values directly or by reading the values of another reactive computation.</p>
-<p>A <em>reactive computation</em> has two fundamental operations:</p>
-<ul>
-<li><code>read()</code>: Compute the value of the computation.</li>
-<li><code>revision</code>: The point on the reactive timeline after which all of this reactive computation's
-dependencies were up to date.</li>
-</ul>
-<p>When a reactive computation <math><mi mathvariant="monospace">C</mi></math> is <em>consumed</em>, any
-existing reactive computation acquires a dependency on <math><mi
-mathvariant="monospace">C</mi></math>.</p>
-<h2><a class="header" href="#memoized-reactive-computation" id="memoized-reactive-computation">Memoized Reactive Computation</a></h2>
-<p>A <em>memoized reactive computation</em> is a <em>reactive computation</em> that returns the last known value of
-the computation as long as its <em>revision</em> has not changed.</p>
-<p>A <em>memoized reactive computation</em> has only a single fundamental operation:</p>
-<ul>
-<li><code>read()</code>:
-<ol>
-<li>if this is the first <code>read()</code> or if the <code>revision</code> of the underlying computation has changed,
-compute and memoize the value of the computation.</li>
-<li>return the memoized value of the computation.</li>
-</ol>
-</li>
-</ul>
-<blockquote>
-<p>A <em>memoized reactive computation</em> is not a fundamental concept in EverAfter reactivity. However,
-it is so common that it's worth thinking of as a core part of the working model.</p>
-</blockquote>
-<h2><a class="header" href="#constant-values" id="constant-values">Constant Values</a></h2>
-<p>A reactive cell may be <em>constant</em>. A <em>constant reactive cell</em> must not change for the remainder of
-the program, and therefore need not be validated for the remainder of the program.</p>
-<p>A reactive computation is <em>constant</em> if all of its most recent dependencies are <em>constant</em>.</p>
-<h1><a class="header" href="#the-output-data-model" id="the-output-data-model">The Output Data Model</a></h1>
-<h2><a class="header" href="#reactive-output-node" id="reactive-output-node">Reactive Output Node</a></h2>
-<p>A <em>reactive output node</em> is one of:</p>
-<ol>
-<li>A <em>reactive tree node</em></li>
-<li>A <em>reactive primitive</em></li>
-<li>A <em>reactive list</em></li>
-<li>A <em>reactive map</em></li>
-<li>A <em>reactive set</em></li>
-</ol>
-<h2><a class="header" href="#reactive-tree-node" id="reactive-tree-node">Reactive Tree Node</a></h2>
-<p>A <em>reactive tree node</em> has <em>reactive tree children</em>, each of which is:</p>
-<ol>
-<li>A <em>reactive tree node</em></li>
-<li>A <em>reactive tree leaf</em></li>
-</ol>
-<h3><a class="header" href="#reactive-tree-leaf" id="reactive-tree-leaf">Reactive Tree Leaf</a></h3>
-<p>A <em>reactive tree leaf</em> is one of:</p>
-<ol>
-<li>A <em>reactive primitive</em></li>
-<li>A <em>reactive list</em></li>
-<li>A <em>reactive map</em></li>
-<li>A <em>reactive set</em></li>
-</ol>
-<h2><a class="header" href="#reactive-primitive" id="reactive-primitive">Reactive Primitive</a></h2>
-<p>A <em>reactive primitive</em> is one of:</p>
-<ol>
-<li>A <em>reactive cell</em></li>
-<li>A <em>reactive computation</em></li>
-<li>A <em>reactive memoized computation</em></li>
-</ol>
-<h2><a class="header" href="#reactive-list" id="reactive-list">Reactive List</a></h2>
-<p>A <em>reactive list</em> is a list of items (each of which is a <em>reactive tree leaf</em> identified by a
-<em>key</em>).</p>
-<h2><a class="header" href="#key" id="key">Key</a></h2>
-<p>A <em>key</em> is a non-reactive, uniquely identifiable value for each entry in a list.</p>
-<h1><a class="header" href="#reflecting-inputs-onto-outputs" id="reflecting-inputs-onto-outputs">Reflecting Inputs onto Outputs</a></h1>
-<p>The purpose of EverAfter reactivity is to turn reactive inputs into reactive outputs.</p>
+                    <h1><a class="header" href="#document-not-found-404" id="document-not-found-404">Document not found (404)</a></h1>
+<p>This URL is invalid, sorry. Please use the navigation bar or search to continue.</p>
 
                 </main>
 
@@ -268,11 +180,6 @@ the program, and therefore need not be validated for the remainder of the progra
                     <!-- Mobile navigation buttons -->
                     
 
-                    
-                    <a rel="next" href="chapter_1.html" class="mobile-nav-chapters next"
-                        title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <i class="fa fa-angle-right"></i>
-                    </a>
                     
 
                     <div style="clear: both"></div>
@@ -283,11 +190,6 @@ the program, and therefore need not be validated for the remainder of the progra
         <nav class="nav-wide-wrapper" aria-label="Page navigation">
             
 
-            
-            <a rel="next" href="chapter_1.html" class="nav-chapters next" title="Next chapter"
-                aria-label="Next chapter" aria-keyshortcuts="Right">
-                <i class="fa fa-angle-right"></i>
-            </a>
             
         </nav>
 

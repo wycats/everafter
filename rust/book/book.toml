@@ -6,7 +6,7 @@ src = "src"
 title = "EverAfter: A General-Purpose Model of Reactivity"
 
 [build]
-build-dir = "../docs"
+build-dir = "../../docs"
 
 [preprocessor.mermaid]
 command = "mdbook-mermaid"

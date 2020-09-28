@@ -1,160 +1,177 @@
 <!DOCTYPE HTML>
 <html lang="en" class="sidebar-visible no-js light">
-    <head>
-        <!-- Book generated using mdBook -->
-        <meta charset="UTF-8">
-        <title>A Broad Overview - EverAfter: A General-Purpose Model of Reactivity</title>
-        
 
-        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-        <meta name="description" content="">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="theme-color" content="#ffffff" />
+<head>
+    <!-- Book generated using mdBook -->
+    <meta charset="UTF-8">
+    <title>A Broad Overview - EverAfter: A General-Purpose Model of Reactivity</title>
+    
 
-        <link rel="shortcut icon" href="favicon.png">
-        <link rel="stylesheet" href="css/variables.css">
-        <link rel="stylesheet" href="css/general.css">
-        <link rel="stylesheet" href="css/chrome.css">
-        <link rel="stylesheet" href="css/print.css" media="print">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff" />
 
-        <!-- Fonts -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
-        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+    <link rel="shortcut icon" href="">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/general.css">
+    <link rel="stylesheet" href="css/chrome.css">
+    <link rel="stylesheet" href="css/print.css" media="print">
 
-        <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="highlight.css">
-        <link rel="stylesheet" href="tomorrow-night.css">
-        <link rel="stylesheet" href="ayu-highlight.css">
+    <!-- Fonts -->
+    <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+    <link
+        href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800"
+        rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
 
-        <!-- Custom theme stylesheets -->
-        
-        <link rel="stylesheet" href="mermaid.css">
-        
-        <link rel="stylesheet" href="src/custom/style.css">
-        
+    <!-- Highlight.js Stylesheets -->
+    <link rel="stylesheet" href="highlight.css">
+    <link rel="stylesheet" href="tomorrow-night.css">
+    <link rel="stylesheet" href="ayu-highlight.css">
 
-        
-        <!-- MathJax -->
-        <script async type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        
-    </head>
-    <body>
-        <!-- Provide site root to javascript -->
-        <script type="text/javascript">
-            var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "light";
+    <!-- Custom theme stylesheets -->
+    
+    <link rel="stylesheet" href="mermaid.css">
+    
+    <link rel="stylesheet" href="src/custom/style.css">
+    
+
+    
+    <!-- MathJax -->
+    <script type="text/javascript" id="MathJax-script" defer
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
         </script>
+    
+</head>
 
-        <!-- Work around some values being stored in localStorage wrapped in quotes -->
-        <script type="text/javascript">
-            try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+<body>
+    <!-- Provide site root to javascript -->
+    <script type="text/javascript">
+        var path_to_root = "";
+        var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+    </script>
 
-                if (theme.startsWith('"') && theme.endsWith('"')) {
-                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
-                }
+    <!-- Work around some values being stored in localStorage wrapped in quotes -->
+    <script type="text/javascript">
+        try {
+            var theme = localStorage.getItem('mdbook-theme');
+            var sidebar = localStorage.getItem('mdbook-sidebar');
 
-                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
-                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
-                }
-            } catch (e) { }
-        </script>
-
-        <!-- Set the theme before any content is loaded, prevents flash -->
-        <script type="text/javascript">
-            var theme;
-            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
-            if (theme === null || theme === undefined) { theme = default_theme; }
-            var html = document.querySelector('html');
-            html.classList.remove('no-js')
-            html.classList.remove('light')
-            html.classList.add(theme);
-            html.classList.add('js');
-        </script>
-
-        <!-- Hide / unhide sidebar before it is displayed -->
-        <script type="text/javascript">
-            var html = document.querySelector('html');
-            var sidebar = 'hidden';
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
+            if (theme.startsWith('"') && theme.endsWith('"')) {
+                localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
             }
-            html.classList.remove('sidebar-visible');
-            html.classList.add("sidebar-" + sidebar);
-        </script>
 
-        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="chapter_1.html" class="active"><strong aria-hidden="true">1.</strong> A Broad Overview</a></li></ol>
+            if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+            }
+        } catch (e) { }
+    </script>
+
+    <!-- Set the theme before any content is loaded, prevents flash -->
+    <script type="text/javascript">
+        var theme;
+        try { theme = localStorage.getItem('mdbook-theme'); } catch (e) { }
+        if (theme === null || theme === undefined) { theme = default_theme; }
+        var html = document.querySelector('html');
+        html.classList.remove('no-js')
+        html.classList.remove('light')
+        html.classList.add(theme);
+        html.classList.add('js');
+    </script>
+
+    <!-- Hide / unhide sidebar before it is displayed -->
+    <script type="text/javascript">
+        var html = document.querySelector('html');
+        var sidebar = 'hidden';
+        if (document.body.clientWidth >= 1080) {
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch (e) { }
+            sidebar = sidebar || 'visible';
+        }
+        html.classList.remove('sidebar-visible');
+        html.classList.add("sidebar-" + sidebar);
+    </script>
+
+    <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+        <div class="sidebar-scrollbox">
+            <ol class="chapter"><li class="chapter-item expanded "><a href="chapter_0.html"><strong aria-hidden="true">1.</strong> Chapter 0</a></li><li class="chapter-item expanded "><a href="chapter_1.html" class="active"><strong aria-hidden="true">2.</strong> A Broad Overview</a></li></ol>
+        </div>
+        <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+    </nav>
+
+    <div id="page-wrapper" class="page-wrapper">
+
+        <div class="page">
+            
+            <div id="menu-bar-hover-placeholder"></div>
+            <div id="menu-bar" class="menu-bar sticky bordered">
+                <div class="left-buttons">
+                    <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents"
+                        aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                        <i class="fa fa-bars"></i>
+                    </button>
+                    <button id="theme-toggle" class="icon-button" type="button" title="Change theme"
+                        aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                        <i class="fa fa-paint-brush"></i>
+                    </button>
+                    <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                        <li role="none"><button role="menuitem" class="theme"
+                                id="light">Light (default)</button></li>
+                        <li role="none"><button role="menuitem" class="theme"
+                                id="rust">Rust</button></li>
+                        <li role="none"><button role="menuitem" class="theme"
+                                id="coal">Coal</button></li>
+                        <li role="none"><button role="menuitem" class="theme"
+                                id="navy">Navy</button></li>
+                        <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button>
+                        </li>
+                    </ul>
+                    
+                    <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)"
+                        aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S"
+                        aria-controls="searchbar">
+                        <i class="fa fa-search"></i>
+                    </button>
+                    
+                </div>
+
+                <h1 class="menu-title">EverAfter: A General-Purpose Model of Reactivity</h1>
+
+                <div class="right-buttons">
+                    <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <i id="print-button" class="fa fa-print"></i>
+                    </a>
+                    
+                </div>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
-        </nav>
 
-        <div id="page-wrapper" class="page-wrapper">
-
-            <div class="page">
-                
-                <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky bordered">
-                    <div class="left-buttons">
-                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
-                            <i class="fa fa-bars"></i>
-                        </button>
-                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
-                            <i class="fa fa-paint-brush"></i>
-                        </button>
-                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
-                        </ul>
-                        
-                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
-                            <i class="fa fa-search"></i>
-                        </button>
-                        
-                    </div>
-
-                    <h1 class="menu-title">EverAfter: A General-Purpose Model of Reactivity</h1>
-
-                    <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
-                            <i id="print-button" class="fa fa-print"></i>
-                        </a>
-                        
-                    </div>
+            
+            <div id="search-wrapper" class="hidden">
+                <form id="searchbar-outer" class="searchbar-outer">
+                    <input type="search" name="search" id="searchbar" name="searchbar"
+                        placeholder="Search this book ..." aria-controls="searchresults-outer"
+                        aria-describedby="searchresults-header">
+                </form>
+                <div id="searchresults-outer" class="searchresults-outer hidden">
+                    <div id="searchresults-header" class="searchresults-header"></div>
+                    <ul id="searchresults">
+                    </ul>
                 </div>
+            </div>
+            
 
-                
-                <div id="search-wrapper" class="hidden">
-                    <form id="searchbar-outer" class="searchbar-outer">
-                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
-                    </form>
-                    <div id="searchresults-outer" class="searchresults-outer hidden">
-                        <div id="searchresults-header" class="searchresults-header"></div>
-                        <ul id="searchresults">
-                        </ul>
-                    </div>
-                </div>
-                
+            <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+            <script type="text/javascript">
+                document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                Array.from(document.querySelectorAll('#sidebar a')).forEach(function (link) {
+                    link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                });
+            </script>
 
-                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
-                <script type="text/javascript">
-                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
-                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
-                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
-                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
-                    });
-                </script>
-
-                <div id="content" class="content">
-                    <main>
-                        <h1><a class="header" href="#a-broad-overview" id="a-broad-overview">A Broad Overview</a></h1>
+            <div id="content" class="content">
+                <main>
+                    <h1><a class="header" href="#a-broad-overview" id="a-broad-overview">A Broad Overview</a></h1>
 <p>EverAfter is a reactivity library that glues together reactive inputs with a notion of reactive outputs.</p>
 <p>This book primarily describes everafter's reactivity philosophy, using the library to illustrate the concepts.</p>
 <h1><a class="header" href="#characteristics" id="characteristics">Characteristics</a></h1>
@@ -198,11 +215,11 @@
   participant User
   participant Input
   participant Output
-  User->>Input: Initialize Input to "hello world"
-  Input->>Output: My value is "hello world"
+  User-&gt;&gt;Input: Initialize Input to &quot;hello world&quot;
+  Input-&gt;&gt;Output: My value is &quot;hello world&quot;
   Note right of Output: Create text node
-  User->>Input: Update Input to "goodbye world"
-  Input->>Output: My value is "goodbye world"
+  User-&gt;&gt;Input: Update Input to &quot;goodbye world&quot;
+  Input-&gt;&gt;Output: My value is &quot;goodbye world&quot;
   Note right of Output: Update text node
 </pre>
 <p>EverAfter's reactivity is <em>evaluation-based</em>. This means that values are always computed by dereferencing a variable or calling a function, both during initialization and change propagation.</p>
@@ -212,23 +229,23 @@
   participant Output
   rect rgb(200, 200, 200)
   Note over User,Input: User initializes the inputs
-  User->>Input: Initialize Input to "hello world"
+  User-&gt;&gt;Input: Initialize Input to &quot;hello world&quot;
   end
   rect rgb(220, 220, 220)
   Note over Input,Output: Initialize the system
-  Output->>Input: What is your value?
-  Input->>Output: "hello world"
+  Output-&gt;&gt;Input: What is your value?
+  Input-&gt;&gt;Output: &quot;hello world&quot;
   Note right of Output: Create text node
   end
   Note over User,Output: Some time passes
   rect rgb(200, 200, 200)
   Note over User,Input: Update the inputs
-  User->>Input: Update Input to "goodbye world"
+  User-&gt;&gt;Input: Update Input to &quot;goodbye world&quot;
   end
   rect rgb(220, 220, 220)
   Note over Input,Output: Propagate changes
-  Output->>Input: What is your value?
-  Input->>Output: "goodbye world"
+  Output-&gt;&gt;Input: What is your value?
+  Input-&gt;&gt;Output: &quot;goodbye world&quot;
   Note right of Output: Update text node
   end
 </pre>
@@ -245,28 +262,28 @@
   participant Output
   rect rgb(200, 200, 200)
   Note over User,Input: User initializes the inputs
-  User->>Input: Initialize Input to "hello world"
+  User-&gt;&gt;Input: Initialize Input to &quot;hello world&quot;
   end
   rect rgb(220, 220, 220)
   Note over Input,Output: Initialize the system
-  Output->>Input: What is your value?
-  Input->>Output: "hello world"
-  Output-->>Input: What is your timestamp?
-  Input-->>Output: «1»
+  Output-&gt;&gt;Input: What is your value?
+  Input-&gt;&gt;Output: &quot;hello world&quot;
+  Output--&gt;&gt;Input: What is your timestamp?
+  Input--&gt;&gt;Output: «1»
   Note right of Output: Create text node
   end
   Note over User,Output: Some time passes
   rect rgb(200, 200, 200)
   Note over User,Input: Update the inputs
-  User->>Input: Update Input to "goodbye world"
+  User-&gt;&gt;Input: Update Input to &quot;goodbye world&quot;
   end
   rect rgb(220, 220, 220)
   Note over Input,Output: Update the system
-  Output-->>Input: What is your timestamp?
-  Input-->>Output: «2»
+  Output--&gt;&gt;Input: What is your timestamp?
+  Input--&gt;&gt;Output: «2»
   Note right of Output: Text node is stale
-  Output->>Input: What is your value?
-  Input->>Output: "goodbye world"
+  Output-&gt;&gt;Input: What is your value?
+  Input-&gt;&gt;Output: &quot;goodbye world&quot;
   Note right of Output: Update text node
   end
 </pre>
@@ -310,12 +327,12 @@ function program(first: string, last: string, title: string) {
 <pre class="mermaid">stateDiagram
   state program {
      state paragraph {
-       nameNode --> fullName
-       fullName --> first
-       fullName --> last
+       nameNode --&gt; fullName
+       fullName --&gt; first
+       fullName --&gt; last
      }
      state header {
-        titleNode --> title
+        titleNode --&gt; title
      }
   }
   state legend {
@@ -334,18 +351,18 @@ function program(first: string, last: string, title: string) {
   participant Output
   rect rgb(200, 200, 200)
   Note over User,Inputs: User initializes the inputs
-  User->>Inputs: Initialize title to "hello world"
-  User->>Inputs: Initialize first to "Matt"
-  User->>Inputs: Initialize last to "Hammer"
+  User-&gt;&gt;Inputs: Initialize title to &quot;hello world&quot;
+  User-&gt;&gt;Inputs: Initialize first to &quot;Matt&quot;
+  User-&gt;&gt;Inputs: Initialize last to &quot;Hammer&quot;
   end
   rect rgb(220, 220, 220)
      Note over Inputs,Output: Initialize the system
      rect rgb(180, 180, 180)
         Note over Inputs,Output: Initialize header
-        Output->>Inputs: What is the value of title?
-        Inputs->>Output: "hello world"
-        Output-->>Inputs: What is the timestamp of title?
-        Inputs-->>Output: «1»
+        Output-&gt;&gt;Inputs: What is the value of title?
+        Inputs-&gt;&gt;Output: &quot;hello world&quot;
+        Output--&gt;&gt;Inputs: What is the timestamp of title?
+        Inputs--&gt;&gt;Output: «1»
      end
      Note right of Output: Create text node
      Note right of Output: Last timestamp: «1»
@@ -353,20 +370,20 @@ function program(first: string, last: string, title: string) {
         Note over Inputs,Output: Initialize paragraph
         rect rgb(160, 160, 160)
           rect rgba(160, 160, 160, 0.5)
-            Output->>Inputs: What is the value of first?
-            Inputs->>Output: "Matt"
-            Output-->>Inputs: What is the timestamp of first?
-            Inputs-->>Output: «1»
+            Output-&gt;&gt;Inputs: What is the value of first?
+            Inputs-&gt;&gt;Output: &quot;Matt&quot;
+            Output--&gt;&gt;Inputs: What is the timestamp of first?
+            Inputs--&gt;&gt;Output: «1»
           end
           rect rgba(160, 160, 160, 0.5)
-            Output->>Inputs: What is the value of last?
-            Inputs->>Output: "Hammer"
-            Output-->>Inputs: What is the timestamp of last?
-            Inputs-->>Output: «1»
+            Output-&gt;&gt;Inputs: What is the value of last?
+            Inputs-&gt;&gt;Output: &quot;Hammer&quot;
+            Output--&gt;&gt;Inputs: What is the timestamp of last?
+            Inputs--&gt;&gt;Output: «1»
           end
         end
-        Note left of Output: Invoke fullName with "Matt" and "Hammer"
-        Note left of Output: Result: "Matt Hammer"
+        Note left of Output: Invoke fullName with &quot;Matt&quot; and &quot;Hammer&quot;
+        Note left of Output: Result: &quot;Matt Hammer&quot;
      end
      Note right of Output: Create text node
      Note right of Output: Last timestamp: «1»
@@ -374,55 +391,55 @@ function program(first: string, last: string, title: string) {
   Note over User,Output: Some time passes
   rect rgb(200, 200, 200)
     Note over User,Inputs: Update the inputs
-    User->>Inputs: Update title to "goodbye world"
+    User-&gt;&gt;Inputs: Update title to &quot;goodbye world&quot;
   end
   rect rgb(220, 220, 220)
     Note over Inputs,Output: Propagate changes
-    Output-->>Inputs: Is title up to date for «1»?
-    Inputs-->>Output: no
+    Output--&gt;&gt;Inputs: Is title up to date for «1»?
+    Inputs--&gt;&gt;Output: no
     Note right of Output: title is stale ⚠️
-    Output->>Inputs: What is the value of title?
-    Inputs->>Output: "goodbye world"
-    Output-->>Inputs: What is the timestamp of first?
-    Inputs-->>Output: «2»
+    Output-&gt;&gt;Inputs: What is the value of title?
+    Inputs-&gt;&gt;Output: &quot;goodbye world&quot;
+    Output--&gt;&gt;Inputs: What is the timestamp of first?
+    Inputs--&gt;&gt;Output: «2»
     Note right of Output: Update title 🔨
     Note right of Output: Last timestamp: «2»
-    Output-->>Inputs: Is first up to date for «1»?
-    Inputs-->>Output: yes
-    Output-->>Inputs: Is last up to date for «1»?
-    Inputs-->>Output: yes
+    Output--&gt;&gt;Inputs: Is first up to date for «1»?
+    Inputs--&gt;&gt;Output: yes
+    Output--&gt;&gt;Inputs: Is last up to date for «1»?
+    Inputs--&gt;&gt;Output: yes
     Note right of Output: fullName is fresh ✔️
   end
   Note over User,Output: Some time passes
   rect rgb(200, 200, 200)
     Note over User,Inputs: Update the inputs
-    User->>Inputs: Update first to "Matthew"
+    User-&gt;&gt;Inputs: Update first to &quot;Matthew&quot;
   end
   rect rgb(220, 220, 220)
     Note over Inputs,Output: Propagate changes
     rect rgb(200, 200, 200)
       Note over Inputs,Output: Validate title
-      Output-->>Inputs: Is title up to date for «2»?
-      Inputs-->>Output: yes
+      Output--&gt;&gt;Inputs: Is title up to date for «2»?
+      Inputs--&gt;&gt;Output: yes
       Note right of Output: title is fresh ✔️
     end
     rect rgb(200, 200, 200)
       Note over Inputs,Output: Validate fullName
-      Output-->>Inputs: Is first up to date for «1»?
-      Inputs-->>Output: no
+      Output--&gt;&gt;Inputs: Is first up to date for «1»?
+      Inputs--&gt;&gt;Output: no
       Note right of Output: fullName is stale ⚠️
       rect rgb(180, 180, 180)
-        Output->>Inputs: What is the value of first?
-        Inputs->>Output: "Matthew"
-        Output-->>Inputs: What is the timestamp of first?
-        Inputs-->>Output: «3»
-        Output->>Inputs: What is the value of last?
-        Inputs->>Output: "Hammer"
-        Output-->>Inputs: What is the timestamp of last?
-        Inputs-->>Output: «3»
+        Output-&gt;&gt;Inputs: What is the value of first?
+        Inputs-&gt;&gt;Output: &quot;Matthew&quot;
+        Output--&gt;&gt;Inputs: What is the timestamp of first?
+        Inputs--&gt;&gt;Output: «3»
+        Output-&gt;&gt;Inputs: What is the value of last?
+        Inputs-&gt;&gt;Output: &quot;Hammer&quot;
+        Output--&gt;&gt;Inputs: What is the timestamp of last?
+        Inputs--&gt;&gt;Output: «3»
       end
-      Note left of Output: Invoke fullName with "Matt" and "Hammer"
-      Note left of Output: Result: "Matt Hammer"
+      Note left of Output: Invoke fullName with &quot;Matt&quot; and &quot;Hammer&quot;
+      Note left of Output: Result: &quot;Matt Hammer&quot;
       Note right of Output: Update fullName 🔨
       Note right of Output: Last timestamp: «3»
     end
@@ -442,59 +459,81 @@ function program(first: string, last: string, title: string) {
 <p>EverAfter's reactivity model is <em>discrete</em>, which means that the output of the system is from-scratch consistent with its inputs at specific moments on the <a href="#revision-timeline">revision timeline</a>. We call those moments in time <em>reactivity checkpoints</em>.</p>
 <p>Importantly, the reactive output does not make any demands on input cells or derived inputs between reactivity checkpoints. This means that when an input cell \( \mathtt{C} \) is mutated, the only bookkeeping that is necessary is to increment the current point on the <a href="#revision-timeline">revision timeline</a> to \( \mathtt{T} \) and record \( \mathtt{T} \) as the current timestamp of \( \mathtt{C} \). No additional bookkeeping is immediately needed for derived inputs or for outputs that depend on the input cell.</p>
 
-                    </main>
+                </main>
 
-                    <nav class="nav-wrapper" aria-label="Page navigation">
-                        <!-- Mobile navigation buttons -->
-                        
+                <nav class="nav-wrapper" aria-label="Page navigation">
+                    <!-- Mobile navigation buttons -->
+                    
+                    <a rel="prev" href="chapter_0.html" class="mobile-nav-chapters previous"
+                        title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                    
 
-                        
+                    
 
-                        <div style="clear: both"></div>
-                    </nav>
-                </div>
+                    <div style="clear: both"></div>
+                </nav>
             </div>
-
-            <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                
-
-                
-            </nav>
-
         </div>
 
-        
+        <nav class="nav-wide-wrapper" aria-label="Page navigation">
+            
+            <a rel="prev" href="chapter_0.html" class="nav-chapters previous" title="Previous chapter"
+                aria-label="Previous chapter" aria-keyshortcuts="Left">
+                <i class="fa fa-angle-left"></i>
+            </a>
+            
 
-        
+            
+        </nav>
 
-        
-        
-        
-        <script type="text/javascript">
-            window.playpen_copyable = true;
-        </script>
-        
+    </div>
 
-        
+    
+    <!-- Livereload script (if served using the cli tool) -->
+    <script type="text/javascript">
+        var socket = new WebSocket("ws://localhost:3000/__livereload");
+        socket.onmessage = function (event) {
+            if (event.data === "reload") {
+                socket.close();
+                location.reload();
+            }
+        };
 
-        
-        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
-        
+        window.onbeforeunload = function () {
+            socket.close();
+        }
+    </script>
+    
 
-        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
-        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
-        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+    
 
-        <!-- Custom JS scripts -->
-        
-        <script type="text/javascript" src="mermaid.js"></script>
-        
-        <script type="text/javascript" src="src/custom/init.js"></script>
-        
+    
 
-        
+    
 
-    </body>
+    
+
+    
+    <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+    
+
+    <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+    <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+    <!-- Custom JS scripts -->
+    
+    <script type="text/javascript" src="mermaid.js"></script>
+    
+    <script type="text/javascript" src="src/custom/init.js"></script>
+    
+
+    
+
+</body>
+
 </html>
