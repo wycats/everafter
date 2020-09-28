@@ -1,14 +1,11 @@
-use atomig::Atomic;
-use parking_lot::Mutex;
 use std::{fmt::Debug, sync::Arc};
 
-use crate::timeline::{revision::AtomicRevision, Revision};
+use derive_new::new;
+use parking_lot::Mutex;
+
+use crate::timeline::{Inputs, Revision};
 
 use super::Tag;
-
-trait Computation<T: Debug>: Debug {
-    fn compute(&self) -> T;
-}
 
 #[derive(Debug, Default)]
 pub(crate) struct ComputationTag {
@@ -32,18 +29,27 @@ impl ComputationTag {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct ReactiveComputation<T: Debug> {
+#[derive(new)]
+pub(crate) struct ReactiveComputation<T: Debug + Clone + 'static> {
     tag: ComputationTag,
-    computation: Box<dyn Computation<T>>,
+    computation: Box<dyn Fn(&Inputs) -> T>,
 }
 
-impl<T: Debug> ReactiveComputation<T> {
-    pub(crate) fn read(&self) -> T {
-        self.computation.compute()
+impl<T: Debug + Clone + 'static> ReactiveComputation<T> {
+    pub(crate) fn compute(&self, inputs: &Inputs) -> T {
+        (self.computation)(inputs)
     }
 
     pub(crate) fn revision(&self) -> Revision {
         self.tag.revision()
+    }
+}
+
+impl<T> Debug for ReactiveComputation<T>
+where
+    T: Debug + Clone + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ReactiveComputation<{:?}>", std::any::type_name::<T>())
     }
 }

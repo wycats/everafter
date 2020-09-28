@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod inputs;
 mod outputs;
 mod timeline;

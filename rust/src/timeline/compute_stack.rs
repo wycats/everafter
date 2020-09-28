@@ -12,8 +12,6 @@ pub(crate) struct ComputeStack {
 
 impl ComputeStack {
     pub(crate) fn consume(&self, tag: Tag) {
-        let current = self.stack.last();
-
         if let Some(current) = self.stack.last() {
             current.consume(tag);
         }

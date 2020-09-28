@@ -1,6 +1,4 @@
 {
-"rust-analyzer.checkOnSave.extraArgs": [
-    "--target-dir=/tmp/everafter"
-],
-"rust-analyzer.cargo.loadOutDirsFromCheck": true
+  "rust-analyzer.checkOnSave.extraArgs": ["--profile", "test"],
+  "rust-analyzer.cargo.loadOutDirsFromCheck": true
 }

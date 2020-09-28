@@ -9,7 +9,7 @@ pub(crate) struct Tag {
 }
 
 #[derive(Debug, new)]
-pub(crate) struct ReactiveCell<T: Debug + Clone> {
+pub(crate) struct ReactiveCell<T> {
     value: T,
     tag: Tag,
 }
