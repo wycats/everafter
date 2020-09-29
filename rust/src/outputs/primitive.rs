@@ -3,13 +3,13 @@ use std::fmt::Debug;
 use derive_new::new;
 use getset::Getters;
 
-use crate::{inputs::ReactiveInput, timeline::Inputs};
+use crate::timeline::{Inputs, TypedInputId};
 
 #[derive(Debug, Getters, new)]
-pub(crate) struct PrimitiveOutput<T: Debug + Clone + 'static> {
-    #[get = "pub(crate)"]
+pub struct PrimitiveOutput<T: Debug + Clone + 'static> {
+    #[get = "pub"]
     value: T,
-    primitive: ReactiveInput<T>,
+    primitive: TypedInputId<T>,
 }
 
 impl<T: Debug + Clone + 'static> PrimitiveOutput<T> {

@@ -1,17 +1,31 @@
 use derive_new::new;
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use crate::timeline::revision::{AtomicRevision, Revision};
+
+use super::{Reactive, ReactiveTag};
 
 #[derive(Debug, new)]
 pub(crate) struct Tag {
     pub(crate) revision: AtomicRevision,
 }
 
+impl Tag {
+    pub(crate) fn arc(revision: AtomicRevision) -> Arc<Tag> {
+        Arc::new(Tag::new(revision))
+    }
+}
+
 #[derive(Debug, new)]
 pub(crate) struct ReactiveCell<T> {
     value: T,
-    tag: Tag,
+    tag: Arc<Tag>,
+}
+
+impl<T> Reactive for ReactiveCell<T> {
+    fn get_tag(&self) -> ReactiveTag {
+        ReactiveTag::Tag(self.tag.clone())
+    }
 }
 
 impl<T> ReactiveCell<T>

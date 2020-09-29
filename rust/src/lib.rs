@@ -2,7 +2,6 @@
 
 mod inputs;
 mod outputs;
-mod timeline;
+pub mod timeline;
 
-#[cfg(test)]
-mod tests;
+pub use timeline::id::{CellId, DerivedId, FunctionId};

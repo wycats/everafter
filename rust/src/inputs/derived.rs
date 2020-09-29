@@ -5,37 +5,36 @@ use parking_lot::Mutex;
 
 use crate::timeline::{Inputs, Revision};
 
-use super::Tag;
+use super::{Reactive, ReactiveTag};
 
-#[derive(Debug, Default)]
-pub(crate) struct ComputationTag {
-    deps: Arc<Mutex<Vec<Tag>>>,
+#[derive(Debug, Default, Clone)]
+pub(crate) struct DerivedTag {
+    deps: Arc<Mutex<Vec<ReactiveTag>>>,
 }
 
-impl ComputationTag {
+impl DerivedTag {
     pub(crate) fn revision(&self) -> Revision {
         let deps = self.deps.lock();
 
         deps.iter()
-            .map(|d| &d.revision)
+            .map(|d| d.revision())
             .max()
-            .map(|r| r.get())
             .unwrap_or(Revision::constant())
     }
 
-    pub(crate) fn consume(&self, tag: Tag) {
+    pub(crate) fn consume(&self, tag: ReactiveTag) {
         let mut deps = self.deps.lock();
         deps.push(tag);
     }
 }
 
 #[derive(new)]
-pub(crate) struct ReactiveComputation<T: Debug + Clone + 'static> {
-    tag: ComputationTag,
+pub(crate) struct ReactiveDerived<T: Debug + Clone + 'static> {
+    tag: DerivedTag,
     computation: Box<dyn Fn(&Inputs) -> T>,
 }
 
-impl<T: Debug + Clone + 'static> ReactiveComputation<T> {
+impl<T: Debug + Clone + 'static> ReactiveDerived<T> {
     pub(crate) fn compute(&self, inputs: &Inputs) -> T {
         (self.computation)(inputs)
     }
@@ -45,7 +44,13 @@ impl<T: Debug + Clone + 'static> ReactiveComputation<T> {
     }
 }
 
-impl<T> Debug for ReactiveComputation<T>
+impl<T: Debug + Clone + 'static> Reactive for ReactiveDerived<T> {
+    fn get_tag(&self) -> ReactiveTag {
+        ReactiveTag::Derived(self.tag.clone())
+    }
+}
+
+impl<T> Debug for ReactiveDerived<T>
 where
     T: Debug + Clone + 'static,
 {

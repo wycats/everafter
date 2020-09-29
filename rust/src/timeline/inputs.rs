@@ -1,122 +1,114 @@
-use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+use std::fmt::Debug;
 
 use fxtypemap::TypeMap;
 use indexmap::IndexMap;
 
-use crate::inputs::{ReactiveCell, ReactiveComputation};
+use crate::inputs::{function::ReactiveFunctionInstance, Reactive, ReactiveCell, ReactiveDerived};
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub(crate) struct InputId {
-    id: u64,
-}
-
-impl InputId {
-    fn first() -> InputId {
-        InputId { id: 0 }
-    }
-
-    fn next(self) -> InputId {
-        InputId { id: self.id + 1 }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct TypedCellId<T> {
-    id: InputId,
-    marker: PhantomData<T>,
-}
-
-impl<T> TypedCellId<T> {
-    fn first() -> TypedCellId<T> {
-        TypedCellId {
-            id: InputId::first(),
-            marker: PhantomData,
-        }
-    }
-
-    fn next(self) -> TypedCellId<T> {
-        TypedCellId {
-            id: self.id.next(),
-            marker: PhantomData,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct TypedDerivedId<T> {
-    id: InputId,
-    marker: PhantomData<T>,
-}
-
-impl<T> TypedDerivedId<T> {
-    fn first() -> TypedDerivedId<T> {
-        TypedDerivedId {
-            id: InputId::first(),
-            marker: PhantomData,
-        }
-    }
-
-    fn next(self) -> TypedDerivedId<T> {
-        TypedDerivedId {
-            id: self.id.next(),
-            marker: PhantomData,
-        }
-    }
-}
+use super::{
+    id::{CellId, DerivedId, FunctionId, IdKindFor, InputId, TypedInputIdWithKind},
+    ComputeStack,
+};
 
 #[derive(Debug)]
 pub(crate) struct TypedInputs<T: Debug + Clone + 'static> {
-    cells: IndexMap<TypedCellId<T>, ReactiveCell<T>>,
-    next_cell_id: TypedCellId<T>,
-    derived: IndexMap<TypedDerivedId<T>, ReactiveComputation<T>>,
-    next_derived_id: TypedDerivedId<T>,
+    stack: ComputeStack,
+
+    cells: IndexMap<TypedInputIdWithKind<T, CellId<T>>, ReactiveCell<T>>,
+    next_cell_id: TypedInputIdWithKind<T, CellId<T>>,
+    derived: IndexMap<TypedInputIdWithKind<T, DerivedId<T>>, ReactiveDerived<T>>,
+    next_derived_id: TypedInputIdWithKind<T, DerivedId<T>>,
+    functions: IndexMap<TypedInputIdWithKind<T, FunctionId<T>>, ReactiveFunctionInstance<T>>,
+    next_function_id: TypedInputIdWithKind<T, FunctionId<T>>,
 }
 
 impl<T: Debug + Clone + 'static> TypedInputs<T> {
+    // pub(crate) fn consume()
+
     pub(crate) fn for_type() -> TypedInputs<T> {
         TypedInputs::<T> {
+            stack: ComputeStack::default(),
             cells: IndexMap::new(),
-            next_cell_id: TypedCellId::first(),
+            next_cell_id: InputId::first().typed(CellId),
             derived: IndexMap::new(),
-            next_derived_id: TypedDerivedId::first(),
+            next_derived_id: InputId::first().typed(DerivedId),
+            functions: IndexMap::new(),
+            next_function_id: InputId::first().typed(FunctionId),
         }
     }
 
-    pub(crate) fn add_cell(&mut self, value: ReactiveCell<T>) -> TypedCellId<T> {
+    pub(crate) fn add_cell(
+        &mut self,
+        value: ReactiveCell<T>,
+    ) -> TypedInputIdWithKind<T, CellId<T>> {
         let next = self.next_cell_id();
         self.cells.insert(next, value);
         next
     }
 
-    pub(crate) fn add_derived(&mut self, value: ReactiveComputation<T>) -> TypedDerivedId<T> {
+    pub(crate) fn add_derived(
+        &mut self,
+        value: ReactiveDerived<T>,
+    ) -> TypedInputIdWithKind<T, DerivedId<T>> {
         let next = self.next_derived_id();
         self.derived.insert(next, value);
         next
     }
 
-    pub(crate) fn get_cell(&self, id: TypedCellId<T>) -> &ReactiveCell<T> {
-        self.cells.get(&id).expect("typed cell didn't exist")
+    pub(crate) fn consuming<'bucket, K, U>(
+        &self,
+        bucket: &'bucket IndexMap<TypedInputIdWithKind<T, K>, U>,
+        id: TypedInputIdWithKind<T, K>,
+        error: &'static str,
+    ) -> &'bucket U
+    where
+        K: IdKindFor<T>,
+        U: Reactive,
+    {
+        let cell = bucket.get(&id).expect(error);
+        self.stack.consume(cell);
+        cell
     }
 
-    pub(crate) fn get_derived(&self, id: TypedDerivedId<T>) -> &ReactiveComputation<T> {
-        self.derived.get(&id).expect("typed cell didn't exist")
+    pub(crate) fn get_cell(&self, id: TypedInputIdWithKind<T, CellId<T>>) -> &ReactiveCell<T> {
+        self.consuming(&self.cells, id, "typed cell didn't exist")
     }
 
-    pub(crate) fn get_cell_mut(&mut self, id: TypedCellId<T>) -> &mut ReactiveCell<T> {
+    pub(crate) fn get_derived(
+        &self,
+        id: TypedInputIdWithKind<T, DerivedId<T>>,
+    ) -> &ReactiveDerived<T> {
+        self.consuming(&self.derived, id, "typed derive didn't exist")
+    }
+
+    pub(crate) fn get_function(
+        &self,
+        id: TypedInputIdWithKind<T, FunctionId<T>>,
+    ) -> &ReactiveFunctionInstance<T> {
+        self.consuming(&self.functions, id, "typed function didn't exist")
+    }
+
+    pub(crate) fn get_cell_mut(
+        &mut self,
+        id: TypedInputIdWithKind<T, CellId<T>>,
+    ) -> &mut ReactiveCell<T> {
         self.cells.get_mut(&id).expect("typed cell didn't exist")
     }
 
-    pub(crate) fn get_derived_mut(&mut self, id: TypedDerivedId<T>) -> &mut ReactiveComputation<T> {
+    pub(crate) fn get_derived_mut(
+        &mut self,
+        id: TypedInputIdWithKind<T, DerivedId<T>>,
+    ) -> &mut ReactiveDerived<T> {
         self.derived.get_mut(&id).expect("typed cell didn't exist")
     }
 
-    fn next_cell_id(&mut self) -> TypedCellId<T> {
+    fn next_cell_id(&mut self) -> TypedInputIdWithKind<T, CellId<T>> {
         let next = self.next_cell_id;
         self.next_cell_id = next.next();
         next
     }
 
-    fn next_derived_id(&mut self) -> TypedDerivedId<T> {
+    fn next_derived_id(&mut self) -> TypedInputIdWithKind<T, DerivedId<T>> {
         let next = self.next_derived_id;
         self.next_derived_id = next.next();
         next
@@ -124,21 +116,38 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
 }
 
 #[derive(Default)]
-pub(crate) struct Inputs {
+pub struct Inputs {
     map: TypeMap,
     types: Vec<String>,
 }
 
 impl Inputs {
-    pub(crate) fn read_cell<T: Debug + Clone + 'static>(&self, id: TypedCellId<T>) -> T {
-        let map = self.map_for::<T>();
+    pub(crate) fn read_cell<T: Debug + Clone + 'static>(
+        &self,
+        id: TypedInputIdWithKind<T, CellId<T>>,
+    ) -> T {
+        let map = self.read_map_for::<T>();
         map.get_cell(id).read()
     }
 
-    pub(crate) fn compute_derived<T: Debug + Clone + 'static>(&self, id: TypedDerivedId<T>) -> T {
-        let map = self.map_for::<T>();
+    pub(crate) fn compute_derived<T: Debug + Clone + 'static>(
+        &self,
+        id: TypedInputIdWithKind<T, DerivedId<T>>,
+    ) -> T {
+        let map = self.read_map_for::<T>();
         map.get_derived(id).compute(self)
     }
+
+    // pub(crate) fn read_list<T: Debug + Clone + 'static>(&self) -> &TypedInputs<T> {
+    //     if self.map.contains::<TypedInputs<T>>() {
+    //         self.map.get::<TypedInputs<T>>().unwrap()
+    //     } else {
+    //         panic!(
+    //             "Attempted to get map for {:?} but it wasn't registered",
+    //             std::any::type_name::<T>()
+    //         )
+    //     }
+    // }
 
     pub(crate) fn register_map<T: Debug + Clone + 'static>(&mut self) {
         let type_name = std::any::type_name::<T>();
@@ -154,7 +163,7 @@ impl Inputs {
         }
     }
 
-    pub(crate) fn map_for<T: Debug + Clone + 'static>(&self) -> &TypedInputs<T> {
+    pub(crate) fn read_map_for<T: Debug + Clone + 'static>(&self) -> &TypedInputs<T> {
         if self.map.contains::<TypedInputs<T>>() {
             self.map.get::<TypedInputs<T>>().unwrap()
         } else {
@@ -169,10 +178,8 @@ impl Inputs {
         if self.map.contains::<TypedInputs<T>>() {
             self.map.get_mut::<TypedInputs<T>>().unwrap()
         } else {
-            panic!(
-                "Attempted to get map for {:?} but it wasn't registered",
-                std::any::type_name::<T>()
-            )
+            self.register_map::<T>();
+            self.map.get_mut::<TypedInputs<T>>().unwrap()
         }
     }
 }
@@ -182,46 +189,5 @@ impl Debug for Inputs {
         let mut debug = IndexMap::new();
         debug.insert("types", &self.types);
         write!(f, "{:?}", debug)
-    }
-}
-
-impl<T> Hash for TypedCellId<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state)
-    }
-}
-
-impl<T> Hash for TypedDerivedId<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state)
-    }
-}
-
-impl<T> PartialEq for TypedCellId<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl<T> PartialEq for TypedDerivedId<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl<T> Eq for TypedCellId<T> {}
-impl<T> Eq for TypedDerivedId<T> {}
-
-impl<T> Copy for TypedCellId<T> {}
-impl<T> Clone for TypedCellId<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for TypedDerivedId<T> {}
-impl<T> Clone for TypedDerivedId<T> {
-    fn clone(&self) -> Self {
-        *self
     }
 }
