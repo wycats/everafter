@@ -3,11 +3,14 @@ use std::fmt::Debug;
 use derive_new::new;
 
 use crate::{
-    inputs::{DerivedTag, ReactiveCell, ReactiveDerived, Tag},
+    inputs::{
+        function::DynamicFunction, function::ReactiveFunction, DerivedTag, ReactiveCell,
+        ReactiveDerived, Tag,
+    },
     outputs::PrimitiveOutput,
 };
 
-use super::{CellId, DerivedId, Inputs, Revision, TypedInputId, TypedInputIdWithKind};
+use super::{CellId, DerivedId, FunctionId, Inputs, Revision, TypedInputId, TypedInputIdWithKind};
 
 #[derive(Debug, new)]
 pub struct Timeline {
@@ -34,6 +37,16 @@ impl Timeline {
         let derived = ReactiveDerived::new(DerivedTag::default(), Box::new(computation));
         let map = self.inputs.map_for_mut::<T>();
         map.add_derived(derived)
+    }
+
+    pub fn function<T: Debug + Clone + 'static, U: Debug + Clone + 'static>(
+        &mut self,
+        func: DynamicFunction<T>,
+        arg: impl Into<TypedInputId<U>>,
+    ) -> TypedInputIdWithKind<T, FunctionId<T>> {
+        let function = ReactiveFunction::new(func).instantiate(arg.into());
+        let map = self.inputs.map_for_mut::<T>();
+        map.add_function(function)
     }
 
     pub fn update<T: Debug + Clone + 'static>(

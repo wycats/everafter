@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
-mod inputs;
+#[macro_use]
+pub mod inputs;
 mod outputs;
 pub mod timeline;
 
-pub use timeline::id::{CellId, DerivedId, FunctionId};
+pub use inputs::{GetReactiveKey, Key};
+pub use timeline::{Inputs, TypedInputId};

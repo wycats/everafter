@@ -1,6 +1,6 @@
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
-use super::Inputs;
+use super::{dyn_id::DynId, Inputs};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct InputId {
@@ -118,6 +118,10 @@ where
     T: Clone + Debug + 'static,
     K: IdKindFor<T>,
 {
+    pub(crate) fn to_dyn(self) -> DynId {
+        DynId::new::<T>(self.id, self.kind.id_kind())
+    }
+
     pub fn value(self, inputs: &Inputs) -> T {
         TypedInputId::from(self).value(inputs)
     }
@@ -170,6 +174,25 @@ pub struct TypedInputId<T> {
     id: InputId,
     marker: PhantomData<T>,
     kind: IdKind,
+}
+
+impl<T> TypedInputId<T> {
+    pub(crate) fn new(id: InputId, kind: IdKind) -> TypedInputId<T> {
+        TypedInputId {
+            id,
+            marker: PhantomData,
+            kind,
+        }
+    }
+}
+
+impl<T> From<TypedInputId<T>> for DynId
+where
+    T: Clone + Debug + 'static,
+{
+    fn from(input: TypedInputId<T>) -> Self {
+        DynId::new::<T>(input.id, input.kind)
+    }
 }
 
 impl<T> Copy for TypedInputId<T> where T: Clone + Debug + 'static {}
