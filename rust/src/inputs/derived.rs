@@ -8,7 +8,7 @@ use crate::timeline::{Inputs, Revision};
 use super::{Reactive, ReactiveTag};
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct DerivedTag {
+pub struct DerivedTag {
     deps: Arc<Mutex<Vec<ReactiveTag>>>,
 }
 

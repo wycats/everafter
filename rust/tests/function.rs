@@ -63,9 +63,9 @@ fn primitive_list() {
     timeline.update(p1, Person::new("Niko Matsakis", Location::Greece));
 
     // archive
-    timeline.update_output(&mut output1);
-    timeline.update_output(&mut output2);
-    timeline.update_output(&mut output3);
+    output1.update(&mut timeline);
+    output2.update(&mut timeline);
+    output3.update(&mut timeline);
 
     assert_eq!(output1.value(), "Niko Matsakis in Greece");
     assert_eq!(output2.value(), "Andres Robalino in Ecuador");

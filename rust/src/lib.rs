@@ -2,8 +2,8 @@
 
 #[macro_use]
 pub mod inputs;
-mod outputs;
+pub mod outputs;
 pub mod timeline;
 
-pub use inputs::{GetReactiveKey, Key};
-pub use timeline::{Inputs, TypedInputId};
+pub use inputs::{GetReactiveKey, Key, Reactive};
+pub use timeline::{Inputs, Revision, TypedInputId};

@@ -7,8 +7,7 @@ pub(crate) mod timeline;
 
 pub(crate) use compute_stack::ComputeStack;
 pub use dyn_id::DynId;
-pub(crate) use id::TypedInputIdWithKind;
-pub use id::{CellId, DerivedId, FunctionId, TypedInputId};
+pub use id::{CellId, DerivedId, FunctionId, IdKindFor, TypedInputId, TypedInputIdWithKind};
 pub use inputs::Inputs;
-pub(crate) use revision::Revision;
+pub use revision::Revision;
 pub use timeline::Timeline;

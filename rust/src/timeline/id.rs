@@ -1,4 +1,7 @@
+use getset::Getters;
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+
+use crate::Revision;
 
 use super::{dyn_id::DynId, Inputs};
 
@@ -43,6 +46,7 @@ where
 {
     fn id_kind(self) -> IdKind;
     fn value(self, id: InputId, inputs: &Inputs) -> T;
+    fn revision(self, id: InputId, inputs: &Inputs) -> Option<Revision>;
 }
 
 macro_rules! id_kind {
@@ -85,6 +89,16 @@ macro_rules! id_kind {
                 let $map = $inputs.read_map_for::<T>();
                 $definition
             }
+
+            fn revision(self, id: InputId, inputs: &Inputs) -> Option<$crate::Revision> {
+                let input_id = TypedInputIdWithKind {
+                    id,
+                    marker: self.marker,
+                    kind: self,
+                };
+
+                inputs.revision(input_id)
+            }
         }
     };
 }
@@ -122,8 +136,16 @@ where
         DynId::new::<T>(self.id, self.kind.id_kind())
     }
 
-    pub fn value(self, inputs: &Inputs) -> T {
-        TypedInputId::from(self).value(inputs)
+    pub(crate) fn as_unchecked_id(self) -> InputId {
+        self.id
+    }
+
+    pub fn value<'a>(self, inputs: impl Into<&'a Inputs>) -> T {
+        TypedInputId::from(self).value(inputs.into())
+    }
+
+    pub fn revision<'a>(self, inputs: impl Into<&'a Inputs>) -> Option<Revision> {
+        TypedInputId::from(self).revision(inputs.into())
     }
 }
 
@@ -169,17 +191,43 @@ where
     }
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Getters)]
 pub struct TypedInputId<T> {
     id: InputId,
     marker: PhantomData<T>,
+    #[get = "pub(crate)"]
     kind: IdKind,
 }
 
-impl<T> TypedInputId<T> {
+impl<T> TypedInputId<T>
+where
+    T: Debug + Clone + 'static,
+{
     pub(crate) fn new(id: InputId, kind: IdKind) -> TypedInputId<T> {
         TypedInputId {
             id,
+            marker: PhantomData,
+            kind,
+        }
+    }
+
+    pub(crate) fn as_unchecked(self) -> (InputId, IdKind) {
+        (self.id, self.kind)
+    }
+
+    pub(crate) fn downcast<K: IdKindFor<T>>(self, kind: fn() -> K) -> TypedInputIdWithKind<T, K> {
+        let kind = kind();
+
+        assert_eq!(
+            self.kind,
+            kind.id_kind(),
+            "attempted to downcast a {:?} into a {:?}",
+            self.kind,
+            kind.id_kind()
+        );
+
+        TypedInputIdWithKind {
+            id: self.id,
             marker: PhantomData,
             kind,
         }
@@ -197,7 +245,10 @@ where
 
 impl<T> Copy for TypedInputId<T> where T: Clone + Debug + 'static {}
 
-impl<T: Clone + Debug + 'static> TypedInputId<T> {
+impl<T> TypedInputId<T>
+where
+    T: Clone + Debug + 'static,
+{
     pub(crate) fn value(&self, inputs: &Inputs) -> T {
         match self.kind {
             IdKind::CellId => CellId {
@@ -214,6 +265,10 @@ impl<T: Clone + Debug + 'static> TypedInputId<T> {
             }
             .value(self.id, inputs),
         }
+    }
+
+    pub(crate) fn revision(self, inputs: &Inputs) -> Option<Revision> {
+        inputs.revision(self)
     }
 }
 

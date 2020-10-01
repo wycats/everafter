@@ -5,7 +5,7 @@ use crate::timeline::Revision;
 use super::{DerivedTag, Tag};
 
 #[derive(Debug, Clone)]
-pub(crate) enum ReactiveTag {
+pub enum ReactiveTag {
     Tag(Arc<Tag>),
     Derived(DerivedTag),
 }
@@ -19,6 +19,6 @@ impl ReactiveTag {
     }
 }
 
-pub(crate) trait Reactive {
+pub trait Reactive {
     fn get_tag(&self) -> ReactiveTag;
 }

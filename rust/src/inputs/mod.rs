@@ -3,11 +3,12 @@ pub(crate) mod derived;
 #[macro_use]
 pub(crate) mod function;
 pub(crate) mod iterable;
-pub(crate) mod reactive;
+pub mod reactive;
 
 pub(crate) use cell::{ReactiveCell, Tag};
 pub(crate) use derived::{DerivedTag, ReactiveDerived};
 pub use function::DynamicFunction;
 pub(crate) use function::ReactiveFunctionInstance;
 pub use iterable::{GetReactiveKey, Key};
-pub(crate) use reactive::{Reactive, ReactiveTag};
+pub use reactive::Reactive;
+pub(crate) use reactive::ReactiveTag;

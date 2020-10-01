@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::sync::atomic;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Atom)]
-pub(crate) struct Revision {
+pub struct Revision {
     // 0 is the special value const, which has an additional invariant: once the `timestamp` is 0,
     // it must never increase
     timestamp: u64,

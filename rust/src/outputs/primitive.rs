@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use derive_new::new;
 use getset::Getters;
 
-use crate::timeline::{Inputs, TypedInputId};
+use crate::timeline::{Timeline, TypedInputId};
 
 #[derive(Debug, Getters, new)]
 pub struct PrimitiveOutput<T: Debug + Clone + 'static> {
@@ -13,8 +13,8 @@ pub struct PrimitiveOutput<T: Debug + Clone + 'static> {
 }
 
 impl<T: Debug + Clone + 'static> PrimitiveOutput<T> {
-    pub(crate) fn update(&mut self, inputs: &mut Inputs) {
-        let new_value = self.primitive.value(inputs);
+    pub fn update(&mut self, timeline: &Timeline) {
+        let new_value = self.primitive.value(timeline.inputs());
         self.value = new_value;
     }
 }

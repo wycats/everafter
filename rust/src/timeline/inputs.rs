@@ -3,22 +3,25 @@ use std::fmt::Debug;
 use fxtypemap::TypeMap;
 use indexmap::IndexMap;
 
-use crate::inputs::{Reactive, ReactiveCell, ReactiveDerived, ReactiveFunctionInstance};
 use crate::timeline::TypedInputId;
+use crate::{
+    inputs::{Reactive, ReactiveCell, ReactiveDerived, ReactiveFunctionInstance},
+    Revision,
+};
 
 use super::{
-    id::{CellId, DerivedId, FunctionId, IdKindFor, InputId, TypedInputIdWithKind},
+    id::{CellId, DerivedId, FunctionId, IdKind, IdKindFor, InputId, TypedInputIdWithKind},
     ComputeStack,
 };
 
 #[derive(Debug)]
-pub(crate) struct InternalTypedInputs<T, Id, R>
+struct InternalTypedInputs<T, Id, R>
 where
     T: Debug + Clone + 'static,
     Id: IdKindFor<T>,
     R: Reactive,
 {
-    map: IndexMap<TypedInputIdWithKind<T, Id>, R>,
+    map: IndexMap<InputId, R>,
     next_id: TypedInputIdWithKind<T, Id>,
 }
 
@@ -42,16 +45,24 @@ where
     }
 
     fn get(&self, id: TypedInputIdWithKind<T, Id>) -> Option<&R> {
+        self.map.get(&id.as_unchecked_id())
+    }
+
+    fn get_unchecked(&self, id: InputId) -> Option<&R> {
         self.map.get(&id)
     }
 
     fn get_mut(&mut self, id: TypedInputIdWithKind<T, Id>) -> Option<&mut R> {
+        self.map.get_mut(&id.as_unchecked_id())
+    }
+
+    fn get_unchecked_mut(&mut self, id: InputId) -> Option<&mut R> {
         self.map.get_mut(&id)
     }
 
     fn insert(&mut self, value: R) -> TypedInputIdWithKind<T, Id> {
         let next = self.next_id();
-        self.map.insert(next, value);
+        self.map.insert(next.as_unchecked_id(), value);
         next
     }
 }
@@ -98,7 +109,7 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
         self.functions.insert(value)
     }
 
-    pub(crate) fn consuming<'bucket, K, U>(
+    fn consuming<'bucket, K, U>(
         &self,
         bucket: &'bucket InternalTypedInputs<T, K, U>,
         id: TypedInputIdWithKind<T, K>,
@@ -144,6 +155,15 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
     ) -> &mut ReactiveDerived<T> {
         self.derived.get_mut(id).expect("typed cell didn't exist")
     }
+
+    fn revision(&self, id: InputId, kind: IdKind) -> Option<Revision> {
+        match kind {
+            IdKind::CellId => Some(*&self.cells.get_unchecked(id)?.get_tag().revision()),
+            IdKind::DerivedId => Some(*&self.derived.get_unchecked(id)?.get_tag().revision()),
+            IdKind::ListId => unimplemented!("lists are unimplemented"),
+            IdKind::FunctionId => Some(*&self.functions.get_unchecked(id)?.get_tag().revision()),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -156,6 +176,17 @@ impl Inputs {
     pub fn value<T: Debug + Clone + 'static>(&self, id: impl Into<TypedInputId<T>>) -> T {
         let id = id.into();
         id.value(self)
+    }
+
+    pub fn revision<T: Debug + Clone + 'static>(
+        &self,
+        id: impl Into<TypedInputId<T>>,
+    ) -> Option<Revision> {
+        let id = id.into();
+        let map = self.read_map_for::<T>();
+        let (id, kind) = id.as_unchecked();
+
+        map.revision(id, kind)
     }
 
     pub(crate) fn read_cell<T: Debug + Clone + 'static>(
@@ -185,7 +216,7 @@ impl Inputs {
     //     }
     // }
 
-    pub(crate) fn register_map<T: Debug + Clone + 'static>(&mut self) {
+    fn register_map<T: Debug + Clone + 'static>(&mut self) {
         let type_name = std::any::type_name::<T>();
 
         if self.map.contains::<TypedInputs<T>>() {

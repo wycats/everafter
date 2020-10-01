@@ -5,14 +5,14 @@ use crate::timeline::revision::{AtomicRevision, Revision};
 
 use super::{Reactive, ReactiveTag};
 
-#[derive(Debug, new)]
-pub(crate) struct Tag {
+#[derive(Debug)]
+pub struct Tag {
     pub(crate) revision: AtomicRevision,
 }
 
 impl Tag {
     pub(crate) fn arc(revision: AtomicRevision) -> Arc<Tag> {
-        Arc::new(Tag::new(revision))
+        Arc::new(Tag { revision })
     }
 }
 

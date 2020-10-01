@@ -20,6 +20,18 @@ pub struct Timeline {
     inputs: Inputs,
 }
 
+impl Default for Timeline {
+    fn default() -> Timeline {
+        Timeline::new()
+    }
+}
+
+impl<'a> Into<&'a Inputs> for &'a Timeline {
+    fn into(self) -> &'a Inputs {
+        self.inputs()
+    }
+}
+
 impl Timeline {
     pub fn cell<T: Debug + Clone + 'static>(
         &mut self,
@@ -62,6 +74,14 @@ impl Timeline {
         cell.update(value, self.revision);
     }
 
+    pub fn revision<T: Debug + Clone + 'static>(
+        &self,
+        id: impl Into<TypedInputId<T>>,
+    ) -> Option<Revision> {
+        let id = id.into();
+        id.revision(&self.inputs)
+    }
+
     pub fn output<T: Debug + Clone + 'static>(
         &self,
         id: impl Into<TypedInputId<T>>,
@@ -71,23 +91,7 @@ impl Timeline {
         PrimitiveOutput::new(value, id)
     }
 
-    pub fn update_output<T: Debug + Clone + 'static>(&mut self, output: &mut PrimitiveOutput<T>) {
-        output.update(&mut self.inputs)
+    pub(crate) fn inputs(&self) -> &Inputs {
+        &self.inputs
     }
-
-    fn register_map<T: Debug + Clone + 'static>(&mut self) {
-        self.inputs.register_map::<T>()
-    }
-
-    pub(crate) fn get_derived<T: Debug + Clone + 'static>(
-        &self,
-        id: TypedInputIdWithKind<T, DerivedId<T>>,
-    ) -> &ReactiveDerived<T> {
-        let map = self.inputs.read_map_for::<T>();
-        map.get_derived(id)
-    }
-
-    // pub(crate) fn consume(&self, cell: &ReactiveCell<impl Debug + Clone>) {
-    //     let stack = self.stack.get_or_default();
-    // }
 }

@@ -29,7 +29,7 @@ impl DynId {
     #[doc(hidden)]
     pub fn downcast<T>(self) -> TypedInputId<T>
     where
-        T: 'static,
+        T: Debug + Clone + 'static,
     {
         if TypeId::of::<T>() == self.type_id {
             TypedInputId::new(self.id, self.kind)
