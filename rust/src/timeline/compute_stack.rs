@@ -11,6 +11,14 @@ pub(crate) struct ComputeStack {
 }
 
 impl ComputeStack {
+    pub(crate) fn push(&mut self, tag: DerivedTag) {
+        self.stack.push(tag);
+    }
+
+    pub(crate) fn pop(&mut self) {
+        self.stack.pop();
+    }
+
     pub(crate) fn consume(&self, input: &impl Reactive) {
         if let Some(current) = self.stack.last() {
             current.consume(input.get_tag());

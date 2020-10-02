@@ -17,12 +17,18 @@ impl Tag {
 }
 
 #[derive(Debug, new)]
-pub(crate) struct ReactiveCell<T> {
+pub(crate) struct ReactiveCell<T>
+where
+    T: Debug + Clone + 'static,
+{
     value: T,
     tag: Arc<Tag>,
 }
 
-impl<T> Reactive for ReactiveCell<T> {
+impl<T> Reactive for ReactiveCell<T>
+where
+    T: Debug + Clone + 'static,
+{
     fn get_tag(&self) -> ReactiveTag {
         ReactiveTag::Tag(self.tag.clone())
     }

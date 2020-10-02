@@ -3,7 +3,7 @@ use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
 use crate::Revision;
 
-use super::{dyn_id::DynId, Inputs};
+use super::{dyn_id::DynId, partition::PartitionedInputs};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct InputId {
@@ -45,16 +45,16 @@ where
     T: Debug + Clone + 'static,
 {
     fn id_kind(self) -> IdKind;
-    fn value(self, id: InputId, inputs: &Inputs) -> T;
-    fn revision(self, id: InputId, inputs: &Inputs) -> Option<Revision>;
+}
+
+pub trait ComputeKindFor<T>: IdKindFor<T>
+where
+    T: Debug + Clone + 'static,
+{
 }
 
 macro_rules! id_kind {
-    ($id:ident, | $input_id:ident, $map:ident | $definition:expr) => {
-        id_kind!($id, |$input_id, $map, input| $definition);
-    };
-
-    ($id:ident, | $input_id:ident, $map:ident, $inputs:tt | $definition:expr) => {
+    (cell: $id:ident) => {
         #[derive(Debug, Clone)]
         pub struct $id<T: Debug + Clone + 'static> {
             marker: PhantomData<T>,
@@ -79,42 +79,24 @@ macro_rules! id_kind {
             fn id_kind(self) -> IdKind {
                 IdKind::$id
             }
-
-            fn value(self, id: InputId, $inputs: &Inputs) -> T {
-                let $input_id = TypedInputIdWithKind {
-                    id,
-                    marker: self.marker,
-                    kind: self,
-                };
-                let $map = $inputs.read_map_for::<T>();
-                $definition
-            }
-
-            fn revision(self, id: InputId, inputs: &Inputs) -> Option<$crate::Revision> {
-                let input_id = TypedInputIdWithKind {
-                    id,
-                    marker: self.marker,
-                    kind: self,
-                };
-
-                inputs.revision(input_id)
-            }
         }
+    };
+
+    (compute: $id:ident) => {
+        id_kind!(cell: $id);
+
+        impl<T> ComputeKindFor<T> for $id<T> where T: Clone + Debug + 'static {}
     };
 }
 
-id_kind!(CellId, |id, map| map.get_cell(id).read());
-id_kind!(DerivedId, |id, map, inputs| map
-    .get_derived(id)
-    .compute(inputs));
+id_kind!(cell: CellId);
+id_kind!(compute: DerivedId);
 // id_kind!(ListId, |id, inputs| {
 //     let map = inputs.read_map_for::<T>();
 //     let cell = map.get_list(id);
 //     cell.read()
 // });
-id_kind!(FunctionId, |id, map, inputs| map
-    .get_function(id)
-    .call(inputs));
+id_kind!(compute: FunctionId);
 
 #[derive(Debug)]
 pub struct TypedInputIdWithKind<T, K>
@@ -136,16 +118,21 @@ where
         DynId::new::<T>(self.id, self.kind.id_kind())
     }
 
+    pub(crate) fn kind(self) -> IdKind {
+        self.kind.id_kind()
+    }
+
     pub(crate) fn as_unchecked_id(self) -> InputId {
         self.id
     }
 
-    pub fn value<'a>(self, inputs: impl Into<&'a Inputs>) -> T {
-        TypedInputId::from(self).value(inputs.into())
-    }
+    // pub fn value<'a>(self, inputs: impl Into<&'a Inputs>) -> T {
+    //     TypedInputId::from(self).value(inputs.into())
+    // }
 
-    pub fn revision<'a>(self, inputs: impl Into<&'a Inputs>) -> Option<Revision> {
-        TypedInputId::from(self).revision(inputs.into())
+    pub fn revision<'a>(self, inputs: impl Into<PartitionedInputs<'a>>) -> Option<Revision> {
+        inputs.into().revision(self)
+        // TypedInputId::from(self).revision(inputs.into())
     }
 }
 
@@ -215,6 +202,10 @@ where
         (self.id, self.kind)
     }
 
+    pub(crate) fn as_unchecked_id(self) -> InputId {
+        self.id
+    }
+
     pub(crate) fn downcast<K: IdKindFor<T>>(self, kind: fn() -> K) -> TypedInputIdWithKind<T, K> {
         let kind = kind();
 
@@ -249,27 +240,27 @@ impl<T> TypedInputId<T>
 where
     T: Clone + Debug + 'static,
 {
-    pub(crate) fn value(&self, inputs: &Inputs) -> T {
-        match self.kind {
-            IdKind::CellId => CellId {
-                marker: self.marker,
-            }
-            .value(self.id, inputs),
-            IdKind::DerivedId => DerivedId {
-                marker: self.marker,
-            }
-            .value(self.id, inputs),
-            IdKind::ListId => unimplemented!(),
-            IdKind::FunctionId => FunctionId {
-                marker: self.marker,
-            }
-            .value(self.id, inputs),
-        }
-    }
+    // pub(crate) fn value(&self, inputs: &Inputs) -> T {
+    //     match self.kind {
+    //         IdKind::CellId => CellId {
+    //             marker: self.marker,
+    //         }
+    //         .value(self.id, inputs),
+    //         IdKind::DerivedId => DerivedId {
+    //             marker: self.marker,
+    //         }
+    //         .value(self.id, inputs),
+    //         IdKind::ListId => unimplemented!(),
+    //         IdKind::FunctionId => FunctionId {
+    //             marker: self.marker,
+    //         }
+    //         .value(self.id, inputs),
+    //     }
+    // }
 
-    pub(crate) fn revision(self, inputs: &Inputs) -> Option<Revision> {
-        inputs.revision(self)
-    }
+    // pub(crate) fn revision(self, inputs: PartitionedInputs<'_>) -> Option<Revision> {
+    //     inputs.revision(self)
+    // }
 }
 
 impl<T, K> Hash for TypedInputIdWithKind<T, K>

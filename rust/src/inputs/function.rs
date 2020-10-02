@@ -1,13 +1,16 @@
 use std::{any::type_name, any::TypeId, fmt::Debug, marker::PhantomData};
 
-use crate::timeline::{DynId, Inputs, TypedInputId};
+use crate::timeline::{partition::PartitionedInputs, DynId, TypedInputId};
 
-use super::{DerivedTag, Reactive, ReactiveTag};
+use super::{reactive::ReactiveCompute, DerivedTag, Reactive, ReactiveTag};
 
 #[macro_export]
 macro_rules! func {
     ($name:ident($arg:ident : $ty:ty) -> $ret:ty $block:block) => {
-        fn code(inputs: &$crate::timeline::Inputs, arg: $crate::timeline::DynId) -> $ret {
+        fn code(
+            mut inputs: $crate::timeline::PartitionedInputs<'_>,
+            arg: $crate::timeline::DynId,
+        ) -> $ret {
             let $arg = inputs.value(arg.downcast::<$ty>());
             $block
         }
@@ -24,7 +27,7 @@ where
 {
     arg_id: TypeId,
     arg_name: &'static str,
-    code: fn(&Inputs, DynId) -> T,
+    code: fn(PartitionedInputs<'_>, DynId) -> T,
 }
 
 impl<T> Copy for DynamicFunction<T> where T: Clone + Debug + 'static {}
@@ -34,7 +37,7 @@ where
     T: Debug + Clone + 'static,
 {
     #[doc(hidden)]
-    pub fn from_macro<Arg>(code: fn(&Inputs, arg: DynId) -> T) -> DynamicFunction<T>
+    pub fn from_macro<Arg>(code: fn(PartitionedInputs<'_>, arg: DynId) -> T) -> DynamicFunction<T>
     where
         Arg: Clone + Debug + 'static,
     {
@@ -45,7 +48,7 @@ where
         }
     }
 
-    fn call(self, inputs: &Inputs, arg: DynId) -> T {
+    fn call(self, inputs: PartitionedInputs<'_>, arg: DynId) -> T {
         (self.code)(inputs, arg)
     }
 }
@@ -90,7 +93,7 @@ where
         ReactiveFunctionInstance {
             code: self.code,
             args: args.into(),
-            tag: DerivedTag::default(),
+            tag: Some(DerivedTag::default()),
         }
     }
 }
@@ -112,14 +115,14 @@ where
 {
     args: DynId,
     code: DynamicFunction<T>,
-    tag: DerivedTag,
+    tag: Option<DerivedTag>,
 }
 
 impl<T> ReactiveFunctionInstance<T>
 where
     T: Debug + Clone + 'static,
 {
-    pub(crate) fn call(&self, inputs: &Inputs) -> T {
+    pub(crate) fn call(&self, inputs: PartitionedInputs<'_>) -> T {
         (self.code).call(inputs, self.args)
     }
 }
@@ -129,6 +132,19 @@ where
     T: Debug + Clone + 'static,
 {
     fn get_tag(&self) -> super::ReactiveTag {
-        ReactiveTag::Derived(self.tag.clone())
+        ReactiveTag::Derived(self.get_derived_tag())
+    }
+}
+
+impl<T> ReactiveCompute for ReactiveFunctionInstance<T>
+where
+    T: Debug + Clone + 'static,
+{
+    fn get_internal_tag(&self) -> &Option<DerivedTag> {
+        &self.tag
+    }
+
+    fn get_internal_tag_mut(&mut self) -> &mut Option<DerivedTag> {
+        &mut self.tag
     }
 }

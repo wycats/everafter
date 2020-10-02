@@ -5,7 +5,7 @@ use crate::TypedInputId;
 use super::id::{IdKind, InputId};
 
 #[doc(hidden)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct DynId {
     id: InputId,
     kind: IdKind,

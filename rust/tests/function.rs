@@ -43,12 +43,13 @@ fn primitive_list() {
     });
 
     // initialize inputs
-    let p1 = timeline.cell(Person::new("Niko Matsakis", Location::UnitedStates));
-    let printed_p1 = timeline.function(print_person, p1);
-    let p2 = timeline.cell(Person::new("Andres Robalino", Location::Ecuador));
-    let printed_p2 = timeline.function(print_person, p2);
-    let p3 = timeline.cell(Person::new("Santiago Pastorino", Location::Uruguay));
-    let printed_p3 = timeline.function(print_person, p3);
+    let mut transaction = timeline.begin();
+    let p1 = transaction.cell(Person::new("Niko Matsakis", Location::UnitedStates));
+    let printed_p1 = transaction.function(print_person, p1);
+    let p2 = transaction.cell(Person::new("Andres Robalino", Location::Ecuador));
+    let printed_p2 = transaction.function(print_person, p2);
+    let p3 = transaction.cell(Person::new("Santiago Pastorino", Location::Uruguay));
+    let printed_p3 = transaction.function(print_person, p3);
 
     // initialize outputs
     let mut output1 = timeline.output(printed_p1);
@@ -60,12 +61,15 @@ fn primitive_list() {
     assert_eq!(output3.value(), "Santiago Pastorino in Uruguay");
 
     // edit
-    timeline.update(p1, Person::new("Niko Matsakis", Location::Greece));
+    timeline
+        .begin()
+        .update(p1, Person::new("Niko Matsakis", Location::Greece));
 
     // archive
-    output1.update(&mut timeline);
-    output2.update(&mut timeline);
-    output3.update(&mut timeline);
+    let mut transaction = timeline.begin();
+    output1.update(&mut transaction);
+    output2.update(&mut transaction);
+    output3.update(&mut transaction);
 
     assert_eq!(output1.value(), "Niko Matsakis in Greece");
     assert_eq!(output2.value(), "Andres Robalino in Ecuador");
