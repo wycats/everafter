@@ -1,11 +1,10 @@
 use everafter::timeline::Timeline;
 use everafter::{func, GetReactiveKey, Key};
 
-use common::Test;
-
 use uuid::Uuid;
 
 mod common;
+use common::Test;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum Location {
@@ -105,6 +104,63 @@ fn primitive_function_n_args() {
 
     let printed_rust_peeps = test.derived("rust peeps", print_people(&p1, &p3));
     let printed_nu_peeps = test.derived("nu peeps", print_people(&p2, &p4));
+
+    // initialize outputs
+    let mut output1 = printed_rust_peeps.output("printed rust peeps", &test);
+    let mut output2 = printed_nu_peeps.output("printed nu peeps", &test);
+
+    // archive
+    let mut transaction = test.begin();
+    output1.update(&mut transaction);
+    output2.update(&mut transaction);
+
+    output1.expect("Niko Matsakis and Santiago Pastorino", "initialized");
+    output2.expect("Andres Robalino and Yehuda Katz", "initialized");
+
+    // edit
+    p1.update(&mut test, Person::new("Niko Matsakis", Location::Greece));
+    p4.update(
+        &mut test,
+        Person::new("Yehuda S. Katz", Location::UnitedStates),
+    );
+
+    // test.assert_changed
+
+    // archive
+    let mut transaction = test.begin();
+    output1.update(&mut transaction);
+    output2.update(&mut transaction);
+
+    output1.expect("Niko Matsakis and Santiago Pastorino", "after update");
+    output2.expect("Andres Robalino and Yehuda S. Katz", "after update");
+}
+
+#[test]
+fn test_function_calling_function() {
+    let mut test = Test::new();
+
+    func!(people(person1: Person, person2: Person) -> Vec<Person> {
+        vec![person1, person2]
+    });
+
+    func!(print_people(people: Vec<Person>) -> String {
+        format!("{}", itertools::Itertools::join(&mut people.iter().map(|p| &p.name), " and "))
+    });
+
+    // initialize inputs
+    let mut p1 = test.cell("niko", Person::new("Niko Matsakis", Location::UnitedStates));
+    let p2 = test.cell("andres", Person::new("Andres Robalino", Location::Ecuador));
+    let p3 = test.cell(
+        "santiago",
+        Person::new("Santiago Pastorino", Location::Uruguay),
+    );
+    let mut p4 = test.cell("yehuda", Person::new("Yehuda Katz", Location::UnitedStates));
+
+    let rust_peeps = test.derived("rust peeps", people(&p1, &p3));
+    let nu_peeps = test.derived("nu peeps", people(&p2, &p4));
+
+    let printed_rust_peeps = test.derived("printed rust peeps", print_people(&rust_peeps));
+    let printed_nu_peeps = test.derived("printed nu peeps", print_people(&nu_peeps));
 
     // initialize outputs
     let mut output1 = printed_rust_peeps.output("printed rust peeps", &test);

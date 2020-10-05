@@ -3,7 +3,7 @@ use std::{any::type_name, fmt::Debug};
 use fxtypemap::TypeMap;
 use indexmap::IndexMap;
 
-use crate::{inputs::reactive::ReactiveCompute, TypedInputId};
+use crate::TypedInputId;
 use crate::{
     inputs::{Reactive, ReactiveCell, ReactiveDerived},
     Revision,
@@ -133,12 +133,15 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
         ctx: &mut EvaluationContext,
     ) -> T {
         let cell = self.derived.get(id).expect("typed derived didn't exist");
-        let derived = cell.reset_tag();
-        ctx.push(derived);
-        let result = cell.compute(ctx);
-        let tag = ctx.pop();
-        ctx.consume(tag.into());
-        result
+        cell.reset_tag(|derived| {
+            ctx.push(derived);
+
+            let result = cell.compute(ctx);
+
+            let tag = ctx.pop();
+            ctx.consume(tag.into());
+            result
+        })
     }
 
     pub(crate) fn update_cell(

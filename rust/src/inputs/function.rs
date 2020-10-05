@@ -10,13 +10,14 @@ pub struct MacroArg {
 macro_rules! func {
     ($name:ident($($arg:ident : $ty:ty),*) -> $ret:ty $block:block) => {
         #[derive(Debug, Copy, Clone)]
-        struct Computation {
+        #[allow(non_camel_case_types)]
+        struct $name {
             $(
                 $arg: $crate::timeline::DynId,
             )*
         }
 
-        impl $crate::inputs::DynamicComputation<$ret> for Computation
+        impl $crate::inputs::DynamicComputation<$ret> for $name
         where
             $ret: std::fmt::Debug + Clone + 'static,
         {
@@ -29,19 +30,20 @@ macro_rules! func {
             }
         }
 
-        fn $name($( $arg: impl Into<$crate::timeline::TypedInputId<$ty>> ),*) -> Computation
-        where
+        fn $name($( $arg: impl Into<$crate::timeline::TypedInputId<$ty>> ),*) -> $name
+        where $ret: std::fmt::Debug + Clone + 'static,
         $(
             $ty: std::fmt::Debug + Clone + 'static,
         )*
         {
             // let arg: $crate::timeline::TypedInputId<$ty> = arg.into();
 
-            Computation {
+            $name {
                 $(
                     $arg: {
                         let arg: $crate::timeline::TypedInputId<$ty> = $arg.into();
-                        arg.into()
+                        let ret: $crate::timeline::DynId = arg.into();
+                        ret
                     },
                 )*
             }

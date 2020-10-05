@@ -139,7 +139,7 @@ impl<'a> SetupTransaction<'a> {
         &mut self,
         computation: impl DynamicComputation<T> + 'static,
     ) -> TypedInputIdWithKind<T, DerivedId<T>> {
-        let derived = ReactiveDerived::new(Some(DerivedTag::default()), Box::new(computation));
+        let derived = ReactiveDerived::new(DerivedTag::default(), Box::new(computation));
         self.inputs.add_derived::<T>(derived)
     }
 }

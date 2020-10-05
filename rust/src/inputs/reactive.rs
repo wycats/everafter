@@ -23,39 +23,43 @@ pub trait Reactive {
     fn get_tag(&self) -> ReactiveTag;
 }
 
-pub(crate) trait ReactiveCompute: Reactive + Sized {
-    // fn get_derived_tag(&self) -> DerivedTag;
-    // fn reset_tag(&mut self) -> DerivedTag;
-    // fn replace_tag(&mut self, tag: DerivedTag);
-    // fn consume(&mut self, tag: ReactiveTag);
+// pub(crate) trait ReactiveCompute: Reactive + Sized {
+//     // fn get_derived_tag(&self) -> DerivedTag;
+//     // fn reset_tag(&mut self) -> DerivedTag;
+//     // fn replace_tag(&mut self, tag: DerivedTag);
+//     // fn consume(&mut self, tag: ReactiveTag);
 
-    fn get_internal_tag(&self) -> &Option<DerivedTag>;
-    fn get_internal_tag_mut(&mut self) -> &mut Option<DerivedTag>;
+//     fn get_internal_tag(&self) -> &Option<DerivedTag>;
+//     fn get_internal_tag_mut(&mut self) -> &mut Option<DerivedTag>;
 
-    fn reset_tag(&self) -> DerivedTag {
-        tag_for(self).reset()
-    }
+//     fn reset_tag<T>(&self, cb: impl FnOnce(DerivedTag) -> T) -> T {
+//         let tag = tag_for(self);
+//         tag.reset();
+//         let result = cb(tag.clone());
+//         tag.done();
+//         result
+//     }
 
-    fn replace_tag(&mut self, tag: DerivedTag) {
-        if let None = self.get_internal_tag() {
-            panic!("Cannot replace a tag on ReactiveDerived; one already existed!")
-        }
+//     fn replace_tag(&mut self, tag: DerivedTag) {
+//         if let None = self.get_internal_tag() {
+//             panic!("Cannot replace a tag on ReactiveDerived; one already existed!")
+//         }
 
-        self.get_internal_tag_mut().replace(tag);
-    }
+//         self.get_internal_tag_mut().replace(tag);
+//     }
 
-    fn consume(&mut self, tag: ReactiveTag) {
-        tag_for(self).consume(tag)
-    }
+//     fn add_dep(&mut self, tag: ReactiveTag) {
+//         tag_for(self).add_dep(tag)
+//     }
 
-    fn get_derived_tag(&self) -> DerivedTag {
-        tag_for(self)
-    }
-}
+//     fn get_derived_tag(&self) -> DerivedTag {
+//         tag_for(self)
+//     }
+// }
 
-fn tag_for(compute: &impl ReactiveCompute) -> DerivedTag {
-    match compute.get_internal_tag() {
-        None => panic!("Cannot compute a derived value while already computing it"),
-        Some(tag) => tag.clone(),
-    }
-}
+// fn tag_for(compute: &impl ReactiveCompute) -> DerivedTag {
+//     match compute.get_internal_tag() {
+//         None => panic!("Cannot compute a derived value while already computing it"),
+//         Some(tag) => tag.clone(),
+//     }
+// }

@@ -26,12 +26,13 @@ impl<'a> EvaluationContext<'a> {
     }
 
     pub(crate) fn pop(&mut self) -> DerivedTag {
-        self.stack.pop().expect("popped a tag without pushing one")
+        let result = self.stack.pop().expect("popped a tag without pushing one");
+        result
     }
 
     pub(crate) fn consume(&self, tag: ReactiveTag) {
         if let Some(current) = self.stack.last() {
-            current.consume(tag);
+            current.add_dep(tag);
         }
     }
 
