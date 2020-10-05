@@ -32,7 +32,7 @@ pub(crate) trait ReactiveCompute: Reactive + Sized {
     fn get_internal_tag(&self) -> &Option<DerivedTag>;
     fn get_internal_tag_mut(&mut self) -> &mut Option<DerivedTag>;
 
-    fn reset_tag(&mut self) -> DerivedTag {
+    fn reset_tag(&self) -> DerivedTag {
         tag_for(self).reset()
     }
 

@@ -15,7 +15,7 @@
 ## Correct Validation
 
 - [x] Input: Cell
-- [ ] Input: Derived
+- [x] Input: Derived
 - [ ] Input: Functions
 - [ ] Constants
 

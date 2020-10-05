@@ -1,9 +1,7 @@
 use getset::Getters;
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
-use crate::Revision;
-
-use super::{dyn_id::DynId, partition::PartitionedInputs};
+use super::{dyn_id::DynId, EvaluationContext};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct InputId {
@@ -126,13 +124,8 @@ where
         self.id
     }
 
-    // pub fn value<'a>(self, inputs: impl Into<&'a Inputs>) -> T {
-    //     TypedInputId::from(self).value(inputs.into())
-    // }
-
-    pub fn revision<'a>(self, inputs: impl Into<PartitionedInputs<'a>>) -> Option<Revision> {
-        inputs.into().revision(self)
-        // TypedInputId::from(self).revision(inputs.into())
+    pub fn value<'a>(self, ctx: &mut EvaluationContext) -> T {
+        ctx.value(self)
     }
 }
 

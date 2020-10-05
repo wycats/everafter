@@ -6,7 +6,7 @@ use getset::Getters;
 use everafter::{
     outputs::PrimitiveOutput,
     timeline::{
-        CellId, DerivedId, IdKindFor, PartitionedInputs, Timeline, TimelineTransaction,
+        CellId, DerivedId, EvaluationContext, IdKindFor, RenderTransaction, Timeline,
         TypedInputIdWithKind,
     },
     Revision,
@@ -20,7 +20,7 @@ pub struct Test {
 }
 
 impl Test {
-    pub fn begin(&mut self) -> TimelineTransaction<'_> {
+    pub fn begin(&mut self) -> RenderTransaction<'_> {
         self.timeline.begin()
     }
 
@@ -29,7 +29,7 @@ impl Test {
         desc: &'static str,
         value: T,
     ) -> TestReactive<T, CellId<T>> {
-        let mut timeline = self.timeline.begin();
+        let mut timeline = self.timeline.setup();
         let cell = timeline.cell(value);
         let revision = self
             .timeline
@@ -47,9 +47,9 @@ impl Test {
     pub fn derived<T: Debug + Clone + 'static>(
         &mut self,
         desc: &'static str,
-        computation: impl Fn(PartitionedInputs<'_>) -> T + 'static,
+        computation: impl Fn(&mut EvaluationContext) -> T + 'static,
     ) -> TestReactive<T, DerivedId<T>> {
-        let mut timeline = self.timeline.begin();
+        let mut timeline = self.timeline.setup();
         let derived = timeline.derived(computation);
 
         TestReactive {
@@ -60,7 +60,7 @@ impl Test {
         }
     }
 
-    pub fn assert_unchanged<T, K>(&self, reactive: &TestReactive<T, K>)
+    pub fn assert_unchanged<T, K>(&self, reactive: &TestReactive<T, K>, desc: &'static str)
     where
         T: Debug + Clone + 'static,
         K: IdKindFor<T>,
@@ -69,12 +69,12 @@ impl Test {
 
         assert_eq!(
             revision, reactive.last_revision,
-            "expected the revision for {} to remain stable",
-            reactive.desc
+            "expected the revision for {} to remain stable ({})",
+            reactive.desc, desc
         )
     }
 
-    pub fn assert_changed<T, K>(&self, reactive: &mut TestReactive<T, K>)
+    pub fn assert_changed<T, K>(&self, reactive: &mut TestReactive<T, K>, desc: &'static str)
     where
         T: Debug + Clone + 'static,
         K: IdKindFor<T>,
@@ -83,8 +83,8 @@ impl Test {
 
         assert_ne!(
             revision, reactive.last_revision,
-            "expected the revision for {} to have changed",
-            reactive.desc
+            "expected the revision for {} to have changed ({})",
+            reactive.desc, desc
         );
 
         reactive.last_revision = revision;
@@ -112,7 +112,7 @@ where
         self.handle
     }
 
-    pub fn output(&self, desc: &'static str, test: &mut Test) -> TestPrimitiveOutput<T> {
+    pub fn output(&self, desc: &'static str, test: &Test) -> TestPrimitiveOutput<T> {
         return TestPrimitiveOutput {
             desc,
             output: test.timeline.output(self.handle),
@@ -138,7 +138,7 @@ where
         assert_eq!(actual, expected, "{}: {}", self.desc, reason)
     }
 
-    pub fn update(&mut self, test: &mut TimelineTransaction<'_>) {
+    pub fn update(&mut self, test: &mut RenderTransaction<'_>) {
         // test.timeline.begin().update(id, value)
         self.output.update(test);
     }
@@ -149,6 +149,6 @@ where
     T: Debug + Clone + 'static,
 {
     pub fn update(&mut self, test: &mut Test, value: T) {
-        test.timeline.begin().update(self.handle, value);
+        test.timeline.update().update(self.handle, value);
     }
 }

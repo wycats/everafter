@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use derive_new::new;
 use parking_lot::Mutex;
 
-use crate::timeline::{partition::PartitionedInputs, Revision};
+use crate::{timeline::EvaluationContext, timeline::Revision};
 
 use super::{reactive::ReactiveCompute, Reactive, ReactiveTag};
 
@@ -33,15 +33,21 @@ impl DerivedTag {
     }
 }
 
+impl Into<ReactiveTag> for DerivedTag {
+    fn into(self) -> ReactiveTag {
+        ReactiveTag::Derived(self)
+    }
+}
+
 #[derive(new)]
 pub(crate) struct ReactiveDerived<T: Debug + Clone + 'static> {
     tag: Option<DerivedTag>,
-    computation: Box<dyn Fn(PartitionedInputs<'_>) -> T>,
+    computation: Box<dyn Fn(&mut EvaluationContext) -> T>,
 }
 
 impl<T: Debug + Clone + 'static> ReactiveDerived<T> {
-    pub(crate) fn compute(&self, inputs: PartitionedInputs<'_>) -> T {
-        (self.computation)(inputs)
+    pub(crate) fn compute(&self, ctx: &mut EvaluationContext) -> T {
+        (self.computation)(ctx)
     }
 
     pub(crate) fn revision(&self) -> Revision {
@@ -69,28 +75,6 @@ where
     fn get_internal_tag_mut(&mut self) -> &mut Option<DerivedTag> {
         &mut self.tag
     }
-    // fn reset_tag(&mut self) -> DerivedTag {
-    //     let tag = self.take_tag();
-    //     tag.reset();
-    //     tag
-    // }
-
-    // fn replace_tag(&mut self, tag: DerivedTag) {
-    //     match self.tag {
-    //         Some(tag) => panic!("Cannot replace a tag on ReactiveDerived; one already existed!"),
-    //         None => {
-    //             self.tag.replace(tag);
-    //         }
-    //     }
-    // }
-
-    // fn consume(&mut self, tag: ReactiveTag) {
-    //     self.tag().consume(tag)
-    // }
-
-    // fn get_derived_tag(&self) -> DerivedTag {
-    //     self.tag()
-    // }
 }
 
 impl<T> Debug for ReactiveDerived<T>

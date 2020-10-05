@@ -35,7 +35,7 @@ impl GetReactiveKey for Person {
 }
 
 #[test]
-fn primitive_list() {
+fn primitive_function() {
     let mut timeline = Timeline::new();
 
     func!(print_person(person: Person) -> String {
@@ -43,7 +43,7 @@ fn primitive_list() {
     });
 
     // initialize inputs
-    let mut transaction = timeline.begin();
+    let mut transaction = timeline.setup();
     let p1 = transaction.cell(Person::new("Niko Matsakis", Location::UnitedStates));
     let printed_p1 = transaction.function(print_person, p1);
     let p2 = transaction.cell(Person::new("Andres Robalino", Location::Ecuador));
@@ -56,13 +56,19 @@ fn primitive_list() {
     let mut output2 = timeline.output(printed_p2);
     let mut output3 = timeline.output(printed_p3);
 
+    // archive
+    let mut transaction = timeline.begin();
+    output1.update(&mut transaction);
+    output2.update(&mut transaction);
+    output3.update(&mut transaction);
+
     assert_eq!(output1.value(), "Niko Matsakis in UnitedStates");
     assert_eq!(output2.value(), "Andres Robalino in Ecuador");
     assert_eq!(output3.value(), "Santiago Pastorino in Uruguay");
 
     // edit
     timeline
-        .begin()
+        .update()
         .update(p1, Person::new("Niko Matsakis", Location::Greece));
 
     // archive

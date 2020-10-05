@@ -1,6 +1,6 @@
 use std::{any::type_name, any::TypeId, fmt::Debug, marker::PhantomData};
 
-use crate::timeline::{partition::PartitionedInputs, DynId, TypedInputId};
+use crate::timeline::{DynId, EvaluationContext, TypedInputId};
 
 use super::{reactive::ReactiveCompute, DerivedTag, Reactive, ReactiveTag};
 
@@ -8,10 +8,10 @@ use super::{reactive::ReactiveCompute, DerivedTag, Reactive, ReactiveTag};
 macro_rules! func {
     ($name:ident($arg:ident : $ty:ty) -> $ret:ty $block:block) => {
         fn code(
-            mut inputs: $crate::timeline::PartitionedInputs<'_>,
+            ctx: &mut $crate::timeline::EvaluationContext,
             arg: $crate::timeline::DynId,
         ) -> $ret {
-            let $arg = inputs.value(arg.downcast::<$ty>());
+            let $arg = ctx.value(arg.downcast::<$ty>());
             $block
         }
 
@@ -27,7 +27,7 @@ where
 {
     arg_id: TypeId,
     arg_name: &'static str,
-    code: fn(PartitionedInputs<'_>, DynId) -> T,
+    code: fn(&mut EvaluationContext, DynId) -> T,
 }
 
 impl<T> Copy for DynamicFunction<T> where T: Clone + Debug + 'static {}
@@ -37,7 +37,7 @@ where
     T: Debug + Clone + 'static,
 {
     #[doc(hidden)]
-    pub fn from_macro<Arg>(code: fn(PartitionedInputs<'_>, arg: DynId) -> T) -> DynamicFunction<T>
+    pub fn from_macro<Arg>(code: fn(&mut EvaluationContext, arg: DynId) -> T) -> DynamicFunction<T>
     where
         Arg: Clone + Debug + 'static,
     {
@@ -48,8 +48,8 @@ where
         }
     }
 
-    fn call(self, inputs: PartitionedInputs<'_>, arg: DynId) -> T {
-        (self.code)(inputs, arg)
+    fn call(self, ctx: &mut EvaluationContext, arg: DynId) -> T {
+        (self.code)(ctx, arg)
     }
 }
 
@@ -122,8 +122,8 @@ impl<T> ReactiveFunctionInstance<T>
 where
     T: Debug + Clone + 'static,
 {
-    pub(crate) fn call(&self, inputs: PartitionedInputs<'_>) -> T {
-        (self.code).call(inputs, self.args)
+    pub(crate) fn call(&self, ctx: &mut EvaluationContext) -> T {
+        (self.code).call(ctx, self.args)
     }
 }
 

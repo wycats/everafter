@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    inputs::Inputs, partition::PartitionedInputs, CellId, DerivedId, FunctionId, IdKindFor,
-    Revision, TypedInputId, TypedInputIdWithKind,
+    inputs::Inputs, CellId, DerivedId, EvaluationContext, FunctionId, Revision, TypedInputId,
+    TypedInputIdWithKind,
 };
 
 #[derive(Debug, new)]
@@ -32,79 +32,51 @@ impl Default for Timeline {
 impl Timeline {
     pub fn revision<T: Debug + Clone + 'static>(
         &self,
-        id: TypedInputIdWithKind<T, impl IdKindFor<T>>,
+        id: impl Into<TypedInputId<T>>,
     ) -> Option<Revision> {
         let id = id.into();
-        self.inputs.get_revision(id)
+        self.inputs.revision(id)
     }
 
     pub fn output<T: Debug + Clone + 'static>(
         &self,
-        _id: impl Into<TypedInputId<T>>,
+        id: impl Into<TypedInputId<T>>,
     ) -> PrimitiveOutput<T> {
-        unimplemented!()
-        // let _id = id.into();
+        let id = id.into();
         // let value = unimplemented!();
-        // PrimitiveOutput::new(value, id)
+        PrimitiveOutput::new(None, id)
     }
 
-    pub fn begin(&mut self) -> TimelineTransaction<'_> {
-        TimelineTransaction { timeline: self }
+    pub fn setup(&mut self) -> SetupTransaction<'_> {
+        SetupTransaction {
+            inputs: &mut self.inputs,
+            revision: self.revision,
+        }
+    }
+
+    pub fn update(&mut self) -> UpdateTransaction<'_> {
+        UpdateTransaction {
+            inputs: &mut self.inputs,
+            revision: self.revision,
+        }
+    }
+
+    pub fn begin(&mut self) -> RenderTransaction<'_> {
+        RenderTransaction {
+            revision: self.revision,
+            ctx: EvaluationContext::new(&self.inputs),
+        }
     }
 }
 
-#[derive(Debug)]
-pub struct TimelineTransaction<'a> {
-    timeline: &'a mut Timeline,
+pub struct UpdateTransaction<'a> {
+    inputs: &'a mut Inputs,
+    revision: Revision,
 }
 
-impl<'a> TimelineTransaction<'a> {
-    pub fn commit(self) {}
-
-    fn increment_revision(&mut self) -> Revision {
-        let revision = self.timeline.revision.increment();
-        self.timeline.revision = revision;
-        revision
-    }
-
-    // fn input_map<T>(&mut self) -> &mut TypedInputs<T>
-    // where
-    //     T: Debug + Clone + 'static,
-    // {
-    //     self.timeline.inputs.map_for_mut::<T>()
-    // }
-
-    pub(crate) fn get_value<T>(&mut self, _input: TypedInputId<T>) -> T
-    where
-        T: Debug + Clone + 'static,
-    {
-        unimplemented!()
-        // self.input_map().get
-    }
-
-    pub fn cell<T: Debug + Clone + 'static>(
-        &mut self,
-        value: T,
-    ) -> TypedInputIdWithKind<T, CellId<T>> {
-        let cell = ReactiveCell::new(value, Tag::arc(self.timeline.revision.atomic()));
-        self.timeline.inputs.add_cell::<T>(cell)
-    }
-
-    pub fn derived<T: Debug + Clone + 'static>(
-        &mut self,
-        computation: impl Fn(PartitionedInputs<'_>) -> T + 'static,
-    ) -> TypedInputIdWithKind<T, DerivedId<T>> {
-        let derived = ReactiveDerived::new(Some(DerivedTag::default()), Box::new(computation));
-        self.timeline.inputs.add_derived::<T>(derived)
-    }
-
-    pub fn function<T: Debug + Clone + 'static, U: Debug + Clone + 'static>(
-        &mut self,
-        func: DynamicFunction<T>,
-        arg: impl Into<TypedInputId<U>>,
-    ) -> TypedInputIdWithKind<T, FunctionId<T>> {
-        let function = ReactiveFunction::new(func).instantiate(arg.into());
-        self.timeline.inputs.add_function::<T>(function)
+impl<'a> UpdateTransaction<'a> {
+    pub fn commit(self, timeline: &mut Timeline) {
+        timeline.revision = self.revision
     }
 
     pub fn update<T: Debug + Clone + 'static>(
@@ -114,6 +86,72 @@ impl<'a> TimelineTransaction<'a> {
     ) {
         let revision = self.increment_revision();
 
-        self.timeline.inputs.update_cell(id, value, revision);
+        self.inputs.update_cell(id, value, revision);
+    }
+
+    fn increment_revision(&mut self) -> Revision {
+        let revision = self.revision.increment();
+        self.revision = revision;
+        revision
+    }
+}
+
+#[derive(Debug)]
+pub struct RenderTransaction<'a> {
+    ctx: EvaluationContext<'a>,
+    // does not change during render
+    revision: Revision,
+}
+
+impl<'a> RenderTransaction<'a> {
+    pub fn commit(self) {}
+
+    fn increment_revision(&mut self) -> Revision {
+        let revision = self.revision.increment();
+        self.revision = revision;
+        revision
+    }
+
+    pub(crate) fn get_value<T>(&mut self, id: TypedInputId<T>) -> T
+    where
+        T: Debug + Clone + 'static,
+    {
+        self.ctx.inputs.value(id, &mut self.ctx)
+    }
+}
+
+#[derive(Debug)]
+pub struct SetupTransaction<'a> {
+    inputs: &'a mut Inputs,
+    // does not change during setup
+    revision: Revision,
+}
+
+impl<'a> SetupTransaction<'a> {
+    pub fn commit(self) {}
+
+    pub fn cell<T: Debug + Clone + 'static>(
+        &mut self,
+        value: T,
+    ) -> TypedInputIdWithKind<T, CellId<T>> {
+        let cell = ReactiveCell::new(value, Tag::arc(self.revision.atomic()));
+        self.inputs.add_cell::<T>(cell)
+    }
+
+    pub fn derived<T: Debug + Clone + 'static>(
+        &mut self,
+        computation: impl Fn(&mut EvaluationContext) -> T + 'static,
+    ) -> TypedInputIdWithKind<T, DerivedId<T>> {
+        let derived = ReactiveDerived::new(Some(DerivedTag::default()), Box::new(computation));
+        self.inputs.add_derived::<T>(derived)
+    }
+
+    pub fn function<T: Debug + Clone + 'static, U: Debug + Clone + 'static>(
+        &mut self,
+        func: DynamicFunction<T>,
+        arg: impl Into<TypedInputId<U>>,
+    ) -> TypedInputIdWithKind<T, FunctionId<T>> {
+        let function = ReactiveFunction::new(func).instantiate(arg.into());
+        self.inputs.add_function::<T>(function)
     }
 }

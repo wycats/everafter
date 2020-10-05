@@ -6,4 +6,4 @@ pub mod outputs;
 pub mod timeline;
 
 pub use inputs::{GetReactiveKey, Key, Reactive};
-pub use timeline::{Inputs, Revision, TypedInputId};
+pub use timeline::{Revision, TypedInputId};
