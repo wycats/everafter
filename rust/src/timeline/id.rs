@@ -35,7 +35,6 @@ pub enum IdKind {
     CellId,
     DerivedId,
     ListId,
-    FunctionId,
 }
 
 pub trait IdKindFor<T>: Copy
@@ -94,7 +93,6 @@ id_kind!(compute: DerivedId);
 //     let cell = map.get_list(id);
 //     cell.read()
 // });
-id_kind!(compute: FunctionId);
 
 #[derive(Debug)]
 pub struct TypedInputIdWithKind<T, K>

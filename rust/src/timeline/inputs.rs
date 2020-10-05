@@ -5,12 +5,12 @@ use indexmap::IndexMap;
 
 use crate::{inputs::reactive::ReactiveCompute, TypedInputId};
 use crate::{
-    inputs::{Reactive, ReactiveCell, ReactiveDerived, ReactiveFunctionInstance},
+    inputs::{Reactive, ReactiveCell, ReactiveDerived},
     Revision,
 };
 
 use super::{
-    id::{CellId, DerivedId, FunctionId, IdKind, IdKindFor, InputId, TypedInputIdWithKind},
+    id::{CellId, DerivedId, IdKind, IdKindFor, InputId, TypedInputIdWithKind},
     EvaluationContext,
 };
 
@@ -63,7 +63,6 @@ where
 pub(crate) struct TypedInputs<T: Debug + Clone + 'static> {
     pub(super) cells: InternalTypedInputs<T, CellId<T>, ReactiveCell<T>>,
     pub(super) derived: InternalTypedInputs<T, DerivedId<T>, ReactiveDerived<T>>,
-    pub(super) functions: InternalTypedInputs<T, FunctionId<T>, ReactiveFunctionInstance<T>>,
 }
 
 impl<T: Debug + Clone + 'static> TypedInputs<T> {
@@ -73,7 +72,6 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
         TypedInputs::<T> {
             cells: InternalTypedInputs::new(CellId),
             derived: InternalTypedInputs::new(DerivedId),
-            functions: InternalTypedInputs::new(FunctionId),
         }
     }
 
@@ -89,13 +87,6 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
         value: ReactiveDerived<T>,
     ) -> TypedInputIdWithKind<T, DerivedId<T>> {
         self.derived.insert(value)
-    }
-
-    pub(crate) fn add_function(
-        &mut self,
-        value: ReactiveFunctionInstance<T>,
-    ) -> TypedInputIdWithKind<T, FunctionId<T>> {
-        self.functions.insert(value)
     }
 
     fn revision(&self, id: TypedInputId<T>) -> Option<Revision> {
@@ -115,13 +106,6 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
                     .revision(),
             ),
             IdKind::ListId => unimplemented!("TypedInputs::revision for list"),
-            IdKind::FunctionId => Some(
-                self.functions
-                    .get(id.downcast(FunctionId))
-                    .expect("typed function didn't exist")
-                    .get_tag()
-                    .revision(),
-            ),
         }
     }
 
@@ -130,7 +114,6 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
             IdKind::CellId => self.read_cell(id.downcast(CellId), ctx),
             IdKind::DerivedId => self.compute_derived(id.downcast(DerivedId), ctx),
             IdKind::ListId => unimplemented!("Inputs::get_value for lists"),
-            IdKind::FunctionId => self.call_function(id.downcast(FunctionId), ctx),
         }
     }
 
@@ -156,16 +139,6 @@ impl<T: Debug + Clone + 'static> TypedInputs<T> {
         let tag = ctx.pop();
         ctx.consume(tag.into());
         result
-    }
-
-    fn call_function(
-        &self,
-        id: TypedInputIdWithKind<T, FunctionId<T>>,
-        ctx: &mut EvaluationContext,
-    ) -> T {
-        let cell = self.functions.get(id).expect("typed function didn't exist");
-        ctx.consume(cell.get_tag());
-        cell.call(ctx)
     }
 
     pub(crate) fn update_cell(
@@ -201,9 +174,6 @@ impl Inputs {
                 .map_for::<T>()
                 .compute_derived(id.downcast(DerivedId), ctx),
             IdKind::ListId => unimplemented!("Inputs::get_value for lists"),
-            IdKind::FunctionId => self
-                .map_for::<T>()
-                .call_function(id.downcast(FunctionId), ctx),
         }
     }
 
@@ -240,16 +210,6 @@ impl Inputs {
         T: Debug + Clone + 'static,
     {
         self.map_for_mut::<T>().add_cell(cell)
-    }
-
-    pub(crate) fn add_function<T>(
-        &mut self,
-        function: ReactiveFunctionInstance<T>,
-    ) -> TypedInputIdWithKind<T, FunctionId<T>>
-    where
-        T: Debug + Clone + 'static,
-    {
-        self.map_for_mut::<T>().add_function(function)
     }
 
     fn register_map<T: Debug + Clone + 'static>(&mut self) {

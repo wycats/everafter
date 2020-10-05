@@ -17,7 +17,7 @@ impl<T: Debug + Clone + 'static> PrimitiveOutput<T> {
     }
 
     pub fn update(&mut self, timeline: &mut RenderTransaction) {
-        let new_value = timeline.get_value(self.primitive);
+        let new_value = timeline.value(self.primitive);
         self.value = Some(new_value);
     }
 

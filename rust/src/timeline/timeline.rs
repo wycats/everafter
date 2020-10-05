@@ -3,15 +3,12 @@ use std::fmt::Debug;
 use derive_new::new;
 
 use crate::{
-    inputs::{
-        function::DynamicFunction, function::ReactiveFunction, DerivedTag, ReactiveCell,
-        ReactiveDerived, Tag,
-    },
+    inputs::{DerivedTag, DynamicComputation, ReactiveCell, ReactiveDerived, Tag},
     outputs::PrimitiveOutput,
 };
 
 use super::{
-    inputs::Inputs, CellId, DerivedId, EvaluationContext, FunctionId, Revision, TypedInputId,
+    inputs::Inputs, CellId, DerivedId, EvaluationContext, Revision, TypedInputId,
     TypedInputIdWithKind,
 };
 
@@ -112,7 +109,7 @@ impl<'a> RenderTransaction<'a> {
         revision
     }
 
-    pub(crate) fn get_value<T>(&mut self, id: TypedInputId<T>) -> T
+    pub(crate) fn value<T>(&mut self, id: TypedInputId<T>) -> T
     where
         T: Debug + Clone + 'static,
     {
@@ -140,18 +137,9 @@ impl<'a> SetupTransaction<'a> {
 
     pub fn derived<T: Debug + Clone + 'static>(
         &mut self,
-        computation: impl Fn(&mut EvaluationContext) -> T + 'static,
+        computation: impl DynamicComputation<T> + 'static,
     ) -> TypedInputIdWithKind<T, DerivedId<T>> {
         let derived = ReactiveDerived::new(Some(DerivedTag::default()), Box::new(computation));
         self.inputs.add_derived::<T>(derived)
-    }
-
-    pub fn function<T: Debug + Clone + 'static, U: Debug + Clone + 'static>(
-        &mut self,
-        func: DynamicFunction<T>,
-        arg: impl Into<TypedInputId<U>>,
-    ) -> TypedInputIdWithKind<T, FunctionId<T>> {
-        let function = ReactiveFunction::new(func).instantiate(arg.into());
-        self.inputs.add_function::<T>(function)
     }
 }

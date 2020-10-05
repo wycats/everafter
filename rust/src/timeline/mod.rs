@@ -8,6 +8,6 @@ pub(crate) mod timeline;
 
 pub use dyn_id::DynId;
 pub use evaluation_context::EvaluationContext;
-pub use id::{CellId, DerivedId, FunctionId, IdKindFor, TypedInputId, TypedInputIdWithKind};
+pub use id::{CellId, DerivedId, IdKindFor, TypedInputId, TypedInputIdWithKind};
 pub use revision::Revision;
 pub use timeline::{RenderTransaction, Timeline};

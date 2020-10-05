@@ -4,12 +4,10 @@ use derive_new::new;
 use getset::Getters;
 
 use everafter::{
+    inputs::DynamicComputation,
     outputs::PrimitiveOutput,
-    timeline::{
-        CellId, DerivedId, EvaluationContext, IdKindFor, RenderTransaction, Timeline,
-        TypedInputIdWithKind,
-    },
-    Revision,
+    timeline::{CellId, DerivedId, IdKindFor, RenderTransaction, Timeline, TypedInputIdWithKind},
+    Revision, TypedInputId,
 };
 
 #[derive(new, Getters)]
@@ -47,7 +45,7 @@ impl Test {
     pub fn derived<T: Debug + Clone + 'static>(
         &mut self,
         desc: &'static str,
-        computation: impl Fn(&mut EvaluationContext) -> T + 'static,
+        computation: impl DynamicComputation<T> + 'static,
     ) -> TestReactive<T, DerivedId<T>> {
         let mut timeline = self.timeline.setup();
         let derived = timeline.derived(computation);
@@ -120,6 +118,16 @@ where
     }
 }
 
+impl<T, K> Into<TypedInputId<T>> for &TestReactive<T, K>
+where
+    T: Debug + Clone + PartialEq + 'static,
+    K: IdKindFor<T>,
+{
+    fn into(self) -> TypedInputId<T> {
+        self.handle().into()
+    }
+}
+
 pub struct TestPrimitiveOutput<T>
 where
     T: Debug + Clone + 'static,
@@ -132,10 +140,10 @@ impl<T> TestPrimitiveOutput<T>
 where
     T: Debug + Clone + PartialEq + 'static,
 {
-    pub fn expect(&self, expected: T, reason: &'static str) {
+    pub fn expect(&self, expected: impl Into<T>, reason: &'static str) {
         let actual = self.output.value().clone();
 
-        assert_eq!(actual, expected, "{}: {}", self.desc, reason)
+        assert_eq!(actual, expected.into(), "{}: {}", self.desc, reason)
     }
 
     pub fn update(&mut self, test: &mut RenderTransaction<'_>) {

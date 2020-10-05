@@ -1,5 +1,7 @@
 mod common;
 use common::Test;
+use everafter::{timeline::EvaluationContext, GetReactiveKey, Key, TypedInputId};
+use uuid::Uuid;
 
 #[test]
 fn primitive_cell() {
@@ -42,7 +44,7 @@ fn primitive_derived() {
     let i1 = input1.handle();
     let i2 = input2.handle();
 
-    let mut derived = test.derived("derived", move |ctx| -> i32 {
+    let mut derived = test.derived("derived", move |ctx: &mut EvaluationContext| -> i32 {
         ctx.value(i1) + ctx.value(i2)
     });
 
@@ -75,4 +77,99 @@ fn primitive_derived() {
 
     output1.expect(15, "after update");
     output2.expect(15, "after update");
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum Location {
+    UnitedStates,
+    Uruguay,
+    Ecuador,
+    Greece,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Person {
+    id: Uuid,
+    name: String,
+    location: Location,
+}
+
+impl Person {
+    fn new(name: impl Into<String>, location: Location) -> Person {
+        Person {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            location,
+        }
+    }
+}
+
+impl GetReactiveKey for Person {
+    fn get_reactive_key(&self) -> Key {
+        Key::number(self.id.as_u128())
+    }
+}
+
+#[test]
+fn primitive_function() {
+    let mut test = Test::new();
+
+    // func!(print_person(person: Person) -> String {
+    //     format!("{} in {:?}", person.name, person.location)
+    // });
+
+    let print_person = |ctx: &mut EvaluationContext, p: TypedInputId<Person>| {
+        let person = ctx.value(p);
+        format!("{} in {:?}", person.name, person.location)
+    };
+
+    // initialize inputs
+    let mut p1 = test.cell("niko", Person::new("Niko Matsakis", Location::UnitedStates));
+    let p1_handle = p1.handle();
+    let printed_p1 = test.derived("print niko", move |ctx: &mut EvaluationContext| {
+        print_person(ctx, p1_handle.into())
+    });
+    let p2 = test.cell("andres", Person::new("Andres Robalino", Location::Ecuador));
+    let p2_handle = p2.handle();
+    let printed_p2 = test.derived("print andres", move |ctx: &mut EvaluationContext| {
+        print_person(ctx, p2_handle.into())
+    });
+    let p3 = test.cell(
+        "santiago",
+        Person::new("Santiago Pastorino", Location::Uruguay),
+    );
+    let p3_handle = p3.handle();
+    let printed_p3 = test.derived("print santiago", move |ctx: &mut EvaluationContext| {
+        print_person(ctx, p3_handle.into())
+    });
+
+    // initialize outputs
+    let mut output1 = printed_p1.output("niko output", &test);
+    let mut output2 = printed_p2.output("andres output", &test);
+    let mut output3 = printed_p3.output("santiago output", &test);
+
+    // archive
+    let mut render = test.begin();
+    output1.update(&mut render);
+    output2.update(&mut render);
+    output3.update(&mut render);
+
+    // let mut update = test.begin();
+    output1.expect("Niko Matsakis in UnitedStates", "after update");
+    output2.expect("Andres Robalino in Ecuador", "after update");
+    output3.expect("Santiago Pastorino in Uruguay", "after update");
+
+    // edit
+
+    p1.update(&mut test, Person::new("Niko Matsakis", Location::Greece));
+
+    // archive
+    let mut transaction = test.begin();
+    output1.update(&mut transaction);
+    output2.update(&mut transaction);
+    output3.update(&mut transaction);
+
+    output1.expect("Niko Matsakis in Greece", "after update");
+    output2.expect("Andres Robalino in Ecuador", "after update");
+    output3.expect("Santiago Pastorino in Uruguay", "after update");
 }

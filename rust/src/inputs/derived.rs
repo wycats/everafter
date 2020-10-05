@@ -39,15 +39,32 @@ impl Into<ReactiveTag> for DerivedTag {
     }
 }
 
+pub trait DynamicComputation<T>
+where
+    T: Debug + Clone + 'static,
+{
+    fn compute(&self, ctx: &mut EvaluationContext) -> T;
+}
+
+impl<T, U> DynamicComputation<T> for U
+where
+    U: Fn(&mut EvaluationContext) -> T,
+    T: Debug + Clone + 'static,
+{
+    fn compute(&self, ctx: &mut EvaluationContext) -> T {
+        self(ctx)
+    }
+}
+
 #[derive(new)]
 pub(crate) struct ReactiveDerived<T: Debug + Clone + 'static> {
     tag: Option<DerivedTag>,
-    computation: Box<dyn Fn(&mut EvaluationContext) -> T>,
+    computation: Box<dyn DynamicComputation<T>>,
 }
 
 impl<T: Debug + Clone + 'static> ReactiveDerived<T> {
     pub(crate) fn compute(&self, ctx: &mut EvaluationContext) -> T {
-        (self.computation)(ctx)
+        self.computation.compute(ctx)
     }
 
     pub(crate) fn revision(&self) -> Revision {
