@@ -1,5 +1,6 @@
 use everafter::timeline::Timeline;
-use everafter::{func, GetReactiveKey, Key};
+use everafter::{GetReactiveKey, Key};
+use everafter_function::func;
 
 use uuid::Uuid;
 

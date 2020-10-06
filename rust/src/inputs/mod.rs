@@ -1,7 +1,5 @@
 pub(crate) mod cell;
 pub(crate) mod derived;
-#[macro_use]
-pub(crate) mod function;
 pub(crate) mod iterable;
 pub mod reactive;
 
