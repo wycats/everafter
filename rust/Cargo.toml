@@ -14,7 +14,7 @@ members = ["crates/everafter-function"]
 derive-new = '0.5.8'
 derive_more = '0.99.10'
 getset = '0.1.1'
-thread_local = "1.0.1"
+thread_local = "1.1.4"
 parking_lot = "0.11.0"
 atomig = { version = "0.2.0", features = ["derive"] }
 indexmap = "1.6.0"
